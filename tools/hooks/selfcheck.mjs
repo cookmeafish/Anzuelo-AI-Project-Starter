@@ -12,6 +12,8 @@
 // Add a scenario for every new REQ tag (project-rule skill): one where the rule is skipped, one where it is followed.
 // These scenarios test the old engine (v1), so they pin it; tools/hooks/v2/selftest.mjs tests v2, the default.
 process.env.STARTER_ENGINE ||= 'v1';
+import './hidewin.mjs'; // child processes start hidden (no console windows)
+import { testDir, TEST_ROOT, cleanOld } from './testtmp.mjs'; // fixtures under one temp root, removed at exit
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -104,10 +106,12 @@ function base(host = false) {
 // Copies left by an earlier run that was killed before it could clean up: removed once they are 6 hours old, so a run
 // still going in another session keeps its own. Lesson: 136 stale copies piled up in the temp folder.
 try { for (const n of fs.readdirSync(os.tmpdir())) if (/^starter-(base|test|fake|dry|upg)-/.test(n)) { const p = path.join(os.tmpdir(), n); if (Date.now() - fs.statSync(p).mtimeMs > 6 * 3600_000) fs.rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } } catch { }
+// (and what killed runs left under the one test root, at the same age: tools/hooks/testtmp.mjs)
+cleanOld(6 * 3600_000);
 // The base: a copy of this project with every available pack installed and the generated files synced, so every
 // check can be exercised. Files are aged, so only what a scenario writes counts as changed this turn.
 function buildBase(host) {
-  const BASE = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-base-'));
+  const BASE = testDir('starter-base-');
   // A project's build output, environments, engine caches and the folders its .gitignore lists are never test material:
   // left out of the copy, so each of the many test copies stays small. Lesson: in a large project the self-test took
   // twice as long, copying a venv and a game engine's import cache dozens of times.
@@ -216,7 +220,7 @@ function buildBase(host) {
   // manuscript triggers, its routing scenarios failed, and each setup lost minutes to the engine's mistake)
   const libSkills = fs.existsSync(path.join(BASE, 'library', 'skills')) ? fs.readdirSync(path.join(BASE, 'library', 'skills')) : [];
   const ownSkills = host ? libSkills.filter(n => fs.existsSync(at(`skills/${n}/SKILL.md`))) : [];
-  const keepDir = ownSkills.length ? fs.mkdtempSync(path.join(os.tmpdir(), 'starter-base-own-')) : null;
+  const keepDir = ownSkills.length ? testDir('starter-base-own-') : null;
   for (const n of ownSkills) fs.cpSync(at(`skills/${n}`), path.join(keepDir, n), { recursive: true });
   if (libSkills.length) node('tools/skills.mjs', 'enable', ...libSkills);
   for (const n of ownSkills) { fs.rmSync(at(`skills/${n}`), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); fs.cpSync(path.join(keepDir, n), at(`skills/${n}`), { recursive: true }); }
@@ -333,7 +337,7 @@ function engineStampHere() {
   return engineStamp(base(), [['claims.mjs', rd('skills/research/scripts/claims.mjs')], ['obsidian', obs]]);
 }
 function copyProject(host = false) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const dir = testDir('starter-test-');
   fs.cpSync(base(host), dir, { recursive: true, preserveTimestamps: true });
   // (the scenarios test their own checks: the runbook checklist, on by default, stays off unless a scenario turns it
   // on, so a scenario written for another check is not sent back for checklist records it never meant to keep)
@@ -457,7 +461,9 @@ const preexisting = (...ps) => dir => {
   fs.mkdirSync(path.dirname(sp), { recursive: true }); fs.writeFileSync(sp, JSON.stringify(j));
 };
 const editTool = p => ({ name: 'Edit', input: { file_path: p, old_string: 'a', new_string: 'b' } });
-const BG_OUT = n => path.join(os.tmpdir(), `bgmoved-${process.pid}-${n}.output`).replace(/\\/g, '/');
+// (in a test folder of its own, removed at exit: the output files some scenarios write)
+let BG_DIR = null;
+const BG_OUT = n => path.join(BG_DIR ||= testDir('bgout-'), `bgmoved-${process.pid}-${n}.output`).replace(/\\/g, '/');
 const BG_JOB = (id, cmd, file) => ({ name: 'Bash', input: { command: cmd, run_in_background: true }, result: `Command running in background with ID: ${id}. Output is being written to: ${file}. You will be notified when it completes.` });
 const MOVED = (id, file) => `Command did not complete within its 120s timeout and was moved to the background (ID: ${id}). Output is being written to: ${file}`;
 const MOVED_DONE = (id, code) => ({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Background command completed (exit code ${code})</summary>\n</task-notification>` } });
@@ -5576,7 +5582,7 @@ if (mineB() && (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t)))) {
 // finished turn's "checks passed" left on the bar is noise.
 // (in one helper process only: run in each, it was counted once per helper, so the total moved with the machine's load)
 if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'statusbar-')), tp = path.join(dir, 'session.jsonl');
+  const dir = testDir('statusbar-'), tp = path.join(dir, 'session.jsonl');
   const name = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/names.json'), 'utf8')).STARTER_NAME;
   let n = 0; const at = () => new Date(Date.UTC(2026, 9, 28, 12, 0, n++)).toISOString();
   const typed = text => ({ type: 'user', timestamp: at(), message: { role: 'user', content: text } });
@@ -6210,7 +6216,7 @@ if (mineB() && SPEED && fs.existsSync(path.join(ROOT, 'tools/trial.mjs'))) {
     'selftest-speed: the trial registers as a running suite before it works, so another suite\'s hook timing sees its load; it steps aside only while its own child suite runs', JSON.stringify({ regAt, firstRun, child }));
 }
 if (mineB() && SPEED) { // engine-cache: the stamp follows the base's files, Node major, platform and day; a pass is found for its stamp only
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const dir = testDir('starter-test-');
   try {
     write(dir, { 'a/x.txt': 'one', 'b.json': '{}', 'tools/hooks/state/s.json': '1' });
     const at = (o = {}) => engineStamp(dir, o.extra || [], { day: '2026-10-21', node: '24.1.0', platform: 'win32', ...o });
@@ -6227,7 +6233,7 @@ if (mineB() && SPEED) { // engine-cache: the stamp follows the base's files, Nod
 }
 if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pass, reused with one (project notes and own scenarios
   // don't change the stamp, and the own scenarios still run), full again with --full or after an engine file changed
-  const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const dir = copyProject(), tmp = testDir('starter-test-');
   try {
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     // (without the starter's proof: this test is about passes recorded on this machine; engine-proof tests the proof)
@@ -6271,7 +6277,7 @@ if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the s
   // with no pass on this machine; --full, --deep, a changed engine file, or a linked starter with another engine runs
   // everything, and the starter itself always runs everything. Lesson: every new project's setup waited 5 to 16 minutes
   // for the first full run of an engine the starter had already passed.
-  const dir = copyProject(), other = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const dir = copyProject(), other = copyProject(), tmp = testDir('starter-test-');
   try {
     const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
     const mode = (d, ...a) => { const r = nodeIn(d, ['tools/hooks/selfcheck.mjs', '--which-mode', ...a], env); return (/^selfcheck mode: .*$/m.exec(r.stdout) || [`(no mode line) ${r.stdout.slice(-300)} ${r.stderr.slice(-300)}`])[0]; };
@@ -6298,7 +6304,7 @@ if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the s
     fs.appendFileSync(path.join(dir, 'tools/fit.mjs'), '\n// an engine file changed\n');
     const changed = mode(dir);
     // the proof file is written only when it changes
-    const pf = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-')); fs.mkdirSync(path.join(pf, 'tools/hooks'), { recursive: true });
+    const pf = testDir('starter-test-'); fs.mkdirSync(path.join(pf, 'tools/hooks'), { recursive: true });
     const writes = [writeProof(pf, 'abc', 5), writeProof(pf, 'abc', 5), writeProof(pf, 'abc', 6)];
     fs.rmSync(pf, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     report(!!h && /^selfcheck mode: full \(the starter always runs every test\)/.test(starter)
@@ -6352,7 +6358,7 @@ if (mineB()) { // routing-only: a runbook whose only change this turn is its tri
     `sweeps asked: triggers only ${asks(triggersOnly)}, step changed ${asks(stepChanged)} | triggers only: ${triggersOnly.slice(0, 300)} | step changed: ${stepChanged.slice(0, 300)}`);
 }
 if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one waits and prints the first one's result; stale locks are taken over
-  const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const dir = copyProject(), tmp = testDir('starter-test-');
   try {
     const lf = path.join(tmp, 'x.lock');
     const mineTaken = takeLock(lf, { cmd: 'a' }).taken, secondTaken = takeLock(lf, { cmd: 'b' }).taken; releaseLock(lf);
@@ -6379,7 +6385,7 @@ if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one 
   } finally { for (const d of [dir, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
 if (mineB() && SPEED) { // selftest-shards: helpers scale with the CPUs and the self-test runs already going on this machine
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const tmp = testDir('starter-test-');
   const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' });
   try {
     const n = shardCount({ cpus: 32, others: 0, tests: 700 }), busy = shardCount({ cpus: 32, others: 7, tests: 700 }), small = shardCount({ cpus: 4, others: 0, tests: 700 }), few = shardCount({ cpus: 32, others: 0, tests: 30 }), full = shardCount({ cpus: 2, others: 20, tests: 700 });
@@ -6391,7 +6397,7 @@ if (mineB() && SPEED) { // selftest-shards: helpers scale with the CPUs and the 
   } finally { child.kill(); fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB()) { // frozen-pass: a frozen worktree finds its main checkout, so its whole pass counts there; a main checkout has none
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const tmp = testDir('starter-test-');
   try {
     const repo = path.join(tmp, 'repo'), wt = path.join(tmp, 'frozen'), g = (...a) => spawnSync('git', a, { cwd: repo, encoding: 'utf8' });
     write(repo, { 'a.txt': 'a\n' });
@@ -6404,7 +6410,7 @@ if (mineB()) { // frozen-pass: a frozen worktree finds its main checkout, so its
 // timing-turns: a run only waiting for its turn to time a hook is no load, and one run times at a time. Lesson (two
 // projects): two runs waited for each other at the timing test for 10 minutes, then timed together, and one failed
 if (mineB() && SPEED) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const tmp = testDir('starter-test-');
   const kids = [0, 1].map(() => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' }));
   try {
     write(tmp, { [`${kids[0].pid}.json`]: '{"waiting":true}', [`${kids[1].pid}.json`]: '{}' });
@@ -6445,7 +6451,7 @@ if (mineB() && SPEED && IS_STARTER) { // fixtures-only: a project's own docs (pl
   // (in the starter only: the test copy links to this folder as its starter, which inside a project is the project)
   // Lesson: a line in docs/plans/README.md naming the project's own script failed the audit run in the base, and two
   // setups reran the 10-minute self-test up to five times to find it.
-  const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const dir = copyProject(), tmp = testDir('starter-test-');
   try {
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }) });
@@ -6758,7 +6764,7 @@ if (mineB()) { // retired tags: a project's checklists from an earlier version s
 if (mineB() && fs.existsSync(path.join(ROOT, 'skills/efficiency-review/scripts/efficiency.mjs'))) { // efficiency-review: the
   // report reads the project's own sessions and traces each cost to its source. Lesson (the user, 2026-10-25): "what if
   // anzuelo had a runbook/skill to check the projects own hooks and stuff for efficiency"
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eff-'));
+  const dir = testDir('eff-');
   try {
     const sess = path.join(dir, 'sessions'); fs.mkdirSync(sess);
     fs.writeFileSync(path.join(dir, 'CLAUDE.md'), '# Rules\n\n1. After every change run `python tools/sweep.py`.\n');
@@ -6783,7 +6789,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'skills/efficiency-review/scripts/e
 if (mineB() && fs.existsSync(path.join(ROOT, 'skills/goal-loop/scripts/goal.mjs'))) { // goal-loop: the log's check
   // Lesson (the user, 2026-11-07): a loop toward the user's goal for every project, where a change that breaks something
   // is undone; the log is how a later session and the end check know each round was measured
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'goal-'));
+  const dir = testDir('goal-');
   try {
     const run = (...a) => spawnSync(process.execPath, [path.join(ROOT, 'skills/goal-loop/scripts/goal.mjs'), ...a], { cwd: dir, encoding: 'utf8' });
     const made = run('new', 'Faster search page'), f = path.join(dir, made.stdout.trim()), empty = run('check', f);
@@ -6806,7 +6812,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'skills/goal-loop/scripts/goal.mjs'
 
 if (mineB()) { // adoption review: an established project's own pieces are listed and kept, each improvement decided
   // Lesson (the user, 2026-11-07): surgery on an established project, never overriding it; the big changes are the user's
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adopt-review-'));
+  const dir = testDir('adopt-review-');
   try {
     fs.cpSync(path.join(ROOT, 'tools/hooks'), path.join(dir, 'tools/hooks'), { recursive: true, filter: s => !/[\\/]state([\\/]|$)/.test(s) });
     fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
@@ -6845,7 +6851,7 @@ console.log(JSON.stringify([f('# D\\n' + five + '## Where things live\\nx\\n'), 
 if (mineB()) { // rule --forbid: a name the user wants kept out becomes an enforced term in one step; --private keeps the name
   // out of the repository too, and the rule's own wording may not name it. Lesson (the user, 2026-10-25): "projects with
   // anzuelo will also forget things"
-  const dir = copyProject(), home = fs.mkdtempSync(path.join(os.tmpdir(), 'home-'));
+  const dir = copyProject(), home = testDir('home-');
   try {
     const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, USERPROFILE: home, HOME: home, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
     const cfgOf = () => JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8'));
@@ -7300,7 +7306,7 @@ if (mineB()) { // one project's lesson about the engine reaches the starter on i
 }
 
 if (mineB()) { // "hooks.mjs jobs <transcript>": a project's own hook can ask how many background jobs still run
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-jobs-'));
+  const dir = testDir('starter-jobs-');
   try {
     const launch = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'j1', name: 'Agent', input: { prompt: 'x', run_in_background: true } }] } };
     const res = { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'j1', content: 'Async agent launched successfully.\nagentId: abcd1234' }] } };
@@ -7455,7 +7461,7 @@ if (mineB()) { // a short reply to a background task's notice, after the turn en
 if (mineB()) { // a background run is judged by its output file and its exit code in the task notification, not by its stub
   // Lesson: a passing background run never met its check, because "running in background" was read as its output
   const { runsOf } = await import('./hooks-main.mjs');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-bg-'));
+  const dir = testDir('starter-bg-');
   try {
     const outFile = path.join(dir, 'b1.output'); fs.writeFileSync(outFile, 'selfcheck: ALL PASS (10 passed)\n');
     const stub = `Command running in background with ID: b1. Output is being written to: ${outFile}. You will be notified when it completes.`;
@@ -7483,7 +7489,7 @@ if (mineB()) { // a background run is judged by its output file and its exit cod
 
 if (mineB()) { // research ledger: honest ad labels pass, sellers fail, one media group is one owner, a lead-only claim is unverified
   // Lesson: "site ads only" failed while "none found" passed, and two sites of one company counted as independent
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-claims-'));
+  const dir = testDir('starter-claims-');
   try {
     const row = (id, link, owner, inc, use = 'evidence', type = 'secondary') => `| ${id} | ${link} | ${owner} | ${type} | ${inc} | 2026 | ${use} |`;
     const ledger = (rows, claims) => `# Research: t\n\n## Sources\n| ID | Link | Owner | Type | Incentive | Date | Use |\n|---|---|---|---|---|---|---|\n${rows.join('\n')}\n\n## Claims\n| Claim | Sources | Quote or data | Status |\n|---|---|---|---|\n${claims.join('\n')}\n\nSources limit: a test with a small set of sources\n\n## Verdict\nok\n`;
@@ -7521,7 +7527,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'packs/app/files/docs/playbooks/fea
 }
 if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/gitignore.project'))) { // new project's .gitignore: build output only at the top
   // (Lesson (trial v42): an unanchored build/ line kept a site generator in src/build/ out of git, and publishing failed)
-  const gd = fs.mkdtempSync(path.join(os.tmpdir(), 'gitignore-')), gi = (...a) => spawnSync('git', a, { cwd: gd, encoding: 'utf8' });
+  const gd = testDir('gitignore-'), gi = (...a) => spawnSync('git', a, { cwd: gd, encoding: 'utf8' });
   gi('init', '-q'); fs.copyFileSync(path.join(ROOT, 'tools/starter/gitignore.project'), path.join(gd, '.gitignore'));
   const ig = p => gi('check-ignore', '-q', '--no-index', p).status === 0;
   const res = { top: ig('build/site.html'), dist: ig('dist/app.js'), code: ig('src/build/make.js'), codeDist: ig('src/dist/pack.js') };
@@ -7537,7 +7543,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'skills/obsidian/SKILL.md'))) { // 
 }
 if (mineB() && !libMissing('notes-vault/scripts/vault.mjs')) { // vault backlinks: the PASS line says how many new links it checked, and that older links were not
   // Lesson (trial v36): a PASS that checked no new links was relayed as "every link has a link back"
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-vault-'));
+  const dir = testDir('starter-vault-');
   try {
     const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
     const w = (f, s) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), s); };
@@ -7567,7 +7573,7 @@ if (mineB() && !libMissing('notes-vault/scripts/vault.mjs')) { // vault backlink
 
 if (mineB()) { // publish safety in a worktree reads the main folder's .private-terms (git-ignored), and a starter with none fails
   // Lesson (2026-11-06): a frozen worktree's audit passed this sweep with no terms to check, while the main folder's failed
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-terms-')), main = path.join(dir, 'main'), wt = path.join(dir, 'wt');
+  const dir = testDir('starter-terms-'), main = path.join(dir, 'main'), wt = path.join(dir, 'wt');
   try {
     fs.mkdirSync(main); const g = (...a) => spawnSync('git', a, { cwd: main, encoding: 'utf8' });
     g('init', '-q'); fs.writeFileSync(path.join(main, 'a.md'), 'x\n'); g('add', 'a.md'); g('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'a');
@@ -7581,7 +7587,7 @@ if (mineB()) { // publish safety in a worktree reads the main folder's .private-
 }
 
 if (mineB()) { // notes link check: a project's report to the starter is no note, so an example link quoted in it is not broken
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-notes-'));
+  const dir = testDir('starter-notes-');
   try {
     const w = (f, s) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), s); };
     w('docs/knowledge/tea.md', '# Tea\n\nRelated: [[kettle]]\n'); w('docs/knowledge/kettle.md', '# Kettle\n\nRelated: [[tea]]\n');
@@ -7598,7 +7604,7 @@ if (mineB()) { // notes link check: a project's report to the starter is no note
 
 if (mineB() && !libMissing('correspondence/scripts/draft-check.mjs')) { // correspondence draft check: a draft that copies a phrase the skill quotes as an example fails
   // Lesson (trials): the skill's own example lines were copied word for word into letters the user called cold
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-draft-'));
+  const dir = testDir('starter-draft-');
   try {
     const check = text => { const f = path.join(dir, 'd.md'); fs.writeFileSync(f, text); return spawnSync(process.execPath, [path.join(ROOT, 'library/skills/correspondence/scripts/draft-check.mjs'), f], { encoding: 'utf8' }).stdout; };
     const copied = check('Hi Sam,\n\nI am writing to let you know that the rent goes up in spring.\n\nBest,\nAlex\n');
@@ -7837,7 +7843,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs')
     'improvement-loop: a high finding in a skill\'s own check is counted and judged apart; the engine\'s verdict stays NOT WORSE, and the same finding in the engine makes it WORSE', JSON.stringify({ skill: skillRound.worse, skillWorse: skillRound.skillWorse, eng: engRound.worse }));
   // a starter copy handed to a round must be an "Engine proof" commit: without its proof every trial setup reruns the
   // whole self-test and the round measures that instead of the engine. Lesson (round v39)
-  const pr = fs.mkdtempSync(path.join(os.tmpdir(), 'proofcopy-')), g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.hooksPath=', ...a], { cwd: pr, encoding: 'utf8' });
+  const pr = testDir('proofcopy-'), g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.hooksPath=', ...a], { cwd: pr, encoding: 'utf8' });
   g('init', '-q'); fs.writeFileSync(path.join(pr, 'a.txt'), '1'); g('add', '.'); g('commit', '-qm', 'Engine v2: a change');
   const notProof = c.proofProblem(pr); fs.writeFileSync(path.join(pr, 'a.txt'), '2'); g('commit', '-qam', 'Engine proof');
   const proof = c.proofProblem(pr); fs.rmSync(pr, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
@@ -8079,7 +8085,7 @@ if (mineB()) { // setup's own fit run (--auto-skip --setup): skills and tools wi
 }
 
 if (mineB()) { // feedback-status: each report gets a status file the starter's author fills; a project's status counts its own
-  const dir = copyProject(), link = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-fake-'));
+  const dir = copyProject(), link = testDir('starter-fake-');
   try {
     const st = (...a) => spawnSync(process.execPath, ['tools/starter.mjs', 'feedback-status', ...a], { cwd: dir, encoding: 'utf8' });
     const inbox = 'docs/feedback-inbox/demo.md', sf = path.join(dir, 'docs/feedback-inbox/demo.status.md');
@@ -8166,7 +8172,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
     report(nr.status !== 0 && tr.status !== 0 && has(t, 'packs'), 'starter: refuses a starter inside the project, and refuses to run in the starter itself', `${nr.stderr} | ${tr.stderr}`);
     // a starter in the temp folder is refused: it gets cleaned, and linking removes the project's own packs and library
     // (Lesson, trial round 12: a vault linked to a starter in Temp and lost the tools its answer promised for later)
-    const tmpStarter = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-fake-')); dirs.push(tmpStarter);
+    const tmpStarter = testDir('starter-fake-'); dirs.push(tmpStarter);
     fs.mkdirSync(path.join(tmpStarter, 'tools'), { recursive: true }); fs.copyFileSync(path.join(ROOT, 'tools/new-project.mjs'), path.join(tmpStarter, 'tools/new-project.mjs'));
     const tm = mk(); dirs.push(tm);
     const tmr = nodeIn(tm, 'tools/starter.mjs', 'link', tmpStarter);
@@ -8193,7 +8199,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   } finally { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
   // engine lessons travel back: feedback in the project, report into the linked starter's inbox, the starter's audit warns
   {
-    const p = mk(), fake = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-fake-')); let a = null;
+    const p = mk(), fake = testDir('starter-fake-'); let a = null;
     try {
       write(fake, { 'tools/new-project.mjs': '// a starter\n' });
       fs.writeFileSync(path.join(p, 'tools/starter.local.json'), JSON.stringify({ path: fake }));
@@ -8223,7 +8229,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   }
   // a dry run prints a summary: counts per folder and the collisions; --verbose lists every file
   {
-    const tgt = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-dry-'));
+    const tgt = testDir('starter-dry-');
     try {
       write(tgt, { 'README.md': '# mine\n', 'notes/a.md': 'x' });
       const s = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), tgt, '--adopt', '--dry-run', '--dev'], { encoding: 'utf8' }).stdout;
@@ -8239,10 +8245,10 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // to its own copy beside it that the project links to; the session there is told to do it. A clone with changes of
   // its own is left alone. Lesson (a field report): the agent guessed where the starter belongs)
   {
-    const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-self-'));
+    const box = testDir('anzuelo-self-');
     const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8' });
     const cloneAt = dir => { git(box, 'clone', '-q', ROOT, dir);
-      for (const f of ['tools/new-project.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
+      for (const f of ['tools/new-project.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/hidewin.mjs']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
       git(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qam', 'under test');
       git(dir, 'remote', 'set-url', 'origin', 'https://example.com/x/Some-Starter.git'); };
     const install = (dir, ...a) => spawnSync(process.execPath, [path.join(dir, 'tools/new-project.mjs'), '--self-install', ...a], { cwd: dir, encoding: 'utf8', timeout: 300000 });
@@ -8319,7 +8325,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // starter
   // Lessons: update dropped --verbose; a clone holding a project's own engine fixes blocked every update.
   const dirs = [];
   try {
-    const mkd = n => { const d = fs.mkdtempSync(path.join(os.tmpdir(), `starter-fake-${n}-`)); dirs.push(d); return d; };
+    const mkd = n => { const d = testDir(`starter-fake-${n}-`); dirs.push(d); return d; };
     const origin = mkd('origin'), og = gitInit(origin);
     write(origin, { 'tools/new-project.mjs': "console.log('UPGRADE ARGS ' + JSON.stringify(process.argv.slice(3)));\n", 'notes.md': 'one\n', 'local.md': 'base\n' });
     og('add', '-A'); og('commit', '-q', '--no-verify', '-m', 'one');
@@ -8351,7 +8357,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // starter
 }
 
 if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in the starter only: it makes projects): an upgrade that breaks a passing check rolls back
-  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-upg-'));
+  const proj = testDir('starter-upg-');
   try {
     const np = (...a) => spawnSync(process.execPath, [path.join(base(), 'tools/new-project.mjs'), proj, '--dev', ...a], { encoding: 'utf8', timeout: 300000 });
     np('--name', 'Upg');
@@ -8425,7 +8431,7 @@ if (mineS()) { // agent-neutral: a fresh clone has no agent files; wire makes CL
 
 if (mineB()) { // agent-neutral: wire keeps a project's own Codex hook commands, also inside a group shared with the engine,
   // and never replaces a .codex/hooks.json that does not parse. Lesson: an adopted project's own hooks were dropped.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const dir = testDir('starter-test-');
   try {
     const { wire } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/wire.mjs')).href);
     write(dir, { 'tools/hooks/config.json': JSON.stringify({ wireAgents: ['codex'] }) });
@@ -8561,7 +8567,7 @@ if (mineB()) { // a message from another session after the turn ended starts its
 
 if (mineB()) { // wire: a vault the user had hides the engine's folders; the engine's own .obsidian is left as it is
   // (Lesson: adopting a vault put 72 engine files among the user's notes; the survey took the engine's file for a vault)
-  const v = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-')), e = fs.mkdtempSync(path.join(os.tmpdir(), 'novault-'));
+  const v = testDir('vault-'), e = testDir('novault-');
   try {
     fs.mkdirSync(path.join(v, '.obsidian')); fs.writeFileSync(path.join(v, '.obsidian/app.json'), '{}\n');
     const W = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/wire.mjs')).href);
@@ -8573,7 +8579,7 @@ if (mineB()) { // wire: a vault the user had hides the engine's folders; the eng
 if (mineB()) { // wire: an adopted vault also hides the engine's records, rule files and work folders, merged with the user's own
   // exclusions, every other setting untouched, and the user's own files of those names still shown
   // (Lesson: an adopted vault showed AGENTS.md, DIRECTORY.md, docs/, inbox/ and more among the user's notes)
-  const v = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-')), old = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-'));
+  const v = testDir('vault-'), old = testDir('vault-');
   try {
     const APP = { userIgnoreFilters: ['Archive/'], attachmentFolderPath: 'Attachments', showLineNumber: true };
     for (const d of [v, old]) write(d, { '.obsidian/app.json': JSON.stringify(APP, null, 2) + '\n', '.obsidian/appearance.json': '{"theme":"obsidian"}\n', 'Tea/Water temperature.md': '# Water temperature\n', 'README.md': '# My vault\n' });
@@ -8634,7 +8640,7 @@ if (mineB()) { // generated files: an edit to the shipped-checks files names the
 
 if (mineB()) { // cost: tokens, time, tool calls and helper tokens per request, from the transcripts (Lesson, field report:
   // the user asked what a job cost and the agent parsed the transcript by hand)
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cost-'));
+  const dir = testDir('cost-');
   try {
     const tp = path.join(dir, 's1.jsonl'), at = s => `2026-10-01T10:${String(s).padStart(2, '0')}:00.000Z`;
     const u = (id, s, tools = 0) => ({ type: 'assistant', timestamp: at(s), message: { id, content: [{ type: 'text', text: 'x' }, ...Array(tools).fill({ type: 'tool_use', name: 'Bash', input: {} })], usage: { input_tokens: 10, cache_read_input_tokens: 1000, cache_creation_input_tokens: 100, output_tokens: 50 } } });
@@ -9389,7 +9395,7 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
   // the audit run from there with the session in the project. The reminder, a guard, sync and the audit work, sync
   // writes nothing into the engine, and the hook state lands in .anzuelo/local. Plan: engine outside the project, Task 2.
   const { kind } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/paths.mjs')).href);
-  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-split-')), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
+  const proj = testDir('starter-test-split-'), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
   try {
     const cp = (f, to) => { const t = path.join(to, f); fs.mkdirSync(path.dirname(t), { recursive: true }); fs.copyFileSync(path.join(ROOT, f), t); };
     for (const f of (spawnSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean)) {
@@ -9439,7 +9445,7 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
   // install from the starter (its committed engine): the engine is a clone in .anzuelo/engine, an existing project
   // keeps its files, and setup asks once whether .anzuelo/local gets a private repository: the gate holds until the
   // answer is recorded, and yes and no both clear it. Plan: engine outside the project, Task 4.
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-install-'));
+  const tmp = testDir('starter-test-install-');
   try {
     const proj = path.join(tmp, 'p'); fs.mkdirSync(proj); fs.writeFileSync(path.join(proj, 'README.md'), '# Their own readme\n');
     const ins = spawnSync(process.execPath, [path.join(ROOT, 'tools/starter.mjs'), 'install', proj], { encoding: 'utf8', timeout: 300000 });
@@ -9462,7 +9468,7 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
   // before and after; an edit inside the engine is refused (REQ: engine-readonly) and points at a local copy; a local
   // copy of a default gets the default's new change merged in, and one whose lines meet the default's is left for the
   // user and still used. Plan: engine outside the project, Task 5.
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-upgrade-'));
+  const tmp = testDir('starter-test-upgrade-');
   try {
     const g = (cwd, ...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd, encoding: 'utf8' });
     const up = path.join(tmp, 'up'), proj = path.join(tmp, 'p'), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
@@ -9827,7 +9833,7 @@ if (mineB() && (!TAGS || TAGS.includes('forbidden-terms'))) { // forbidden-terms
 if (mineB() && (!TAGS || TAGS.includes('transcript-tail'))) { // transcript-tail: a transcript is read from its end in a window that grows until it holds the turn's prompt
   // (Lesson: a 568 MB transcript was over the largest string a file can be read into, and every hook lost the history)
   const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href);
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-')), f = path.join(tmp, 't.jsonl');
+  const tmp = testDir('starter-test-'), f = path.join(tmp, 't.jsonl');
   try {
     const pad = Array.from({ length: 400 }, (_, i) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `step ${i} ${'x'.repeat(200)}` }] } }));
     const rows = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'an old request' } }), ...pad.slice(0, 200),

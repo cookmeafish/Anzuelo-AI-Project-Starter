@@ -2,6 +2,7 @@
 // and passing on good samples (check-proven), and whether an answer that says a miss can't come back, or that something
 // is enforced automatically, has a covering check behind it (claim-checked). Moved here from hooks.mjs unchanged; the
 // project's files, globs and requirements come in through io, so engine v2 runs it with its own root.
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

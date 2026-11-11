@@ -5,6 +5,7 @@
 // Lesson (a field report): a project's rule in requirements.json looked enforced, and v2 never read it.
 //   node tools/always.mjs convert [--dry-run]   convert what can be, list the rest
 //   node tools/always.mjs pending               the project's checks not in always.md yet (exit 1 if any)
+import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

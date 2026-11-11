@@ -1,5 +1,6 @@
 // REQ: external-stop, shared by both engines (moved from hooks.mjs). A project's own Stop command (config
 // "externalStop") runs inside this Stop: its numbered steps become steps here.
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import { spawnSync } from 'node:child_process';
 
 // REQ: external-stop. The project's own Stop command, run with this Stop's input; its numbered steps become steps here.

@@ -14,6 +14,7 @@
 //   node tools/starter/trials/compare.mjs <round> [--record] [--results <dir>] [--judge <dir>] [--engine <commit>]
 // --record keeps the round in tools/starter/trials/rounds.json (committed: the history every later round compares to).
 // Exit 0: NOT WORSE; 1: WORSE; 2: the round's records or judges are missing.
+import '../../hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

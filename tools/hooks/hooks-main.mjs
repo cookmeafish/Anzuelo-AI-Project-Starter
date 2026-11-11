@@ -3,6 +3,7 @@
 // The docs say what the rules are; this file makes them automatic so nobody has to remind the agent.
 // Project-specific checks belong in requirements.json (data), not here. Core checks carry a "REQ: <tag>" comment that
 // docs/checks/rule-enforcement.md and tools/audit.mjs refer to. "Lesson:" marks a failure seen in an earlier project.
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import { appendHistory, recallMatchesIn, recallLine } from './history.mjs';
 import { menuOf, expandMenuOf } from './menu.mjs';
 import { ROOT_TOOLCHAINS, rootToolchainFile as sharedRootToolchain } from './rootfiles.mjs';

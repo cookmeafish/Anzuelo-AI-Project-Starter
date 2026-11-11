@@ -89,6 +89,6 @@ if (cmd === 'links') {
 } else if (cmd === 'open') {
   const url = `obsidian://open?path=${encodeURIComponent(path.join(ROOT, resolve(arg)))}`;
   const [bin, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
-  spawn(bin, args, { detached: true, stdio: 'ignore' }).unref();
+  spawn(bin, args, { detached: true, stdio: 'ignore' }).unref(); // window shown on purpose: it opens Obsidian for the user
   console.log(`opening ${url}`);
 } else usage();

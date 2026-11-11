@@ -3,6 +3,7 @@
 // says so honestly. Moved here from hooks.mjs unchanged; the project's root and the shell helpers come in through io.
 // io: { ROOT, rel(p), re(src, flags), esc(s), shellParts(cmd), cmdHead(cmd), neverRan(run), refusedOutright(run),
 // MISSING_TOOL, envOf(name) }
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

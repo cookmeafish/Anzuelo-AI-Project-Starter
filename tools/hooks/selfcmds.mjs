@@ -2,6 +2,7 @@
 // adds one (node tools/hooks/hooks.mjs self-allow "<command>"); the guard refuses an agent's edit that adds one, and the
 // end check runs no other. Kept apart so the guard (pretool) and the end check share it without loading each other.
 // Lesson (a peer's security review): a self-run named in a markdown file agents edit could be made to run any command.
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

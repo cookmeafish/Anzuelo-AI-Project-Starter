@@ -1,6 +1,7 @@
 // Engine v2: shared pieces for the start reminder and the end check. A runbook's "Done when" list is the turn's
 // requirements: the start hook shows it, the end hook checks the items it can check against this session's own
 // transcript (never the git state of a shared folder). Plan: docs/plans/2026-11-05-engine-v2.md.
+import '../hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';

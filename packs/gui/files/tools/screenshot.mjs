@@ -48,7 +48,7 @@ function freePort() {
 }
 function killTree(child) {
   if (!child || child.exitCode !== null) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
   else { try { process.kill(-child.pid, 'SIGTERM'); } catch { try { child.kill('SIGTERM'); } catch { } } }
 }
 
@@ -107,7 +107,7 @@ async function webShots(target, steps = [], name = PAGE) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-shot-'));
   const browser = spawn(exe, ['--headless', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
     '--password-store=basic', '--use-mock-keychain', '--disable-sync', '--disable-extensions', '--disable-background-networking',
-    '--disable-component-update', '--disable-features=Translate,MediaRouter,OptimizationHints', '--hide-scrollbars', '--mute-audio', 'about:blank'], { stdio: 'ignore' });
+    '--disable-component-update', '--disable-features=Translate,MediaRouter,OptimizationHints', '--hide-scrollbars', '--mute-audio', 'about:blank'], { stdio: 'ignore', windowsHide: true });
   try {
     let port = null;
     for (let i = 0; i < 100 && !port; i++) { await sleep(100); try { port = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0]; } catch { } }
@@ -191,7 +191,7 @@ async function contactSheets(files) {
       `figure{margin:0;background:#fff;padding:3px}.w{grid-column:span 2}img{width:100%;display:block}figcaption{padding-top:3px;word-break:break-all}</style><main>${cells}</main>`);
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-sheet-'));
     const browser = spawn(exe, ['--headless', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--password-store=basic',
-      '--use-mock-keychain', '--disable-sync', '--disable-extensions', '--allow-file-access-from-files', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+      '--use-mock-keychain', '--disable-sync', '--disable-extensions', '--allow-file-access-from-files', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore', windowsHide: true });
     try {
       let port = null;
       for (let k = 0; k < 100 && !port; k++) { await sleep(100); try { port = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0]; } catch { } }
@@ -248,11 +248,11 @@ Write-Output ("OK " + $p.MainWindowTitle + " " + $w + "x" + $hh)
   fs.writeFileSync(psFile, ps);
   let out = '';
   for (let i = 0; i < 20; i++) {
-    const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile], { encoding: 'utf8', env: { ...process.env, STARTER_TITLE: title, STARTER_OUT: file } });
+    const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile], { encoding: 'utf8', windowsHide: true, env: { ...process.env, STARTER_TITLE: title, STARTER_OUT: file } });
     out = (r.stdout || '') + (r.stderr || '');
     if (/^OK /m.test(out)) break;
     if (!/NOWINDOW/.test(out)) break;
-    spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']);
+    spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},500)'], { windowsHide: true });
   }
   try { fs.unlinkSync(psFile); } catch { }
   if (!/^OK /m.test(out)) { warn(`no window titled like "${title}" could be captured: ${out.trim().slice(0, 300)}`); return; }
@@ -274,7 +274,7 @@ try {
   const launch = sub(opt('--launch'));
   if (launch) {
     // a throwaway instance on a free port, never the user's running one
-    app = spawn(launch, { shell: true, cwd: ROOT, stdio: 'ignore', detached: process.platform !== 'win32' });
+    app = spawn(launch, { shell: true, cwd: ROOT, stdio: 'ignore', detached: process.platform !== 'win32' }); // window shown on purpose: the app being screenshotted
     console.log(`LAUNCHED ${launch} (pid ${app.pid})`);
   }
   if (opt('--window')) {

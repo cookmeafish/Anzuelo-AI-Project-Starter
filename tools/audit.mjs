@@ -4,6 +4,7 @@
 //   node tools/audit.mjs --full    + the hook self-tests and ablation tests (and, in the starter, the trial)
 //   node tools/audit.mjs --setup   + the hook self-tests and the setup gate (SETUP-PROMPT.md may be deleted only when this passes)
 // FAIL = fix before finishing. WARN = worth fixing. Fix the project, never weaken a sweep to make it pass.
+import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

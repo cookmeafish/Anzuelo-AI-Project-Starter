@@ -30,8 +30,11 @@
 //                                                 (in the starter) write or refresh <name>.status.md beside a report: each
 //                                                 item "open", "fixed in <commit>" or "declined: <why>"; lists the open
 //                                                 ones. A project's "status" then shows how many of its reports are fixed.
+//   node tools/starter.mjs clean-tests [--hours N]  remove what killed test runs left under <temp>/anzuelo-tests, older
+//                                                 than 1 hour (or N); nothing else in the temp folder is touched
 // The starter always lives in its own folder, outside every project it creates. The link is a path on this machine,
 // so it is kept in tools/starter.local.json, which git ignores. On another machine, run "link <folder>" again.
+import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -130,6 +133,16 @@ if (process.argv[2] === 'feedback-status') {
 }
 
 // (install runs from the starter: it puts this engine into another folder)
+// clean-tests: what killed test runs left under the one test root (<temp>/anzuelo-tests), older than 1 hour (or
+// --hours N); nothing else in the temp folder is touched. In the starter and in projects alike.
+if (process.argv[2] === 'clean-tests') {
+  const { cleanOld, TEST_ROOT } = await import('./hooks/testtmp.mjs');
+  const h = process.argv.indexOf('--hours'), hours = h > 0 ? Number(process.argv[h + 1]) : 1;
+  if (!(hours >= 0)) { console.error('usage: node tools/starter.mjs clean-tests [--hours N]'); process.exit(2); }
+  const n = cleanOld(hours * 3600_000);
+  console.log(`clean-tests: removed ${n} leftover test folder${n === 1 ? '' : 's'} older than ${hours} hour${hours === 1 ? '' : 's'} under ${TEST_ROOT}`);
+  process.exit(0);
+}
 if (fs.existsSync(at('.starter-template')) && process.argv[2] !== 'install') { console.error('This is the starter itself. These commands are for projects made from it.'); process.exit(1); }
 
 const [cmd, arg] = process.argv.slice(2);

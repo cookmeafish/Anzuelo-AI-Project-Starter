@@ -26,7 +26,7 @@ if (!TYPES.includes(type) || !query) usage();
 if (!Number.isInteger(count) || count < 1 || count > 50) usage('count must be a whole number from 1 to 50');
 if (age && !['d', 'w', 'm', 'y'].includes(age)) usage('-t takes d, w, m or y');
 
-const probe = spawnSync('ddgs', ['--help'], { encoding: 'utf8' });
+const probe = spawnSync('ddgs', ['--help'], { encoding: 'utf8', windowsHide: true });
 if (probe.error || probe.status !== 0) {
   console.error('ddgs is not available in this shell. Ask the user before installing it (pip install ddgs), or use another web tool.');
   process.exit(2);
@@ -39,7 +39,7 @@ function runOnce() {
     const cmd = [type, '-q', query, '-m', String(count), '-o', file];
     if (age) cmd.push('-t', age);
     if (region) cmd.push('-r', region);
-    const r = spawnSync('ddgs', cmd, { encoding: 'utf8', timeout: 60_000 });
+    const r = spawnSync('ddgs', cmd, { encoding: 'utf8', timeout: 60_000, windowsHide: true });
     if (r.status !== 0) return { error: (r.stderr || r.stdout || 'ddgs failed').trim().split('\n').slice(-3).join(' ') };
     if (!fs.existsSync(file)) return { results: [] };
     return { results: JSON.parse(fs.readFileSync(file, 'utf8')) };

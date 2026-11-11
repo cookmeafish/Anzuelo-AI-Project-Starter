@@ -11,6 +11,7 @@
 //   node tools/skills.mjs compare <ours> <original>  list text an adapted skill still shares with the original (must be none)
 // A downloaded skill is third-party code: read every file it adds. Then make it ours: rewrite it in the project's style
 // (plain writing, the AGENTS.md rules, our runbooks and checks), keep its LICENSE, and credit the source in SOURCE.md.
+import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

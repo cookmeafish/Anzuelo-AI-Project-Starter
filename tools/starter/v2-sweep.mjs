@@ -13,6 +13,7 @@
 // worktree under ~/.anzuelo-frozen, wired), so editing the engine in the main folder while it runs changes nothing under
 // test. Inside a worktree already (the release chain's frozen copy) it runs in place. Lesson (2026-11-09): sweeps ran in
 // the main folder, so the next fix waited idle for 10 to 15 minutes each time rather than change what was being tested.
+import '../hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

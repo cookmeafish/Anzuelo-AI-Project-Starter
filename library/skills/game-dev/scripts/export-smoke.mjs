@@ -31,7 +31,7 @@ const split = s => (s.match(/"[^"]*"|\S+/g) || []).map(x => x.replace(/^"|"$/g, 
 // .js/.mjs wrappers run through node, so a stand-in binary works on every OS
 const run = (cmd, args, opts = {}) => {
   const [c, a] = /\.(m?js)$/i.test(cmd) ? [process.execPath, [cmd, ...args]] : [cmd, args];
-  return spawnSync(c, a, { cwd: project, encoding: 'utf8', timeout: 900000, shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(c), ...opts });
+  return spawnSync(c, a, { cwd: project, encoding: 'utf8', timeout: 900000, shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(c), windowsHide: true, ...opts });
 };
 const step = (name, cmd, args, extra) => {
   const t0 = Date.now(); const r = run(cmd, args);

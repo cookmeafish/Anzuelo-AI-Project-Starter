@@ -26,7 +26,7 @@ const EXT = { js: 'js', mjs: 'js', cjs: 'js', jsx: 'js', ts: 'js', tsx: 'js', mt
 const extOf = f => EXT[path.extname(f).slice(1)];
 
 function listFiles() {
-  const g = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const g = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, windowsHide: true });
   if (g.status === 0 && g.stdout.trim()) return g.stdout.split('\n').filter(Boolean);
   const out = [];
   (function walk(d) {

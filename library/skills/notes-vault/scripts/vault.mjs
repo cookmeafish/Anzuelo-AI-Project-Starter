@@ -113,7 +113,7 @@ if (cmd === 'scan') {
     out.delete(from); return out;
   };
   // the note as the last commit had it ('' when git has no such note, or there is no git)
-  const before = r => { const g = spawnSync('git', ['show', `HEAD:${r}`], { cwd: ROOT, encoding: 'utf8' }); return g.status === 0 ? g.stdout : ''; };
+  const before = r => { const g = spawnSync('git', ['show', `HEAD:${r}`], { cwd: ROOT, encoding: 'utf8', windowsHide: true }); return g.status === 0 ? g.stdout : ''; };
   const missing = [], unknown = [];
   let checked = 0, links = 0;
   for (const f of files) {

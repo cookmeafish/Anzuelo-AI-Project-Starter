@@ -9,6 +9,8 @@
 // second upgrade change anything?", "did anything private from the starter leak in?".
 // (its hook promises were written for the old engine, v1, so it pins v1; the default engine, v2, has its own self-test)
 process.env.STARTER_ENGINE ||= 'v1';
+import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
+import { testDir, TEST_ROOT, cleanOld } from './hooks/testtmp.mjs'; // fixtures under one temp root, removed at exit
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -37,7 +39,7 @@ const env = { ...process.env, STARTER_ALLOW_DEV: '1' };
 const run = (cmd, args, cwd, timeout = 300000) => spawnSync(cmd, args, { cwd, encoding: 'utf8', env, timeout });
 const node = (args, cwd, timeout) => run(process.execPath, args, cwd, timeout);
 const git = (args, cwd) => run('git', args, cwd);
-const WORK = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-trial-'));
+const WORK = testDir('anzuelo-trial-');
 const results = [];
 const check = (project, promise, ok, detail = '') => results.push({ project, promise, ok: !!ok, detail });
 

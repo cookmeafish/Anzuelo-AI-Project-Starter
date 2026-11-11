@@ -21,7 +21,7 @@ if (!files.length) { console.log('usage: node skills/modular-code/scripts/modula
 
 const CODE = /\.(m?[jt]sx?|cjs|py|dart|rs|go|cs|kt|kts|swift|gd|java|vue|svelte|rb|php)$/i;
 const SKIP = /(^|\/)(tests?|__tests__|spec|fixtures|mocks?|node_modules|dist|build|out|target|generated|vendor|migrations|\.cache|tools\/hooks|skills|packs|library)\/|\.(test|spec)\.[a-z]+$|_test\.[a-z]+$|(^|\/)test_[^/]+\.py$|(^|\/)(config|settings|constants|env)[^/]*\.[a-z]+$|\.config\.[a-z]+$|\.d\.ts$|(^|\/)tools\/[\w-]+\.mjs$/i;
-const git = a => spawnSync('git', a, { encoding: 'utf8' });
+const git = a => spawnSync('git', a, { encoding: 'utf8', windowsHide: true });
 const inGit = git(['rev-parse', '--is-inside-work-tree']).stdout.trim() === 'true';
 const fails = [], warns = [];
 

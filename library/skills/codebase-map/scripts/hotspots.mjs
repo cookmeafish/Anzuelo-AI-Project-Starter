@@ -15,7 +15,7 @@ const topN = Number(take('--top') || 20);
 const asJson = args.includes('--json');
 const root = path.resolve(args.filter(a => a !== '--json')[0] || '.');
 
-const log = spawnSync('git', ['log', `--since=${since}`, '--no-merges', '--name-only', '--format=%x00%s'], { cwd: root, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+const log = spawnSync('git', ['log', `--since=${since}`, '--no-merges', '--name-only', '--format=%x00%s'], { cwd: root, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, windowsHide: true });
 if (log.status !== 0) { console.error(`not a git repo, or git failed: ${(log.stderr || '').trim()}`); process.exit(2); }
 
 const SKIP = /(^|\/)(node_modules|vendor|dist|build|third_party)\/|(\.lock|-lock\.json|\.min\.js|\.snap)$/;

@@ -69,10 +69,10 @@ if (against) {
   let getOld;
   if (fs.existsSync(against) && fs.statSync(against).isDirectory()) getOld = f => { try { return fs.readFileSync(path.join(against, f), 'utf8'); } catch { return null; } };
   else {
-    const top = spawnSync('git', ['rev-parse', '--show-prefix'], { cwd: dir, encoding: 'utf8' });
+    const top = spawnSync('git', ['rev-parse', '--show-prefix'], { cwd: dir, encoding: 'utf8', windowsHide: true });
     if (top.status !== 0) { console.log(`RESULT: FAIL ${against} is not a folder and ${dir} is not in a git repository`); process.exit(1); }
     const prefix = top.stdout.trim();
-    getOld = f => { const r = spawnSync('git', ['show', `${against}:${prefix}${f}`], { cwd: dir, encoding: 'utf8' }); return r.status === 0 ? r.stdout : null; };
+    getOld = f => { const r = spawnSync('git', ['show', `${against}:${prefix}${f}`], { cwd: dir, encoding: 'utf8', windowsHide: true }); return r.status === 0 ? r.stdout : null; };
   }
   const old = snapshot(getOld, Object.keys(now));
   const num = s => (String(s || '').match(/\d+/g) || []).map(Number);

@@ -24,7 +24,7 @@ const BULK = 50; // a commit touching more files than this is treated as mechani
 
 function fail(msg) { console.error(`error: ${msg}`); process.exit(2); }
 function git(cwd, args, { ok = false, timeout = 60_000 } = {}) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout });
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout, windowsHide: true });
   if (r.error) fail(r.error.code === 'ENOENT' ? 'git is not installed or not on PATH' : `git failed: ${r.error.message}`);
   if (r.status !== 0 && !ok) fail((r.stderr || r.stdout || 'git command failed').trim().split('\n')[0]);
   return { out: r.stdout || '', status: r.status };

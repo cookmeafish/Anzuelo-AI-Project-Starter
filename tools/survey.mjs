@@ -5,6 +5,7 @@
 //   node tools/survey.mjs --json   the same as JSON
 // It skips the starter's own files, dependencies and build output, and lists the documents worth reading first.
 // The same counts feed the fit checklist (node tools/fit.mjs): what the project has is evidence for each decision.
+import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

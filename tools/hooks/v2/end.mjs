@@ -1,5 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
+import '../hidewin.mjs'; // child processes start hidden (no console windows)
 import { withNote, correctionsOf } from '../correct.mjs';
 import fs from 'node:fs';
 import path from 'node:path';

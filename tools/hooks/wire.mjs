@@ -6,6 +6,7 @@
 // .claude/settings.json (Claude Code's hooks), the .claude/skills
 // mirrors, .codex/hooks.json (Codex needs this folder's real path), the git hooks (core.hooksPath) and Obsidian's
 // link settings. Existing files are merged or kept, never replaced.
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

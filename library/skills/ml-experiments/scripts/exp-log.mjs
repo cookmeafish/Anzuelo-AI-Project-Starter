@@ -28,7 +28,7 @@ if (cmd === 'add' && log) {
     if (!fs.existsSync(d)) fail(`data not found: ${d}`);
     for (const f of fs.statSync(d).isDirectory() ? walk(d) : [d]) { hash.update(f.replace(/\\/g, '/')); hash.update(fs.readFileSync(f)); }
   }
-  const git = a => { const r = spawnSync('git', a, { encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : ''; };
+  const git = a => { const r = spawnSync('git', a, { encoding: 'utf8', windowsHide: true }); return r.status === 0 ? r.stdout.trim() : ''; };
   const head = git(['rev-parse', '--short', 'HEAD']);
   const commit = head ? head + (git(['status', '--porcelain', '--untracked-files=no']) ? '+dirty' : '') : 'no git';
   const row = [new Date().toISOString().slice(0, 10), name, `${data.join(' ')} sha256:${hash.digest('hex').slice(0, 12)}`,

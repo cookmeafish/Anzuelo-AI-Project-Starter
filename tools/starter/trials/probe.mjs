@@ -6,6 +6,7 @@
 //   node tools/starter/trials/probe.mjs --new <name>                      a fresh project (prints its folder)
 //   node tools/starter/trials/probe.mjs <folder> "<prompt>" [--resume <session>] [--model <m>]
 // Prints JSON: { session, answer, lines: [{ event, text }] }. Files to set up first go in the folder with any tool.
+import '../../hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { readRows } from '../../hooks/jsonl.mjs';

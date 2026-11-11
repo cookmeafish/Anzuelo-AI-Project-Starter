@@ -6,6 +6,7 @@
 //   node tools/hooks/git-guard.mjs pre-push                    reject a push while unpushed commits credit an AI,
 //                                                              or while .gitignore lets private files out
 //   node tools/hooks/git-guard.mjs scan                        list unpushed commits that credit an AI
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import { config, secretHit, forbiddenRe } from './settings.mjs';
 import { fileURLToPath } from 'node:url';

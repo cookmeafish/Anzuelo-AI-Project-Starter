@@ -12,6 +12,7 @@
 // (the state comes from the newest entry, never from guessing where a turn started. Lesson (the user): a turn started
 // by a background agent's notice, not by a typed message, showed done while the agent worked, after four fixes that
 // each patched one screenshot)
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';

@@ -9,6 +9,7 @@
 // --freeze tests a frozen copy of this commit (a git worktree in the temp folder), so edits made while a round runs
 // never reach it. Records go to .cache/trials/results-<round>/ (ANZUELO_TRIALS_DIR moves them); projects to
 // <temp>/anzuelo-new/<id>-<round>.
+import '../../hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { readRows } from '../../hooks/jsonl.mjs';

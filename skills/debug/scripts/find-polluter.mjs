@@ -91,7 +91,7 @@ if (fs.existsSync(leftover)) {
 for (const [i, f] of files.entries()) {
   const cmd = o.cmd.includes('{file}') ? o.cmd.split('{file}').join(quote(f)) : `${o.cmd} ${quote(f)}`;
   process.stdout.write(`[${i + 1}/${files.length}] ${f} ... `);
-  const r = spawnSync(cmd, { cwd: o.root, shell: true, stdio: 'ignore', timeout: o.timeout * 1000 });
+  const r = spawnSync(cmd, { cwd: o.root, shell: true, windowsHide: true, stdio: 'ignore', timeout: o.timeout * 1000 });
   const how = r.error?.code === 'ETIMEDOUT' ? `timed out after ${o.timeout}s` : r.error ? `could not run (${r.error.message})` : `exit ${r.status}`;
   if (fs.existsSync(leftover)) {
     console.log(how);

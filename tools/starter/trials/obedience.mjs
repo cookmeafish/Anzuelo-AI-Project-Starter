@@ -8,6 +8,7 @@
 //   node tools/starter/trials/obedience.mjs o1
 // Lesson (the user, 2026-10-25): "do tests of multiple of the rules in anzuelo and see if without context the ai agent
 // will follow it because of the runbooks and hooks and checks".
+import '../../hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

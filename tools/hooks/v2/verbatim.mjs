@@ -2,6 +2,7 @@
 // examples: a run of the user's words copied into a changed file, or a name from the user's messages written into a
 // rule, runbook, check, skill or test this turn. Ported from the old engine (verbatimHits, exampleNameHits); the
 // patterns below are its own, copied.
+import '../hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

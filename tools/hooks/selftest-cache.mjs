@@ -2,6 +2,7 @@
 // project, and how many helper processes a run may start. Kept apart from selfcheck.mjs so each part has a test.
 // Lesson: in new projects the setup ran the 10 to 20 minute self-test 2 or 3 times, under load from other projects, and
 // two setups were killed at the 60-minute limit while the engine they tested had not changed at all.
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -82,7 +83,7 @@ export const PROOF_FILE = 'tools/hooks/engine-proof.json';
 // which scenarios apply). The project's own content never reaches the base, and the hash leaves it out anyway.
 // (every engine module the hooks import is in it: a changed base-checks.mjs with the old proof would reuse a pass the
 // new code never had)
-export const PROOF_PATHS = /^(tools\/hooks\/(hooks|hooks-main|selfcheck|selftest-cache|trigger-cases|git-guard|wire|paths|settings|repo|people|labels|base-checks|wakeups|injection|claims|grant|count|datadirs|names|rootfiles|menu|history|writing|excuse|extstop|decide|worth|gui|correct|praise|planreq|near|skilllearn|hooktests|donewhen|gates|launchers|trace|proof|knowledge|jsonl|selfcmds|pause|caps|relay|statusline)\.mjs|tools\/hooks\/v2\/[^/]+\.mjs|tools\/hooks\/engine-checks\.json|tools\/(audit|packs|writing-check|integrity-check|skills|starter|recall|survey|dedupe|fit)\.mjs|\.githooks\/[^/]+|docs\/checks\/(session-checklist|finish-checklist|runbook-standards|writing-standards|layout-standards|better-or-worse)\.md|docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md|packs\/.+|library\/.+)$/;
+export const PROOF_PATHS = /^(tools\/hooks\/(hooks|hooks-main|hidewin|testtmp|selfcheck|selftest-cache|trigger-cases|git-guard|wire|paths|settings|repo|people|labels|base-checks|wakeups|injection|claims|grant|count|datadirs|names|rootfiles|menu|history|writing|excuse|extstop|decide|worth|gui|correct|praise|planreq|near|skilllearn|hooktests|donewhen|gates|launchers|trace|proof|knowledge|jsonl|selfcmds|pause|caps|relay|statusline)\.mjs|tools\/hooks\/v2\/[^/]+\.mjs|tools\/hooks\/engine-checks\.json|tools\/(audit|packs|writing-check|integrity-check|skills|starter|recall|survey|dedupe|fit)\.mjs|\.githooks\/[^/]+|docs\/checks\/(session-checklist|finish-checklist|runbook-standards|writing-standards|layout-standards|better-or-worse)\.md|docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md|packs\/.+|library\/.+)$/;
 export function proofHash(baseDir, coreSkills = []) {
   const h = createHash('sha256');
   const core = new RegExp(`^skills\\/(${coreSkills.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') || '(?!)'})\\/`);

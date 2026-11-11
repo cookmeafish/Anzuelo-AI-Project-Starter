@@ -1,5 +1,6 @@
 // The git-level checks (no AI credit in commits, a .gitignore that keeps private files in) and the hash of everything
 // the self-tests read. Moved from hooks.mjs (plan: engine v2 only, step 1b).
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

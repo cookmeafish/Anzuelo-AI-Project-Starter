@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // Engine v2 self-test: a scratch project with one runbook, and transcripts of real turn shapes. Runs in seconds.
+import '../hidewin.mjs'; // child processes start hidden (no console windows)
+import { testDir, TEST_ROOT, cleanOld } from '../testtmp.mjs'; // fixtures under one temp root, removed at exit
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,7 +32,7 @@ const timeVerdict = (within, what, numbers) => {
   return others > 0;
 };
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-'));
+const dir = testDir('anzuelo-v2-');
 process.env.ANZUELO_ROOT = dir;
 // (no turn-start snapshots in the background while tests run: the one test of them turns them on for its own run)
 process.env.V2_NO_SNAPSHOT = '1';
@@ -443,10 +445,10 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   // (the outward-action guard takes the same earlier OK; with none, it still refuses)
   const { spawnSync } = await import('node:child_process');
   const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
-  const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-push-'));
+  const c = testDir('anzuelo-v2-push-');
   fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-  for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+  for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
   const pre = rows => { const t = path.join(c, `t${++id}.jsonl`); fs.writeFileSync(t, rows.flat().map(r => JSON.stringify(r)).join('\n') + '\n');
     return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'pushok', transcript_path: t, tool_name: 'Bash', tool_input: { command: 'git push origin HEAD:main' } }),
@@ -704,7 +706,7 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
   const { carryRunEach, carryLine } = await import('../selfcmds.mjs');
   report(/^would approve 1 .* to be carried onto/.test(carryLine(['x'], true)) && /^approved 1 .* carried onto/.test(carryLine(['x'], false)) && !/approved|carried onto/.test(carryLine(['x'], true).replace(/would approve|to be carried onto/g, '')),
     'upgrade: a dry run says the runEach commands would be carried; a real one says they were', [carryLine(['x'], true), carryLine(['x'], false)]);
-  const p = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-carry-')), rq = path.join(p, 'tools/hooks/requirements.json'), cf = path.join(p, 'tools/hooks/config.json');
+  const p = testDir('anzuelo-carry-'), rq = path.join(p, 'tools/hooks/requirements.json'), cf = path.join(p, 'tools/hooks/config.json');
   const g = (...a) => spawnSync('git', a, { cwd: p, encoding: 'utf8' });
   fs.mkdirSync(path.dirname(rq), { recursive: true });
   fs.writeFileSync(rq, JSON.stringify({ requirements: [{ tag: 'json-valid', require: { runEach: { files: ['data/*.json'], cmd: 'node check.mjs "{file}"' } } }, { tag: 'either', require: { anyOf: [{ runEach: { files: ['x/*'], cmd: 'node other.mjs "{file}"' } }, { answerMatches: 'x' }] } }] }));
@@ -1196,7 +1198,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
       // fails it, and the list is rewritten only to shrink)
       {
-        const sw = fs.mkdtempSync(path.join(os.tmpdir(), 'v2sweep-')), list = path.join(sw, 'list.txt');
+        const sw = testDir('v2sweep-'), list = path.join(sw, 'list.txt');
         fs.writeFileSync(path.join(sw, 'r1.txt'), 'FAIL  stop: a  -> one\nPASS  stop: b\nFAIL  stop: c  -> x\nselfcheck: FAIL (1 passed, 2 failed)\n');
         fs.writeFileSync(path.join(sw, 'r2.txt'), 'PASS  stop: a\nPASS  stop: b\nFAIL  stop: c  -> y\nFAIL  stop: d  -> z\nselfcheck: FAIL (2 passed, 2 failed)\n');
         const { spawnSync } = await import('node:child_process');
@@ -1256,7 +1258,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       // into one string. Lesson: an 833 MB session went past Node's largest string and a replay left it out)
       {
         const { lines, readRows } = await import('../jsonl.mjs');
-        const d = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonl-')), f = path.join(d, 't.jsonl');
+        const d = testDir('jsonl-'), f = path.join(d, 't.jsonl');
         const want = ['{"a":"ñandú ✓ 𝄞"}', '', 'broken {', '{"b":2}', '{"c":"x"}'];
         fs.writeFileSync(f, want.join('\r\n'));
         const same = [1, 2, 3, 7, 1 << 20].every(n => JSON.stringify([...lines(f, n)]) === JSON.stringify(want)), parsed = readRows(f).length;
@@ -1318,12 +1320,12 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   // and offered to the user once; nothing is switched off
   {
     const { frictionGaps, frictionHint } = await import('./friction.mjs');
-    const fr = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-fr-'));
+    const fr = testDir('anzuelo-fr-');
     try {
       const tags = ['plain-writing', 'scope-general'], sore = 'Issue: the plain writing check held a letter twice | runbook: learn-from-upset | fixed when: letters pass';
       const t = (i, text) => frictionGaps(fr, `2026-11-10T0${i}:00:00Z`, text, tags).length;
       const r = { one: t(1, sore), calm: t(2, 'Issue: none - a question'), two: t(3, sore), sameTurn: t(3, sore), three: t(4, sore), again: t(5, sore), hint: frictionHint(fr), hintAgain: frictionHint(fr) };
-      const fr2 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-fr-'));
+      const fr2 = testDir('anzuelo-fr-');
       fs.mkdirSync(path.join(fr2, 'docs')); fs.writeFileSync(path.join(fr2, 'docs/starter-feedback.md'), '- plain-writing held letters as filler\n');
       r.logged = [1, 2, 3].map(i => frictionGaps(fr2, `2026-11-10T0${i}:00:00Z`, sore, tags).length).reduce((a, b) => a + b, 0);
       fs.rmSync(fr2, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
@@ -1348,7 +1350,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     if (log0 != null) put('docs/CHANGELOG.md', log0);
     // (the folders setup and upgrade offer as data: by a data-like name, or by holding mostly data files and no code)
     const { dataLikeDirs } = await import('../datadirs.mjs');
-    const dd = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-dd-'));
+    const dd = testDir('anzuelo-dd-');
     try {
       const mk = (f, s = 'x') => { fs.mkdirSync(path.dirname(path.join(dd, f)), { recursive: true }); fs.writeFileSync(path.join(dd, f), s); };
       mk('catalog/a.txt'); for (let i = 0; i < 6; i++) mk(`scans/s${i}.pdf`); mk('src/app.js'); mk('notes/n.md'); for (let i = 0; i < 6; i++) mk(`tools2/t${i}.json`); mk('tools2/run.mjs'); mk('docs/x.csv');
@@ -1997,7 +1999,7 @@ const { questionGaps } = await import('./lib.mjs');
 // end check held the turn for a file nobody changed)
 {
   const { spawnSync } = await import('node:child_process');
-  const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-touch-'));
+  const g = testDir('anzuelo-v2-touch-');
   const git = (a, env = {}) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { cwd: g, encoding: 'utf8', env: { ...process.env, ...env } });
   const hourAgo = new Date(Date.now() - 3600_000).toISOString(), FILES = ['touched.txt', 'edited.txt', 'committed.txt', 'early-touched.txt', 'early-edited.txt'];
   for (const f of FILES) fs.writeFileSync(path.join(g, f), 'one\n');
@@ -2106,7 +2108,7 @@ const { questionGaps } = await import('./lib.mjs');
 // file git never had, or a folder that is no repository, is not)
 {
   const { spawnSync } = await import('node:child_process'), { gitClaimContradicted } = await import('../claims.mjs');
-  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-gc-')), plain = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-gcp-'));
+  const repoDir = testDir('anzuelo-v2-gc-'), plain = testDir('anzuelo-v2-gcp-');
   const g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: repoDir, encoding: 'utf8' });
   fs.writeFileSync(path.join(repoDir, 'notes.md'), 'x'); g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'notes');
   const io = d => ({ root: d, exists: f => fs.existsSync(path.join(d, f)), pathKey: s => String(s).replace(/\\/g, '/') });
@@ -2119,7 +2121,7 @@ const { questionGaps } = await import('./lib.mjs');
 // copy is not. Lesson (a field report): "nothing changed" from a copy 20 commits behind)
 {
   const { spawnSync } = await import('node:child_process'), { behindUpstream } = await import('../repo.mjs');
-  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-up-')), g = (cwd, ...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'init.defaultBranch=main', ...a], { cwd, encoding: 'utf8' });
+  const box = testDir('anzuelo-v2-up-'), g = (cwd, ...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'init.defaultBranch=main', ...a], { cwd, encoding: 'utf8' });
   const origin = path.join(box, 'origin.git'), copy = path.join(box, 'copy'), dev = path.join(box, 'dev');
   g(box, 'init', '-q', '--bare', origin); g(box, 'clone', '-q', origin, dev);
   fs.writeFileSync(path.join(dev, 'a.txt'), '1'); g(dev, 'add', '-A'); g(dev, 'commit', '-q', '-m', 'one'); g(dev, 'push', '-q', 'origin', 'HEAD:main');
@@ -2270,7 +2272,7 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   // an upgrade, with no step for the user: the upgrade's convert puts the command on the approved list with its
   // DECISIONS line, the upgrade commits, and in the next session the end check runs it)
   const { spawnSync } = await import('node:child_process'), repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
-  const p = fs.mkdtempSync(path.join(os.tmpdir(), 'selfrun-upg-')), w = (f, t) => { fs.mkdirSync(path.dirname(path.join(p, f)), { recursive: true }); fs.writeFileSync(path.join(p, f), t); };
+  const p = testDir('selfrun-upg-'), w = (f, t) => { fs.mkdirSync(path.dirname(path.join(p, f)), { recursive: true }); fs.writeFileSync(path.join(p, f), t); };
   const g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { cwd: p, encoding: 'utf8' });
   w('tools/hooks/config.json', '{"autonomy":"ask"}\n'); w('docs/DECISIONS.md', '# Decisions\n'); w('check-ok.mjs', "console.log('RESULT: PASS')\n"); w('src/a.js', 'a\n');
   w('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'app-test-pass', pack: 'app', message: 'tests', when: { filesChanged: ['src/**'] }, require: { toolPassed: { cmd: 'node check-ok\\.mjs', pass: 'RESULT: PASS', selfRun: 'node check-ok.mjs', selfAuto: true } } },
@@ -2320,7 +2322,7 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
     quotedPath: selfCmdWrites(`sed -i 's/"selfCommands": \\[/&"x",/' "/work/My Folder/tools/hooks/config.json"`),
     escEdit: selfListGrows('Write', { file_path: P, content: '{"autonomy": "ask", "self\\u0043ommands": ["npm test", "x"]}' }, dir, rd),
   };
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'selfallow-')); fs.mkdirSync(path.join(tmp, 'tools/hooks'), { recursive: true }); fs.writeFileSync(path.join(tmp, 'tools/hooks/config.json'), '{"autonomy":"ask"}');
+  const tmp = testDir('selfallow-'); fs.mkdirSync(path.join(tmp, 'tools/hooks'), { recursive: true }); fs.writeFileSync(path.join(tmp, 'tools/hooks/config.json'), '{"autonomy":"ask"}');
   const a1 = allowSelf(tmp, 'npm test'), a2 = allowSelf(tmp, 'npm test'), kept = JSON.parse(fs.readFileSync(path.join(tmp, 'tools/hooks/config.json'), 'utf8')); fs.rmSync(tmp, { recursive: true, force: true });
   const sr = cmd => ({ tag: 't', require: { toolPassed: { cmd: 'x', selfRun: cmd, selfAuto: true } } });
   // (the last commit's own self-runs, from its requirements.json, a pack check's own version included, and its always.md)
@@ -2896,7 +2898,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (a session the v2 prompt hook (or begin) has seen may commit: the git guard reads v2's turn file too)
   {
     const { spawnSync } = await import('node:child_process');
-    const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-git-')), sidG = `v2gate${process.pid}`;
+    const g = testDir('anzuelo-v2-git-'), sidG = `v2gate${process.pid}`;
     spawnSync('git', ['init', '-q'], { cwd: g });
     const run = () => spawnSync(process.execPath, [path.join(repo, 'tools/hooks/git-guard.mjs'), 'pre-commit'], { cwd: g, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: sidG, ANZUELO_SESSION_GATE: '' } }).status;
     const before = run(), f = path.join(repo, 'tools/hooks/state', `v2-turn.${sidG}.json`);
@@ -2909,7 +2911,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // same commit with the test staged goes through. Each fixture tag is built here, so this file never names one)
   {
     const { spawnSync } = await import('node:child_process');
-    const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-reqtag-')), sidR = `v2req${process.pid}`, tag = ['zz', 'demo', 'check'].join('-');
+    const g = testDir('anzuelo-v2-reqtag-'), sidR = `v2req${process.pid}`, tag = ['zz', 'demo', 'check'].join('-');
     const sh = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
     sh('init', '-q'); fs.mkdirSync(path.join(g, 'tools/hooks/v2'), { recursive: true });
     const st = path.join(repo, 'tools/hooks/state', `v2-turn.${sidR}.json`);
@@ -2941,10 +2943,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (a resumed session whose last turn ended gets no "interrupted" notice; one whose last turn never ended does)
   {
     const { spawnSync } = await import('node:child_process');
-    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-resume-'));
+    const c = testDir('anzuelo-v2-resume-');
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const resume = ended => { const sid = ended ? 'resumedone' : 'resumeopen';
       fs.writeFileSync(path.join(c, `tools/hooks/state/v2-turn.${sid}.json`), JSON.stringify({ at: new Date().toISOString(), runbook: null, ...(ended ? { ended: true } : {}) }));
       return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'session'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source: 'resume' }), env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c } }).stdout || ''; };
@@ -2958,10 +2960,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (during work v2 says nothing about a background run still going, even before another test run: REQ quiet-work)
   {
     const { spawnSync } = await import('node:child_process');
-    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-quiet-'));
+    const c = testDir('anzuelo-v2-quiet-');
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const tp = path.join(c, 'transcript.jsonl'), at = new Date().toISOString();
     fs.writeFileSync(tp, [
       { type: 'user', timestamp: at, message: { role: 'user', content: 'run the tests and fix the export' } },
@@ -2983,10 +2985,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (the user, 2026-11-07): the answer goes out once, in its final version)
   {
     const { spawnSync } = await import('node:child_process');
-    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-mark-'));
+    const c = testDir('anzuelo-v2-mark-');
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\ntriggers: csv export\n---\n## Done when\n1. The answer says how it was checked (answer: How it was checked)\n');
     const tp = path.join(c, 't.jsonl'), at = new Date(Date.now() + 1000).toISOString();
     const base = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c }; delete base.CLAUDE_PROJECT_DIR;
@@ -3030,10 +3032,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // Lesson (the user, in the desktop app): a plain question's first tool call showed another session's old issue)
   {
     const { spawnSync } = await import('node:child_process');
-    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-ack-'));
+    const c = testDir('anzuelo-v2-ack-');
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'skills/learn-from-upset'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.copyFileSync(path.join(repo, 'skills/learn-from-upset/SKILL.md'), path.join(c, 'skills/learn-from-upset/SKILL.md'));
     const notes = path.join(c, '.cache/turn-notes.md'), old = new Date(Date.now() - 3600_000);
     fs.writeFileSync(notes, 'Issue: the export dropped rows with commas | runbook: learn-from-upset | fixed when: every row is in the export\n'); fs.utimesSync(notes, old, old);
@@ -3054,10 +3056,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // named after the session that is not written yet (a headless first prompt). The old suite's state-hygiene tests)
   {
     const { spawnSync } = await import('node:child_process');
-    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-hyg-'));
+    const c = testDir('anzuelo-v2-hyg-');
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache/tp'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
     const tp = n => path.join(c, '.cache/tp', n);
     fs.writeFileSync(tp('empty.jsonl'), ''); fs.writeFileSync(tp('blank.jsonl'), '\n  \n');
@@ -3105,10 +3107,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   }
   // (a helper gets the rules line but never the parent's runbook checklist under v2; v1 still hands it over)
   {
-    const { spawnSync } = await import('node:child_process'), c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-brief-'));
+    const { spawnSync } = await import('node:child_process'), c = testDir('anzuelo-v2-brief-');
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\n---\n# Export\n## Done when\n- [ ] The tests pass (ran: npm test)\n');
     const brief = engine => {
       const at = new Date(Date.now() - 2000).toISOString();
@@ -3126,7 +3128,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (the checks a project wrote itself are listed for its upgrade to turn into "Done when" lines; shipped ones are not)
   {
     const { projectChecks } = await import('../hooks-main.mjs');
-    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-own-'));
+    const c = testDir('anzuelo-v2-own-');
     fs.mkdirSync(path.join(c, 'tools/hooks'), { recursive: true });
     fs.writeFileSync(path.join(c, 'tools/hooks/engine-checks.json'), JSON.stringify({ requirements: [{ tag: 'shipped-one', pack: 'app' }] }));
     fs.writeFileSync(path.join(c, 'tools/hooks/requirements.json'), JSON.stringify({ requirements: [{ tag: 'shipped-one', pack: 'app' }, { tag: 'totals-row-checked', message: 'Check the totals row.' }] }));
@@ -3137,18 +3139,18 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (a v2 hook that cannot run shows its error to the agent once per session, never only on stderr)
   {
     const { spawnSync } = await import('node:child_process');
-    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
+    const c = testDir('anzuelo-v2-crash-');
     fs.mkdirSync(path.join(c, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const hook = (cmd, extra = {}) => (spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'crashonce', prompt: 'add a recipe card', ...extra }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '').trim();
     const p1 = hook('prompt'), s1 = hook('stop'), s2 = hook('stop', { session_id: 'crashother', stop_hook_active: true });
     fs.rmSync(c, { recursive: true, force: true });
     report(/CRASHED/.test(p1) && /additionalContext/.test(p1) && s1 === '' && s2 === '',
       'crash: a v2 hook that cannot load tells the agent once per session; a Stop already held lets the session end', [p1.slice(0, 120), s1.slice(0, 80), s2.slice(0, 80)]);
-    const c2 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
+    const c2 = testDir('anzuelo-v2-crash-');
     fs.mkdirSync(path.join(c2, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
     const st = (spawnSync(process.execPath, [path.join(c2, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c2, encoding: 'utf8', input: JSON.stringify({ session_id: 'crashstop' }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '');
     fs.rmSync(c2, { recursive: true, force: true });
     report(/"decision":"block"/.test(st) && /CRASHED/.test(st), 'crash: a v2 Stop hook that cannot load blocks once with the error', st.slice(0, 160));
@@ -3165,7 +3167,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // times for screenshots that were on disk)
     {
       const { missingImages, imagesNote, lateMessages, lateNote } = await import('./midturn.mjs');
-      const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-img-')), tmp = path.join(box, 'tmp'), proj = path.join(box, 'projects', 'C--p');
+      const box = testDir('anzuelo-v2-img-'), tmp = path.join(box, 'tmp'), proj = path.join(box, 'projects', 'C--p');
       const main = path.join(proj, 's1.jsonl'), sub = path.join(proj, 's1', 'subagents', 'agent-a1.jsonl'), imgs = path.join(tmp, 'claude', 'C--p', 's1', 'images');
       fs.mkdirSync(path.dirname(sub), { recursive: true }); fs.mkdirSync(imgs, { recursive: true }); fs.writeFileSync(main, '');
       for (const n of [7, 8]) fs.writeFileSync(path.join(imgs, `${n}.png`), 'x');
@@ -3192,7 +3194,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     }
     // (REQ: prompt-visible. A work turn that passes shows the user what the engine did: the complaint fixed and the checks
     // passed; a question turn shows nothing. Lesson (the user): under v2 these lines were gone, and the engine looked off)
-    const c4 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-pass-'));
+    const c4 = testDir('anzuelo-v2-pass-');
     fs.cpSync(path.join(repo, 'tools/hooks'), path.join(c4, 'tools/hooks'), { recursive: true, filter: s => !/[\\/]state([\\/]|$)/.test(s) });
     fs.mkdirSync(path.join(c4, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c4, 'docs'), { recursive: true });
     fs.writeFileSync(path.join(c4, 'docs/names.json'), JSON.stringify({ STARTER_NAME: 'Anzuelo' }));
@@ -3261,9 +3263,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       'visible: under v2 a work turn that passes shows the issue fixed and the checks passed; a question shows nothing', [w.slice(0, 300), q.slice(0, 200)]);
     // (an upgrade proves the engine runs in the project with its own hooks; the probe leaves no state behind)
     const { probeEngine } = await import('../hooks-main.mjs');
-    const c3 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-probe-'));
+    const c3 = testDir('anzuelo-v2-probe-');
     fs.mkdirSync(path.join(c3, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
     const broken = probeEngine(c3);
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c3, 'tools/hooks/v2'), { recursive: true });
     fs.rmSync(path.join(c3, 'tools/hooks/state'), { recursive: true, force: true });
@@ -3272,9 +3274,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // (proving a check puts the fixed files back with their own modification time, so the end check does not take the
     // put-back for a change after the tests. Lesson (trial): the tests passed, prove ran, and the end check asked again)
     {
-      const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-prove-'));
+      const g = testDir('anzuelo-v2-prove-');
       fs.mkdirSync(path.join(g, 'tools/hooks'), { recursive: true });
-      for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
+      for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
       const gg = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
       gg('init', '-q'); fs.writeFileSync(path.join(g, 'menu.js'), 'broken\n'); gg('add', '-A'); gg('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
       fs.writeFileSync(path.join(g, 'menu.js'), 'fixed\n');
@@ -3308,7 +3310,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 {
   const { spawnSync } = await import('node:child_process');
   const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
-  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-exit-')), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
+  const box = testDir('anzuelo-exit-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
   const np = (...a) => spawnSync(process.execPath, [path.join(repo, 'tools/new-project.mjs'), p, ...a], { encoding: 'utf8', timeout: 120000 });
   try {
     np('--name', 'Demo', '--desc', 'a demo', '--dev');
@@ -3342,7 +3344,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 {
   const { spawnSync } = await import('node:child_process');
   const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
-  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-wiring-')), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
+  const box = testDir('anzuelo-wiring-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
   const g = (...a) => spawnSync('git', a, { cwd: p, encoding: 'utf8' }), hp = () => (g('config', '--get', 'core.hooksPath').stdout || '').trim();
   const node = (...a) => spawnSync(process.execPath, a, { cwd: p, encoding: 'utf8', timeout: 60000, env: { ...process.env, CLAUDE_PROJECT_DIR: p, ANZUELO_ROOT: '' } });
   try {
@@ -3372,7 +3374,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 {
   const { spawnSync } = await import('node:child_process');
   const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
-  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-exit-split-')), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a), loc = at('.anzuelo', 'local');
+  const box = testDir('anzuelo-exit-split-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a), loc = at('.anzuelo', 'local');
   const g = (...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: p, encoding: 'utf8' });
   try {
     fs.mkdirSync(at('.claude'), { recursive: true }); fs.writeFileSync(at('main.py'), 'print("hi")\n');
@@ -3384,7 +3386,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.mkdirSync(at('.codex')); fs.writeFileSync(at('.codex/hooks.json'), codex); fs.writeFileSync(at('.gitignore'), '.codex/\n');
     g('init', '-q'); g('add', '-A'); g('commit', '-qm', 'project'); g('config', 'core.hooksPath', '.githooks');
     const ins = spawnSync(process.execPath, [path.join(repo, 'tools/starter.mjs'), 'install', p, '--private', 'no'], { encoding: 'utf8', timeout: 300000 });
-    for (const f of ['tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/jsonl.mjs']) fs.copyFileSync(path.join(repo, f), at('.anzuelo/engine', f));
+    for (const f of ['tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/hidewin.mjs', 'tools/hooks/jsonl.mjs']) fs.copyFileSync(path.join(repo, f), at('.anzuelo/engine', f));
     // (the install is recorded, and session start says it once: the next start is quiet)
     const sess = () => spawnSync(process.execPath, [at('.anzuelo/engine/tools/hooks/hooks.mjs'), 'session'], { cwd: p, encoding: 'utf8', timeout: 60000, input: '{}', env: { ...process.env, CLAUDE_PROJECT_DIR: p, ANZUELO_ROOT: '' } }).stdout || '';
     const s1 = sess(), s2 = sess(), dec = () => { try { return fs.readFileSync(at('docs/DECISIONS.md'), 'utf8'); } catch { return ''; } };
@@ -3514,7 +3516,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // .anzuelo/local. Plan: docs/plans/2026-11-07-engine-outside-the-project.md, Task 1)
 {
   let roots = null; try { ({ roots } = await import('../paths.mjs')); } catch { }
-  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-layout-')), eng = path.join(proj, '.anzuelo', 'engine');
+  const proj = testDir('anzuelo-layout-'), eng = path.join(proj, '.anzuelo', 'engine');
   fs.mkdirSync(path.join(eng, 'tools', 'hooks'), { recursive: true });
   const inProject = roots?.(path.join(eng, 'tools', 'hooks'), {});
   const inStarter = roots?.(path.join(dir, 'tools', 'hooks'), {});
@@ -3530,7 +3532,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // and a change to one is written locally, so an upgrade never meets it. Plan: engine outside the project, Task 2)
 {
   let resolver = null; try { ({ resolver } = await import('../paths.mjs')); } catch { }
-  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-where-')), ENGINE = path.join(proj, '.anzuelo', 'engine'), LOCAL = path.join(proj, '.anzuelo', 'local');
+  const proj = testDir('anzuelo-where-'), ENGINE = path.join(proj, '.anzuelo', 'engine'), LOCAL = path.join(proj, '.anzuelo', 'local');
   const put = (f, t = 'x') => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, t); };
   put(path.join(ENGINE, 'docs/playbooks/shared.md')); put(path.join(ENGINE, 'docs/playbooks/core.md')); put(path.join(LOCAL, 'docs/playbooks/shared.md')); put(path.join(LOCAL, 'docs/playbooks/mine.md'));
   const r = resolver?.({ ENGINE, PROJECT: proj, LOCAL }), one = resolver?.({ ENGINE: proj, PROJECT: proj, LOCAL: proj });
@@ -3556,15 +3558,66 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   fs.rmSync(proj, { recursive: true, force: true });
 }
 
+// (child processes start hidden: tools/hooks/hidewin.mjs makes windowsHide: true the default of every child_process
+// function, a call's own value kept; every engine file that starts processes imports it first; every call in the
+// standalone skill and pack scripts says windowsHide, except one marked as showing a window on purpose. Lesson (the user,
+// through oversight, 2026-11-11): console windows flashed up while the hooks and tests ran)
+{
+  const repoH = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const { withHidden } = await import('../hidewin.mjs');
+  const cpM = (await import('node:child_process')).default, { spawnSync: namedSpawn } = await import('node:child_process');
+  const shape = (a, k) => JSON.stringify(withHidden(a, k).map(x => typeof x === 'function' ? 'fn' : x));
+  const opts = { bare: shape(['git'], 'file'), args: shape(['git', ['status']], 'file'), own: shape(['git', ['status'], { cwd: '.' }], 'file'), keep: shape(['git', ['status'], { windowsHide: false }], 'file'),
+    execCb: shape(['ls', () => 0], 'exec'), fileCb: shape(['f', ['a'], () => 0], 'file') };
+  const optsOk = opts.bare === '["git",{"windowsHide":true}]' && opts.args === '["git",["status"],{"windowsHide":true}]' && opts.own === '["git",["status"],{"cwd":".","windowsHide":true}]'
+    && opts.keep === '["git",["status"],{"windowsHide":false}]' && opts.execCb === '["ls",{"windowsHide":true},"fn"]' && opts.fileCb === '["f",["a"],{"windowsHide":true},"fn"]';
+  const patched = cpM[Symbol.for('anzuelo.windowsHide')] === true && namedSpawn === cpM.spawnSync && namedSpawn(process.execPath, ['-e', 'process.stdout.write("ok")'], { encoding: 'utf8' }).stdout === 'ok';
+  const walkH = (d, out = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!['node_modules', 'state'].includes(e.name)) walkH(p, out); } else if (/\.(mjs|js|cjs)$/.test(e.name)) out.push(p); } return out; };
+  const USES = /from ['"](node:)?child_process['"]|import\(['"](node:)?child_process['"]\)|require\(['"](node:)?child_process['"]\)/;
+  const rel = p => path.relative(repoH, p).split(path.sep).join('/');
+  // (engine files: the import of hidewin.mjs comes before any other import)
+  const engineMiss = walkH(path.join(repoH, 'tools')).filter(p => !p.endsWith(`${path.sep}hidewin.mjs`)).filter(p => { const s = fs.readFileSync(p, 'utf8'); if (!USES.test(s)) return false; const first = s.split('\n').find(l => /^import\s/.test(l)) || ''; return !/hidewin\.mjs['"]/.test(first); }).map(rel);
+  // (standalone scripts: each call names windowsHide in its own statement, or is marked as showing a window on purpose)
+  const CALL = /(?<![.\w])(spawnSync|spawn|execSync|execFileSync|execFile|exec|fork)\(/g;
+  const scriptMiss = ['skills', 'library', 'packs'].filter(d => fs.existsSync(path.join(repoH, d))).flatMap(d => walkH(path.join(repoH, d))).flatMap(p => { const s = fs.readFileSync(p, 'utf8'); if (!USES.test(s)) return [];
+    return [...s.matchAll(CALL)].filter(m => { const stmt = s.slice(m.index, s.indexOf('\n', s.indexOf(')', m.index)) + 1 || undefined); return !/windowsHide|window shown on purpose/.test(stmt.slice(0, 900)); }).map(m => `${rel(p)}:${s.slice(0, m.index).split('\n').length}`); });
+  report(optsOk && patched && !engineMiss.length && !scriptMiss.length, 'hidden: every child process starts hidden (windowsHide by default in the engine, written out in skill and pack scripts), a call\'s own value kept', JSON.stringify({ opts: optsOk ? 'ok' : opts, patched, engineMiss, scriptMiss }));
+}
+
+// (test folders: every fixture lives under <temp>/anzuelo-tests and is removed when its process ends, passed or failed;
+// clean-tests removes only old leftovers under that root; a test run leaves nothing in the temp folder but Node's compile
+// cache. Each case runs with its temp folder pointed at an empty one, so anything left there is the run's own. Lesson
+// (oversight, 2026-11-11): about 11,000 fixture folders were left in the temp folder and the machine lagged)
+{
+  const repoT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-tempcheck-'));
+  try {
+    const envT = d => ({ ...process.env, TEMP: d, TMP: d, TMPDIR: d });
+    const tt = JSON.stringify(new URL(`file:///${path.join(repoT, 'tools/hooks/testtmp.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href);
+    const child = (d, body) => spawnSync(process.execPath, ['--input-type=module', '-e', `import { testDir, TEST_ROOT, cleanOld } from ${tt}; import fs from 'node:fs'; ${body}`], { encoding: 'utf8', env: envT(d) });
+    const left = d => { try { return fs.readdirSync(d).filter(n => n !== 'node-compile-cache').flatMap(n => n === 'anzuelo-tests' ? fs.readdirSync(path.join(d, n)).map(m => `${n}/${m}`) : [n]); } catch { return []; } };
+    const caseDir = n => { const d = path.join(fresh, n); fs.mkdirSync(d); return d; };
+    const okD = caseDir('ok'); const ok = child(okD, "const d = testDir('a-'); fs.writeFileSync(d + '/f.txt', 'x'); console.log(fs.existsSync(d));");
+    const errD = caseDir('err'); child(errD, "testDir('b-'); throw new Error('boom');");
+    const oldD = caseDir('old'); const oldR = child(oldD, "const a = testDir('kept-', { keep: true }), b = testDir('stale-', { keep: true }); const t = (Date.now() - 2 * 3600_000) / 1000; fs.utimesSync(b, t, t); console.log(cleanOld(3600_000), fs.existsSync(a), fs.existsSync(b));");
+    // (a whole tagged run of the old suite, in an empty temp folder)
+    const runD = caseDir('run');
+    const run = spawnSync(process.execPath, [path.join(repoT, 'tools/hooks/selfcheck.mjs'), '--tags', 'stop-reblock'], { cwd: repoT, encoding: 'utf8', env: envT(runD), timeout: 600000 });
+    const res = { ok: [ok.stdout.trim(), left(okD)], err: left(errD), old: oldR.stdout.trim(), run: [/selfcheck: (ALL PASS|FAIL)/.exec(run.stdout || '')?.[0] || (run.stderr || '').slice(0, 120), left(runD)] };
+    report(res.ok[0] === 'true' && !res.ok[1].length && !res.err.length && res.old === '1 true false' && /selfcheck:/.test(res.run[0]) && !res.run[1].length,
+      'temp: test folders live under one root and are removed when their run ends, passed or failed; clean-tests removes only old leftovers; a test run leaves nothing in the temp folder', JSON.stringify(res));
+  } finally { fs.rmSync(fresh, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
+
 // (the hooks run from .anzuelo/engine with the session in the project: the reminder names a runbook from the local
 // copy and from the engine, and the turn record lands in local, never in the project or the engine)
 {
   const { spawnSync } = await import('node:child_process');
   const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
-  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-split-')), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
+  const proj = testDir('anzuelo-split-'), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
   fs.mkdirSync(path.join(eng, 'tools', 'hooks'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(eng, 'tools/hooks/v2'), { recursive: true });
-  for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
+  for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
   const book = (root, name, trig) => { fs.mkdirSync(path.join(root, 'docs/playbooks'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs/playbooks', `${name}.md`), `---\nname: ${name}\nsummary: s\ntriggers: ${trig}\n---\n# ${name}\n\n## Done when\n- [ ] ${name} item one\n`); };
   book(eng, 'invoice', 'send the invoice'); book(loc, 'harvest', 'plan the harvest');
   // (each with the host's transcript named after its session, not written yet: a hand run with no transcript keeps no state)
@@ -3582,7 +3635,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 {
   const { spawnSync } = await import('node:child_process');
   const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
-  const m = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-manual-'));
+  const m = testDir('anzuelo-v2-manual-');
   let got = {};
   try {
     for (const d of ['tools', 'docs', 'skills', 'AGENTS.md']) fs.cpSync(path.join(repoRoot, d), path.join(m, d), { recursive: true, filter: s => !/[\\/](state|\.cache)([\\/]|$)/.test(s) });
@@ -3648,7 +3701,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // (the time verdict: alone, over the limit fails; beside another live self-test run, it is printed and not judged; a
 // run that only waits for its turn adds no load and does not count)
 {
-  const reg = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-reg-')), was = process.env.STARTER_SELFTEST_RUNNING;
+  const reg = testDir('anzuelo-v2-reg-'), was = process.env.STARTER_SELFTEST_RUNNING;
   process.env.STARTER_SELFTEST_RUNNING = reg;
   const log = console.log; let said = ''; console.log = s => { said += s; };
   let got; const notedBefore = noted;

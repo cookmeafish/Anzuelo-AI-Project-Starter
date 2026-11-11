@@ -1,6 +1,7 @@
 // The project's settings, the small file helpers every tool shares, and the names and secrets nothing may contain.
 // Moved from hooks.mjs (plan: engine v2 only, step 1b); hooks.mjs and the tools import them from here. A base module
 // like paths.mjs, outside v2/: the hook entry loads it before v2, so a v2 that cannot load is still reported.
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

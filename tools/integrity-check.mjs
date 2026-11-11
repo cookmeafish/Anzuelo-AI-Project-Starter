@@ -6,6 +6,7 @@
 //   node tools/integrity-check.mjs a.json b.svg
 // Checks: JSON parses, JS/MJS/CJS passes node --check, SVG/XML/HTML ends with its closing tag, no file is empty when
 // it had content type, and no unresolved merge markers. Prints RESULT: PASS or one PROBLEM line per file.
+import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

@@ -1,3 +1,4 @@
+import './hidewin.mjs'; // child processes start hidden (no console windows)
 import { spawnSync } from 'node:child_process';
 // Commit ids a text names, read by both of v2's checks (the guard on messages, the end check on the answer).
 // REQ: claim-checked. Lesson (2026-11-08): two made-up commit ids were sent to a peer session, each written before the

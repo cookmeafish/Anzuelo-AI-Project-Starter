@@ -1,4 +1,5 @@
 // The safety guard during the work: a tool call is refused only for what IN_WORK_GUARDS lists (tests: selftest, selfcheck).
+import '../hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
