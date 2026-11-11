@@ -190,10 +190,14 @@ const relayed = acts => /<(cross-session-message|agent-message|task-notification
   || !(s => /\?|\b(research|look (it |this |that )?up|find out|compare|according to)\b/i.test(s) || /^\W*(?:\w+\W+){0,3}(what|which|who|when|where|how|is there|are there|tell me)\b/i.test(s))((/^\s*([^\n.!?]*[.!?]?)/.exec(String(acts.heard || '').replace(/<pasted_content[\s\S]*?<\/pasted_content>/g, ' ')) || [])[1] || '');
 
 export function missing(turn, acts, books = runbooks()) {
-  const book = chosen(turn, acts, books);
-  // (a typed question routed to a runbook made for answers, one with an "(evidence)" item, is held to opening it and
+  const book = chosen(turn, acts, books);  // (a typed question routed to a runbook made for answers, one with an "(evidence)" item, is held to opening it and
   // its answer items; others stay free. The user, 2026-11-07: knowledge answers come from the best sources)
   const asked = book && !worked(acts) && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && !relayed(acts);
+  // (15 or more tool calls is real work too, files changed or not (Step 0.4): the routed runbook is opened for it. Only
+  // the opening is asked: its file items wait for files. Lesson (the old suite under v2): a 16-call turn routed to the
+  // plan runbook never opened it, and v2 asked nothing, counting only file edits as work)
+  if (book && !worked(acts) && !asked && book.file === turn.runbook && acts.calls.length >= 15 && !/<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') && !opened(book, acts))
+    return [`Open ${book.file} and follow its steps: 15 or more tool calls is real work, files changed or not.`];
   if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and ${asked ? 'answer by' : 'check the work against'} its steps.`);

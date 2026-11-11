@@ -12,7 +12,7 @@ import { inEnglish, EN_COPIES } from '../labels.mjs';
 import { writingProblems, plainWritingMsg } from '../writing.mjs';
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from '../base-checks.mjs';
 import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf } from '../knowledge.mjs';
-import { forbiddenRe, secretHit, config as engineConfig } from '../settings.mjs';
+import { forbiddenRe, secretHit, config as engineConfig, EXTENDS } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
@@ -716,7 +716,13 @@ export const checkOff = tag => (projectConfig().suspended || []).some(s => s && 
 export const projectConfig = () => {
   const files = [fileURLToPath(new URL('../defaults.json', import.meta.url)), at('tools/hooks/config.json')], j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
   const key = files.map(f => { try { const s = fs.statSync(f); return `${s.mtimeMs}:${s.size}`; } catch { return '-'; } }).join('|');
-  if (configMemo.key !== key) configMemo = { key, v: { ...j(files[0]), ...j(files[1]) } };
+  // (list settings a project gives EXTEND the defaults, as in the old engine's settings.mjs: a pack adding root files
+  // must not drop AGENTS.md from rootAllowed. Lesson (the old suite under v2): v2 replaced the lists, and CLAUDE.md
+  // was held as a loose root file in a project whose pack listed its own root files)
+  if (configMemo.key !== key) { const d = j(files[0]), c = j(files[1]), v = { ...d, ...c };
+    for (const k of EXTENDS) if (Array.isArray(c[k]) && Array.isArray(d[k])) v[k] = [...new Set([...d[k], ...c[k]])];
+    if (Array.isArray(c.fluffAllowed) && Array.isArray(v.fluff)) v.fluff = v.fluff.filter(f => !c.fluffAllowed.includes(f));
+    configMemo = { key, v }; }
   return { ...configMemo.v };
 };
 export function scopeGaps(acts) {

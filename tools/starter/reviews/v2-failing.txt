@@ -122,7 +122,6 @@ stop: root-tidy: a Go file with no go.mod in the root: blocked
 stop: routed task that never opened its runbook: blocked
 stop: runEach: the hook re-validates changed files itself (invalid JSON): blocked
 stop: runbook-cold-read: a new runbook no helper read cold: blocked
-stop: runbook-exists: _fallback followed but no runbook left behind: blocked
 stop: runbook-exists: work that names an existing runbook it never opened is asked to open it, not to write one: blocked
 stop: runbook-ledger: a skip without a real reason does not drop a failing check
 stop: runbook-ledger: an item marked done whose evidence is missing comes back under its item
@@ -138,7 +137,6 @@ stop: unresolved-carryover: a turn that ended while background work ran gets its
 stop: unresolved-carryover: an owed lesson is held even on an unrelated request
 stop: unresolved-carryover: block cap reached: the user is told at once that the turn ended with steps not done
 stop: unresolved-carryover: the same work continues and last turn's CHANGELOG line is still missing: blocked
-stop: unrouted work turn with no runbook created: blocked
 stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked
 stop: waiting end: what the full check would ask stays on record for the next Stop
 trigger-words: a message that sets off the upset handling goes to the trigger log

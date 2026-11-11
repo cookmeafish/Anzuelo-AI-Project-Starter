@@ -672,6 +672,16 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
   const r = { status: wk('docs/STATUS.md'), decisions: wk('docs/DECISIONS.md'), notes: wk('.cache/turn-notes.md'), code: wk('src/export.js'), log: wk('docs/CHANGELOG.md') };
   report(!r.status && !r.decisions && !r.notes && r.code && r.log, 'end: worked: an edit only to the status or decisions record (or the engine\'s notes) is bookkeeping, not work; a code or changelog edit is work', JSON.stringify(r));
 }
+// (15 or more tool calls is real work, files changed or not: the routed runbook is asked to be opened; fewer, or opened,
+// is not. Step 0.4)
+{
+  const book = 'docs/playbooks/export.md', grep = i => call('Grep', { pattern: `x${i}` }, 'none');
+  const r = { busy: missing({ runbook: book }, acts([user('build the export report'), ...Array.from({ length: 16 }, (_, i) => grep(i)), say('Here it is.')])),
+    few: missing({ runbook: book }, acts([user('build the export report'), ...Array.from({ length: 5 }, (_, i) => grep(i)), say('Here it is.')])),
+    opened: missing({ runbook: book }, acts([user('build the export report'), read, ...Array.from({ length: 16 }, (_, i) => grep(i)), say('Here it is.')])) };
+  report(/^Open docs\/playbooks\/export\.md and follow its steps: 15 or more tool calls/.test(r.busy[0] || '') && r.busy.length === 1 && !r.few.length && !r.opened.length,
+    'end: a routed turn of 15 or more tool calls with no file changed is asked to open its runbook; fewer calls, or the runbook opened, is not', JSON.stringify(r));
+}
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
 report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
 // (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))

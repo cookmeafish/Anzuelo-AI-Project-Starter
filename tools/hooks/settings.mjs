@@ -48,7 +48,7 @@ export const usageOf = url => { const out = []; for (const l of read(fileURLToPa
 // Every setting's default (what each does: SETTINGS.md); a project's tools/hooks/config.json overrides them.
 export const DEFAULTS = JSON.parse(fs.readFileSync(new URL('./defaults.json', import.meta.url), 'utf8'));
 // List settings in config.json EXTEND the defaults (a pack adding root files must not drop AGENTS.md from the list).
-const EXTENDS = ['knowledgeDirs', 'gitignoreMustIgnore', 'gitignoreMustKeep', 'rootAllowed', 'namesIgnore', 'injectionIgnore', 'fluff', 'secretPatterns', 'userFacing', 'userFacingIgnore', 'verbatimAllowed', 'ignoreForChanges', 'guiFiles', 'guiIgnore', 'evidenceLabels', 'questionNoFileExempt', 'notWork'];
+export const EXTENDS = ['knowledgeDirs', 'gitignoreMustIgnore', 'gitignoreMustKeep', 'rootAllowed', 'namesIgnore', 'injectionIgnore', 'fluff', 'secretPatterns', 'userFacing', 'userFacingIgnore', 'verbatimAllowed', 'ignoreForChanges', 'guiFiles', 'guiIgnore', 'evidenceLabels', 'questionNoFileExempt', 'notWork'];
 let foundMirrors = null, ignoredDirs = null;
 export function config() {
   const c = readJSON(CONFIG(), {});

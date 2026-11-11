@@ -522,7 +522,7 @@ const STOP = [
   { name: 'runbook-exists: work that names an existing runbook it never opened is asked to open it, not to write one: blocked', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota', '.cache/turn-notes.md': 'Playbook: plan.md (the rota)\n' }, answer: 'Done.' + FIN,
     expect: { block: true, tags: ['runbook-read'], not: ['runbook-exists'] } },
   { name: 'runbook-exists: a typo fix in one file needs no runbook: passes', prompt: 'fix the typos in the rota note', files: { 'docs/rota.md': 'rota' }, answer: 'Fixed the typos.' + FIN,
-    expect: { not: ['runbook-exists'] } },
+    expect: { not: ['runbook-exists'] }, v2: { host: { STARTER_NO_SMALL: '' } } },
   { name: 'runbook-exists: _fallback followed but no runbook left behind: blocked', prompt: 'build me a weekly cleaning rota for the flat', tools: [pb('_fallback')], files: { 'docs/rota.md': 'rota' }, answer: 'Playbook: _fallback.md. Done.' + FIN,
     expect: { block: true, tags: ['runbook-exists'] } },
   // the Stop hook's form per host: calm feedback where the host supports it (Claude Code sets CLAUDE_PROJECT_DIR for its
@@ -584,7 +584,7 @@ const STOP = [
     expect: { block: true, tags: ['rule-request'] }, v2: { tools: [sk('project-rule')] } },
   // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week
   { name: 'upset-learned: a complaint fixed but nothing learned: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
-    answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['runbook-exists', 'rule-request'] }, v2: { issue: true } },
+    answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['runbook-exists', 'rule-request'] }, v2: { issue: true, host: { STARTER_NO_SMALL: '' } } },
   // (strong words, nothing wrong: the agent decides and owes no verdict or lesson. Lesson (the user): "the user is solely
   // explaining but there is nothing wrong here")
   { name: 'upset-learned: strong words about something else, recorded as nothing wrong: passes that check', prompt: 'ugh the printer at the office is shit today. anyway add the croissant to the menu',
@@ -5231,6 +5231,8 @@ const V2_ASKS = {
   'no-verbatim-examples': /^- These files copy the user's own words: /m,
   'name-var': /^- Names are written once, in docs\/names\.json/m,
   'root-tidy': /^- New files sit loose in the project root: /m,
+  'runbook-exists': /^- (No runbook was opened for this work\. |This work followed docs\/playbooks\/_fallback\.md: leave a runbook)/m,
+  'runbook-read': /^- Open docs\/playbooks\/\S+ and (check the work against|answer by) its steps\./m,
   'changelog': /^- Check: Add a dated line to docs\/CHANGELOG\.md for what changed/m,
   'note-linked': /^- New notes? \S.* links? to nothing\. /m,
   'waiver-tally': /waived in 3\+ earlier turns here/,
