@@ -8877,9 +8877,13 @@ if (mineB()) { // the manual path (agents without hooks): `hooks.mjs begin "<req
       'export the invoices to csv again for the accountant': 'RECALL'
     };
     const bad = [];
+    // (under v2 begin calls the prompt hook's own reminder: the two texts are the same, whatever words they hold)
+    const v2text = o => { try { return JSON.parse(o).hookSpecificOutput?.additionalContext || ''; } catch { return ''; } };
     for (const [p, w] of Object.entries(want)) {
-      const begin = kinds(spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'begin', p], { cwd: dir, encoding: 'utf8' }).stdout);
-      const hook = kinds(run(dir, 'prompt', { prompt: p }).out);
+      const bout = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'begin', p], { cwd: dir, encoding: 'utf8' }).stdout, hout = run(dir, 'prompt', { prompt: p }).out;
+      // (a begin in a session whose turn is open first says it keeps that start: not part of the routing)
+      if (process.env.STARTER_ENGINE === 'v2') { const b = bout.replace(/^BEGIN: this session's prompt hook recorded[^\n]*\n/, '').trim(), h = v2text(hout).trim(); if (b !== (h || 'BEGIN: recorded. No runbook named for this request.')) bad.push(`"${p}": begin [${b.slice(0, 120)}] vs prompt hook [${h.slice(0, 120)}]`); continue; }
+      const begin = kinds(bout), hook = kinds(hout);
       if (begin !== w || hook !== w) bad.push(`"${p}": want [${w}], begin [${begin}], prompt hook [${hook}]`);
     }
     report(!bad.length, 'manual path: hooks.mjs begin prints the same ROUTE, PRAISE, RULE REQUEST, REQUIREMENT and RECALL hints as the prompt hook', bad.join(' || '));
