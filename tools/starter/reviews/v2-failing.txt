@@ -53,7 +53,6 @@ stop-reblock: blocks count per request across waits for background jobs, the cap
 stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: GUI reviewed but no Visual review verdict: blocked
-stop: a new runbook gets its skill and DIRECTORY row generated
 stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
@@ -91,7 +90,6 @@ stop: unresolved-carryover: block cap reached: the user is told at once that the
 stop: unresolved-carryover: the same work continues and last turn's CHANGELOG line is still missing: blocked
 stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked
 stop: waiting end: what the full check would ask stays on record for the next Stop
-trigger-words: a message that sets off the upset handling goes to the trigger log
 unresolved-carryover: notices once per turn, none for a mid-turn message, last turn's misses once
 upset-acknowledged: a record covers a range or list of items ("Done 1-12:", "Skip 2, 4:"); only records written this turn count, not earlier turns' lines in the notes file
 upset-acknowledged: an Issue line shown in the agent's text is copied to the notes, and nothing is held without one (REQ quiet-work)
