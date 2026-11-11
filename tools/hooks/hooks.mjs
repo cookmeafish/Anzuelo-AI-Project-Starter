@@ -1848,6 +1848,19 @@ export function syncNames(cfg = config(), { force = false } = {}) {
 export function syncAll(cfg = config()) {
   try { syncSkills(cfg); syncDirectory(cfg); syncNames(cfg); syncEngineChecks(); syncTwin(); flushEngineWrites(); return true; } catch (e) { process.stderr.write(`[hooks sync] ${e.message}\n`); return false; }
 }
+// syncAll only when a source of the generated files (a runbook, check doc, the menu, requirements.json, a skill) is newer
+// than the last sync: a few file times instead of a full sync at every Stop. Returns whether it synced.
+export function syncIfStale(cfg = config()) {
+  const stamp = path.join(STATE, 'synced-at.json'), since = (() => { try { return fs.statSync(stamp).mtimeMs; } catch { return 0; } })();
+  const mt = p => { try { return fs.statSync(abs(p)).mtimeMs; } catch { return 0; } };
+  const sd = cfg.skillsDir || 'skills';
+  const srcs = [...list('docs/playbooks').map(n => `docs/playbooks/${n}`), ...list('docs/checks').map(n => `docs/checks/${n}`), 'docs/MENU.md', 'tools/hooks/requirements.json',
+    ...list(sd).map(n => `${sd}/${n}/SKILL.md`)];
+  if (since && !srcs.some(p => mt(p) > since)) return false;
+  const ok = syncAll(cfg);
+  try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(stamp, JSON.stringify({ at: new Date().toISOString() })); } catch { }
+  return ok;
+}
 // Checks the engine has retired, with what covers them now. A project's checklists and runbooks may still name one (it
 // came with an earlier version): sync takes it out of their hook lists, and the audit never fails on it. Lesson (a field
 // report): retiring playbook-named rolled an upgrade back, because the project's copy of rule-enforcement.md named it.
@@ -6794,6 +6807,11 @@ if (isMain) {
       // winning, as the old engine's Stop did; an edit made by a command reaches no post-tool hook. Lesson (the old suite
       // under v2): an AGENTS.md edit left CLAUDE.md behind)
       if (cmd === 'stop') syncTwin();
+      // (and the generated files, a runbook's skill, mirror and DIRECTORY.md row, when a runbook, skill or check file is
+      // newer than the last sync, as the old engine's Stop synced: a file a script, an agent without hooks or a test wrote
+      // reaches no post-tool hook. Only then, to keep the Stop fast. Lesson (the old suite under v2): a new runbook got no
+      // skill or DIRECTORY row)
+      if (cmd === 'stop') try { syncIfStale(); } catch { }
       const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code' });
       if (cmd === 'stop' && !v2) try { fs.rmSync(path.join(STATE, detailsFile(data.session_id)), { force: true }); } catch { }
       if (v2) process.stdout.write(JSON.stringify(cmd === 'stop' ? v2StopForm(v2, config(), HOST, STATE, data.session_id) : v2));
