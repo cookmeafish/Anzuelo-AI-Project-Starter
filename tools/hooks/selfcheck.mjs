@@ -7340,8 +7340,12 @@ if (mineB()) { // self-sent-prompt: a wakeup's own prompt firing mid-turn starts
     const at = Date.now() - 600_000, iso = d => new Date(at + d).toISOString();
     const rows = [{ type: 'user', timestamp: iso(0), entrypoint: 'sdk-cli', message: { role: 'user', content: 'set up this project' } }];
     const save = () => { fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); fs.utimesSync(tp, (at - 3600_000) / 1000, (at - 3600_000) / 1000); };
-    const turnRec = () => { try { return JSON.parse(fs.readFileSync(path.join(dir, `tools/hooks/state/turn.${SID}.json`), 'utf8')); } catch { return {}; } };
-    const snapAt = () => { try { return JSON.parse(fs.readFileSync(path.join(dir, `tools/hooks/state/snapshot.${SID}.json`), 'utf8')).at; } catch { return ''; } };
+    // (each engine's own files: v2 keeps v2-turn.<session>.json, with no copy of the prompt, and its snapshot
+    // v2-dirty.<session>.json, written by a detached process a moment after the prompt)
+    const V2 = process.env.STARTER_ENGINE === 'v2';
+    const turnRec = () => { try { const t = JSON.parse(fs.readFileSync(path.join(dir, `tools/hooks/state/${V2 ? 'v2-turn' : 'turn'}.${SID}.json`), 'utf8')); return V2 ? { ...t, prompt: t.at } : t; } catch { return {}; } };
+    const snapF = path.join(dir, `tools/hooks/state/${V2 ? 'v2-dirty' : 'snapshot'}.${SID}.json`);
+    const snapAt = () => { if (V2) for (let i = 0; i < 50 && !fs.existsSync(snapF); i++) spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},100)']); try { return JSON.parse(fs.readFileSync(snapF, 'utf8')).at; } catch { return ''; } };
     save(); run(dir, 'prompt', { prompt: 'set up this project', session_id: SID, transcript_path: tp });
     const first = turnRec(), firstSnap = snapAt();
     // the turn schedules a fallback wakeup, ends while waiting, and the wakeup fires (a meta row with its prompt)
@@ -7360,7 +7364,7 @@ if (mineB()) { // self-sent-prompt: a wakeup's own prompt firing mid-turn starts
       { type: 'user', timestamp: iso(3000), message: { role: 'user', content: 'now write the first recipe' } });
     save(); run(dir, 'prompt', { prompt: 'now write the first recipe', session_id: SID, transcript_path: tp });
     const typed = turnRec();
-    const ok = first.at && afterWake.at === first.at && afterWake.prompt === first.prompt && wakeSnap === firstSnap && unmarked.at === first.at && typed.at !== first.at && /first recipe/.test(typed.prompt || '');
+    const ok = first.at && afterWake.at === first.at && afterWake.prompt === first.prompt && wakeSnap === firstSnap && unmarked.at === first.at && typed.at !== first.at && (V2 || /first recipe/.test(typed.prompt || ''));
     report(!!ok, 'self-sent-prompt: a wakeup firing mid-turn keeps the request, its start and its snapshot, marked or not; a prompt the user types starts a new turn',
       `first ${first.at}, after wake ${afterWake.at} (${String(afterWake.prompt).slice(0, 40)}), snapshot kept ${wakeSnap === firstSnap}, unmarked ${unmarked.at}, typed ${typed.at} (${String(typed.prompt).slice(0, 40)})`);
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }

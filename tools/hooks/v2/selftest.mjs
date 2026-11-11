@@ -3041,7 +3041,28 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       return { files: ls().filter(f => f.includes(sid)), logged: log().includes(`"session":"${sid}"`) }; };
     const quiet = { none: turn('handNone'), empty: turn('handEmpty', tp('empty.jsonl')), blank: turn('handBlank', tp('blank.jsonl')), folder: turn('handFolder', path.join(c, '.cache/tp')) };
     const real = turn('realOne', tp('real.jsonl')), headless = turn('headlessOne', tp('headlessOne.jsonl'));
+    // (REQ: self-sent-prompt under v2: a wakeup the session scheduled, firing mid-turn, keeps the turn's start (the Stop
+    // before it waits on the wakeup, so the turn has not ended); a prompt the user types after the turn ended starts a
+    // new turn)
+    const wk = tp('wake.jsonl'), W = 'Check the background audit result and finish setup.', t0w = Date.now() - 600_000, isoW = d => new Date(t0w + d).toISOString();
+    const wrows = [{ type: 'user', timestamp: isoW(0), message: { role: 'user', content: 'set up this project' } }];
+    const wsave = () => fs.writeFileSync(wk, wrows.map(r => JSON.stringify(r)).join('\n') + '\n');
+    const wprompt = p => { wsave(); spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'wake1', transcript_path: wk, prompt: p }), env }); try { return JSON.parse(fs.readFileSync(path.join(c, 'tools/hooks/state/v2-turn.wake1.json'), 'utf8')).at; } catch { return ''; } };
+    // (each answer ends with the host's Stop, which ends the turn: the wakeup fires after that)
+    const wstop = () => { wsave(); spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'wake1', transcript_path: wk }), env }); };
+    const wFirst = wprompt('set up this project');
+    wrows.push({ type: 'assistant', timestamp: isoW(1000), message: { content: [{ type: 'tool_use', id: 'w1', name: 'ScheduleWakeup', input: { delaySeconds: 600, prompt: W } }] } },
+      { type: 'user', timestamp: isoW(1100), message: { content: [{ type: 'tool_result', tool_use_id: 'w1', content: 'Next wakeup scheduled.' }] } },
+      { type: 'assistant', timestamp: isoW(1200), message: { content: [{ type: 'text', text: 'Still waiting for the audit.' }] } });
+    wstop();
+    wrows.push({ type: 'user', timestamp: isoW(2000), message: { role: 'user', content: W } });
+    const wWake = wprompt(W);
+    wrows.push({ type: 'assistant', timestamp: isoW(2100), message: { content: [{ type: 'text', text: 'Setup is finished.' }] } });
+    wstop();
+    wrows.push({ type: 'user', timestamp: isoW(3000), message: { role: 'user', content: 'now write the first recipe' } });
+    const wTyped = wprompt('now write the first recipe');
     fs.rmSync(c, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    report(!!wFirst && wWake === wFirst && !!wTyped && wTyped !== wFirst, 'start: a wakeup the session scheduled, firing mid-turn, keeps the turn\'s start; a prompt the user types starts a new turn (self-sent-prompt)', JSON.stringify({ wFirst, wWake, wTyped }));
     report(Object.values(quiet).every(r => !r.files.length && !r.logged) && real.files.includes('v2-turn.realOne.json') && real.logged && headless.files.includes('v2-turn.headlessOne.json'),
       'state-hygiene: a hand run with a made-up session id and no readable transcript keeps no turn record, snapshot or Stop log line; a real transcript, or the host\'s own not yet written, does', JSON.stringify({ quiet, real, headless }));
   }
