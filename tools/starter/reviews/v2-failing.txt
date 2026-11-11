@@ -37,7 +37,6 @@ runbook-ledger: a notes file rewritten with other line endings during the turn c
 runbook-ledger: new records inserted above an earlier turn's lines count alone; the earlier lines stay out
 self-improve: an engine check that annoys a project is reported to the starter and announced there
 self-sent-prompt: a wakeup firing mid-turn keeps the request, its start and its snapshot, marked or not; a prompt the user types starts a new turn
-selfcheck --explain: lists every firing check with its label and what satisfies it
 session and prompt notices: sent as hidden context where the host supports it, plain text elsewhere
 session: a resume after a turn that ended repeats no reminder and claims no interruption; a resume mid-turn checks the files
 session: the user sees nothing at the start (no "on duty", intact files or agent chores), only broken files; the agent still gets every notice
@@ -97,7 +96,4 @@ unresolved-carryover: notices once per turn, none for a mid-turn message, last t
 upset-acknowledged: a record covers a range or list of items ("Done 1-12:", "Skip 2, 4:"); only records written this turn count, not earlier turns' lines in the notes file
 upset-acknowledged: an Issue line shown in the agent's text is copied to the notes, and nothing is held without one (REQ quiet-work)
 upset-acknowledged: an upset message holds nothing during work (REQ quiet-work); the user still sees "acknowledged" once the Issue line is written, with no checklist pushed to the agent; "Issue: none" shows nothing
-upset-learned: a later complaint appended below an earlier Issue line is acknowledged, once
-upset-learned: an Issue line written from the shell shows "acknowledged" at the next tool call, once
-upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once
 waive command: an agent without hooks waives a step with the command, and check no longer asks for it
