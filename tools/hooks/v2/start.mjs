@@ -57,7 +57,10 @@ export const upset = p => { const s = String(p); return capsUpset(s)
   || /\byou (made|wrote|added|created|built|saved|left|put|did)\b[^.?!]{0,80}\bwithout\b/i.test(s)
   // (a repeated miss: "you keep making X", "why does it keep ...", "wrong again!!". Lesson (trial v41): a complaint with
   // "!!" got only the generic reminder)
-  || /(?<!\b(?:can|could|would|will|should|to|please|and|if|let|make) )\b(you|u|it) keep(s)? (on )?\w+ing\b|\bwhy (do|does|did) (you|it) keep\b|\bagain\s*!!/i.test(s)
+  || /(?<!\b(?:can|could|would|will|should|to|please|and|if|let|make) )\b(you|u) keep(s)? (on )?\w+ing\b|\bwhy (do|does|did) (you|it) keep\b|\bagain\s*!!/i.test(s)
+  // ("it keeps ...ing" only when the message is no plain request to fix something: there "it" is the thing to fix.
+  // Lesson (the old suite under v2): "please fix the garden shed door, it keeps coming loose" was read as upset)
+  || (/(?<!\b(?:can|could|would|will|should|to|please|and|if|let|make) )\bit keeps? (on )?\w+ing\b/i.test(s) && !/^\s*(?:please\s+)?(?:fix|repair|mend|adjust|tighten|can you|could you|would you)\b/i.test(s))
   // (what was let through, and "that should never happen again". Lesson (trial v42): "you let any user delete ...! that
   // should never happen again" got no notice and no runbook)
   || /\byou (let|allowed) (any|anyone|anybody|everyone|everybody|every|all|the|a|other|staff|users?)\b[^.?!]{0,80}!|\b(that|this|it) (should|must|can) never happen again\b/i.test(s)

@@ -400,6 +400,8 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export')
   && upset('you made a new invoice without linking it to the order') && !upset('can you make the export work without the header row?')
   && upset('you keep putting the tax line under the total!! fix it') && upset('why does it keep rounding the prices') && upset('the totals are off again!!')
+  // ("it keeps ...ing" in a plain request to fix a thing describes the thing, not the agent's work)
+  && upset('the export, it keeps dropping rows') && !upset('please fix the garden shed door, it keeps coming loose') && !upset('can you look at the gate, it keeps swinging open')
   && !upset('keep the export as it is') && !upset('can you keep working on the totals?') && !upset('great, it works!!')
   && upset('you let any visitor cancel orders! only the owner may cancel') && upset('the totals were off. that should never happen again')
   && !upset('thanks, you let me know in time') && !upset('can you let the staff export orders?'),

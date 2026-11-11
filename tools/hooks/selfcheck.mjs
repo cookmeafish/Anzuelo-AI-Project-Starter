@@ -4743,7 +4743,9 @@ PROMPT.push(
   // work reported as done is no request for it; the same words as a request still route
   { pack: 'app', name: 'route: "fixed and pushed: GitHub main" with a starter upgrade routes to the engine runbook, not to release',
     prompt: 'Both of your latest findings are fixed and pushed: GitHub main 754ac35. Upgrade with node tools/starter.mjs update.',
-    has: ['ROUTE: engine'], hasNot: ['ROUTE: project', 'ROUTE: release', 'release-'] },
+    has: ['ROUTE: engine'], hasNot: ['ROUTE: project', 'ROUTE: release', 'release-'],
+    // (under v2 the upgrade route is a project's: in the starter itself an upgrade message is a project's report back)
+    v2: { removeMarker: true } },
   { pack: 'app', name: 'route: "push to main and tag the release" still routes to release', prompt: 'push to main and tag the release v1.2', has: ['release'] },
   // Spanish debugging requests get the debug skill; "falla" in other senses does not
   { name: 'route: a Spanish debug request gets the debug skill', prompt: 'depura el fallo de la importación: el script falla con fechas vacías', has: ['SKILL: debug'] },
