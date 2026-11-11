@@ -194,6 +194,16 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   report(back === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a helper\'s report back is not a request: no reminder, and the turn keeps its runbook', [back, loadTurn('notice').runbook]);
   const resumed = onPrompt({ session_id: 'notice', prompt: 'This session is being continued from a previous conversation that ran out of context. Build me a cleaning rota for the flat.' });
   report(resumed === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: the summary that resumes a session after its context ran out gets no reminder, and the turn keeps its runbook', [resumed, loadTurn('notice').runbook]);
+  { // (REQ: prompt-digest: a session whose start gave no rules hears a one-line digest once; one whose start gave them, a
+    // second prompt, or a prompt with no reminder hears none; with no session id, every reminder carries it)
+    const tx = path.join(dir, '.cache/digest-tx.jsonl'); put('.cache/digest-tx.jsonl', '{}\n');
+    put('tools/hooks/state/checklist.dg2.json', '{}');
+    const dg = (sid, prompt = 'add a csv export for the orders page') => /^\[rules\] /m.test(onPrompt({ ...(sid ? { session_id: sid, transcript_path: tx } : {}), prompt })?.hookSpecificOutput?.additionalContext || '');
+    const d = { first: dg('dg1'), again: dg('dg1'), started: dg('dg2'), noSid: dg(''), noSidAgain: dg(''), notice: dg('dg3', '[Cross-session idle notice] a peer went idle') };
+    for (const f of ['checklist.dg2.json', 'digest.dg1.json', 'digest.dg3.json']) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+    report(d.first && !d.again && !d.started && d.noSid && d.noSidAgain && !d.notice,
+      'start: prompt-digest: a session with no session start hears the rules digest once; one whose start gave the rules, a second prompt, or a prompt with no reminder does not; with no session id every reminder has it', d);
+  }
   // (a run with no session id, such as the hook timing, saves no turn record. Lesson (a field report): an upgrade's hook
   // timing left a turn record under a made-up id in the project's state folder)
   const { onStop } = await import('./end.mjs');

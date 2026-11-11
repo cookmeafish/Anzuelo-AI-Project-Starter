@@ -284,6 +284,8 @@ function remind(prompt) {
   return { book, text };
 }
 
+const DIGEST = '[rules] route→open runbook · no runbook→create one · always/never→enforced rule · facts labeled+sourced+dated · ' +
+  'questions get answers, not edits · originals/outputs protected · GUI change→screenshot loop · end with Finished + paths';
 export function onPrompt(data) {
   // (a host notice, like a background job ending, is not a request: the turn keeps its runbook and gets no reminder.
   // Lesson (live): a job's notice mid-turn cleared the routed runbook, and the end check held the turn to another one)
@@ -314,5 +316,15 @@ export function onPrompt(data) {
   else { const at0 = new Date().toISOString(); let openPlans = [];
     try { openPlans = openPlansOf(fs.readdirSync(at('docs/plans')), p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } }).map(x => x.p); } catch { }
     saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...sore, ...tx, ...(openPlans.length ? { openPlans } : {}) }); snapshotLater(data.session_id, at0); }
-  return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
+  // (REQ: prompt-digest: a session whose start did not give the rules (no session-start record for it) hears a one-line
+  // digest once, with its first reminder. Lesson (the old suite under v2): the old engine said it; v2 never did)
+  const sid = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  // (no session id, as for an agent with no hooks: every prompt; a made-up id with no readable transcript writes no state)
+  let digest = '';
+  const real = sid && data.transcript_path && fs.existsSync(String(data.transcript_path));
+  if (text && projectConfig().promptDigest !== false && !(sid && (fs.existsSync(at(`tools/hooks/state/checklist.${sid}.json`)) || fs.existsSync(at(`tools/hooks/state/digest.${sid}.json`))))) {
+    digest = DIGEST; if (real) try { fs.mkdirSync(at('tools/hooks/state'), { recursive: true }); fs.writeFileSync(at(`tools/hooks/state/digest.${sid}.json`), '{}'); } catch { } }
+  // (last: what the reminder leads with, a question to answer or the runbook to open, stays first)
+  const all = [text, digest].filter(Boolean).join('\n');
+  return all ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: all } } : null;
 }

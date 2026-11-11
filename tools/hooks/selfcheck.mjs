@@ -8993,7 +8993,8 @@ if (mineB()) { // notices once per turn: not repeated for a message typed mid-tu
     const withStart = run(d3, 'prompt', { session_id: 'ck1', transcript_path: tp3, prompt: 'add a csv export' }).out;
     const noStart = run(d3, 'prompt', { session_id: 'ck2', transcript_path: tp3, prompt: 'add a csv export' }).out;
     fs.rmSync(d3, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-    report(/Session checklist/.test(ss3) && !withStart.includes('[rules]') && noStart.includes('[rules]'),
+    // (under v2 the session start's rules come under its own heading)
+    report((process.env.STARTER_ENGINE === 'v2' ? /How this project's engine works/ : /Session checklist/).test(ss3) && !withStart.includes('[rules]') && noStart.includes('[rules]'),
       'prompt-digest: a session whose start gave the session checklist gets no rules digest on its prompts; one with no session start still does', `with start: ${withStart.slice(0, 150)} | no start: ${noStart.slice(0, 150)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
