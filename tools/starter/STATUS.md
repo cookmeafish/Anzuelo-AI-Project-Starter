@@ -32,6 +32,12 @@ Every batch: the pre-chain quick runs; the next batch starts while a chain runs;
 oversight (commit, open count, next batch).
 
 ## Now
+- 2026-11-11: main and GitHub at d02602b (proof for 5021077). v2 list after its sweep: 33 open, 69 retired or
+  proven another way (was 118 open on 2026-11-10). Released today: 67acac3, f134ecc, 234cdd3, d02602b; both upgraded
+  projects reported 0 regressions each time. app-port ahead: selfcheck --explain under v2. Left: sessions and stop rounds,
+  state hygiene with made-up sessions (touches begin and many self-tests: plan it), fit-checklist (Phase B), stop
+  budget, own-scenarios/host-fixtures tooling, the upset-learned acknowledged lines. Chains: keep the machine quiet
+  through the self-test AND selfcheck steps (both judge time limits).
 - 2026-11-10 (night): main and GitHub at 2648dc1 (proof for 63c2888: rule 2's runbook ask, the shortened-id guard,
   read-only turns skip the file scans). Notices sent to all 3 projects. v2 list after its sweep: 118 open, 43 retired.
   app-port ahead: note-linked, name-var (via tools/hooks/names.mjs), the requirement filter. Next: the rest of batch 1.
