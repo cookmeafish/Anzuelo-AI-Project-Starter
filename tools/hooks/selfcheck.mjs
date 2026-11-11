@@ -9614,7 +9614,8 @@ if (mineB() && (!TAGS || TAGS.includes('session-checklist'))) { // session-check
   const dir = copyProject();
   try {
     const ses = (sid, source) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'session'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source, transcript_path: path.join(dir, '.cache', `${sid}.jsonl`) }) }).stdout;
-    const full = s => /^# Session checklist/m.test(s) && /\b1\. ROUTE/.test(s);
+    // (each engine's own whole text: v2's session start opens with how the engine works)
+    const full = s => process.env.STARTER_ENGINE === 'v2' ? /^# How this project's engine works/m.test(s) : /^# Session checklist/m.test(s) && /\b1\. ROUTE/.test(s);
     const first = ses('sesA', 'startup'), resumed = ses('sesA', 'resume'), other = ses('sesB', 'resume'), compacted = ses('sesA', 'compact');
     report(full(first) && !full(resumed) && /as shown at this session's start/.test(resumed) && /docs\/STATUS\.md/.test(resumed) && full(other) && full(compacted),
       'session-checklist: a resumed session already shown the checklist gets one line (STATUS and notices stay); a new session, another session\'s resume and a compaction get it whole',
@@ -9640,7 +9641,8 @@ if (mineB() && (!TAGS || TAGS.includes('engine-bypassed'))) { // engine-bypassed
     const harness = guard({ ...CC, ANZUELO_SESSION_GATE: 'off' });
     // "begin" from that session records it (the session id comes from the environment)
     spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'begin', 'tidy the notes'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1' } });
-    const recorded = fs.existsSync(path.join(dir, 'tools/hooks/state/turn.sessUnseen1.json')), seen = guard(CC);
+    // (each engine's own turn record: v2 keeps v2-turn.<session>.json)
+    const recorded = ['turn', 'v2-turn'].some(k => fs.existsSync(path.join(dir, `tools/hooks/state/${k}.sessUnseen1.json`))), seen = guard(CC);
     report(unseen.code === 1 && /engine-bypassed/.test(unseen.err) && /hooks\.mjs begin/.test(unseen.err) && unseenPush.code === 1
       && person.code === 0 && harness.code === 0 && recorded && seen.code === 0,
       'engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person\'s commit and a test harness never meet it',
