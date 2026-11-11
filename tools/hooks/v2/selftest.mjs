@@ -2164,7 +2164,7 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
     psWrite: selfCmdWrites('Set-Content tools/hooks/config.json \'{"selfCommands":["x"]}\''),
     // (a changelog line that only mentions the list and the file is no write of it; a quoted path to it still is)
     prose: selfCmdWrites("sed -i '4a - Upgraded: carried onto selfCommands in tools/hooks/config.json, kept running' docs/CHANGELOG.md && sed -i '29s/a/b/' docs/STATUS.md"),
-    quotedPath: selfCmdWrites(`sed -i 's/"selfCommands": \\[/&"x",/' "C:/projects/My Project/tools/hooks/config.json"`),
+    quotedPath: selfCmdWrites(`sed -i 's/"selfCommands": \\[/&"x",/' "/work/My Folder/tools/hooks/config.json"`),
     escEdit: selfListGrows('Write', { file_path: P, content: '{"autonomy": "ask", "self\\u0043ommands": ["npm test", "x"]}' }, dir, rd),
   };
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'selfallow-')); fs.mkdirSync(path.join(tmp, 'tools/hooks'), { recursive: true }); fs.writeFileSync(path.join(tmp, 'tools/hooks/config.json'), '{"autonomy":"ask"}');
