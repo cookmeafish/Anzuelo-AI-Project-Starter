@@ -41,6 +41,7 @@ import { registry } from './packs.mjs';
 import { behindUpstream } from './hooks/repo.mjs';
 import { where, whereWrite, split, kind, keepList, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
 import { scriptsIn } from './hooks/wire.mjs';
+import { carryRunEach } from './hooks/selfcmds.mjs';
 
 // (each path goes where paths.mjs says: in the starter, all one folder; in a project, packs and library are the engine's)
 const CONFIG = where('tools/hooks/config.json');
@@ -180,6 +181,8 @@ export function splitUpgrade(dry = false) {
       }
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
     if (old !== up && ff) log.push('would make the wiring again (wire.mjs), and note the change in the project\'s engine log');
+    const wouldCarry = carryRunEach(fs.existsSync(path.join(LOCAL, 'tools', 'hooks', 'requirements.json')) ? LOCAL : PROJECT, { dry: true });
+    if (wouldCarry.length) log.push(`would approve ${wouldCarry.length} runEach command(s) the project's checks run on their own (selfCommands): ${wouldCarry.join(' | ')}`);
     console.log(`${log.join('\n')}\n\nDry run: nothing changed (${log.length} item(s) above).`);
     return 0;
   }
@@ -205,6 +208,11 @@ export function splitUpgrade(dry = false) {
   b.at = now; saveBasedOn(b);
   if (merged.length) console.log(`merged the default's changes into this project's copies: ${merged.join(', ')}`);
   if (clash.length) console.log(`for the user to decide (the project's change and the default's meet):\n- ${clash.join('\n- ')}`);
+  // (REQ: self-run: the project's committed runEach commands go onto the approved list, as in the plain layout's
+  // upgrade, so no check it had stops running. The user, 2026-11-10)
+  const own = fs.existsSync(path.join(LOCAL, 'tools', 'hooks', 'requirements.json')) ? LOCAL : PROJECT, carried = carryRunEach(own);
+  if (carried.length) { console.log(`approved ${carried.length} runEach command(s) the project's checks run on their own (selfCommands, ${path.relative(PROJECT, path.join(own, 'tools/hooks/config.json')).split(path.sep).join('/')}): ${carried.join(' | ')}`);
+    noteEngineChange(PROJECT, `carried ${carried.length} runEach command(s) onto the approved list, so the hook keeps running them: ${carried.join(' | ')}`); }
   const w = spawnSync(process.execPath, [path.join(ENGINE, 'tools', 'hooks', 'wire.mjs')], { cwd: PROJECT, encoding: 'utf8' });
   process.stdout.write(w.stdout || '');
   if (old !== now) console.log(`what changed: ${path.join(ENGINE, 'tools', 'starter', 'STARTER-CHANGELOG.md').split(path.sep).join('/')} (lines since ${old.slice(0, 7)}); review them in docs/DECISIONS.md as before`);

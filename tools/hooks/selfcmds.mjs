@@ -42,7 +42,11 @@ export function approvedBefore(file, before) {
 // The "runEach" commands a project's committed tools/hooks/requirements.json declares (anyOf branches too), from git's
 // last commit: a command added during a session is not carried. Not a git project: none.
 export function committedRunEach(root) {
-  const r = spawnSync('git', ['show', 'HEAD:tools/hooks/requirements.json'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+  // (by its path from the repository's top: the engine's local folder may sit inside the project's repository)
+  const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+  if (top.status !== 0) return [];
+  const rel = path.relative(top.stdout.trim(), path.join(root, 'tools/hooks/requirements.json')).replace(/\\/g, '/');
+  const r = spawnSync('git', ['show', `HEAD:${rel}`], { cwd: root, encoding: 'utf8', timeout: 10000 });
   let j = {}; try { j = r.status === 0 ? JSON.parse(r.stdout) : {}; } catch { return []; }
   const of = q => !q || typeof q !== 'object' ? [] : [q?.runEach?.cmd, ...(q.anyOf || []).flatMap(of)];
   return [...new Set((j.requirements || []).flatMap(x => of(x?.require)).filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))];
