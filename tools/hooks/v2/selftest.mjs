@@ -718,14 +718,15 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
 // check on changed runbooks; a changed step still does, and a runbook with no known start is a change. (The old suite's
 // "routing-only" test)
 {
-  const { routingOnly, bodyHash, holdsReq } = await import('./lib.mjs');
+  const { routingOnly, bodyHash, holdsReq, met } = await import('./lib.mjs');
   const f = 'docs/playbooks/zz-route.md', TEXT = '---\nname: zz-route\nsummary: How to care for a plant\ntriggers: how to care, watering guide\n---\n# zz\n\n## Steps\n1. Read the plant notes.\n';
   const once = (body, known = true) => { put(f, body); const a = acts([user('cuál es el mejor precio'), call('Edit', { file_path: path.join(dir, f), old_string: 'x', new_string: 'y' }), say('Listo.')]);
     if (known) a.startHashes = { files: { [f]: 'a'.repeat(40) }, bodies: { [f]: bodyHash(TEXT) } };
-    return { only: routingOnly(a).has(f), holds: holdsReq({ filesChanged: 'docs/playbooks/*.md' }, a, { changed: [f] }) }; };
+    // (both ways a check names changed files: a requirement's filesChanged, and a "Done when" marker's "(when file: ...)")
+    return { only: routingOnly(a).has(f), holds: holdsReq({ filesChanged: 'docs/playbooks/*.md' }, a, { changed: [f] }), marker: met({ kind: 'file', arg: 'docs/playbooks/*.md' }, a) }; };
   const trig = once(TEXT.replace('watering guide', 'watering guide, mejor precio')), step = once(TEXT.replace('1. Read the plant notes.', '1. Read the plant notes and the care sheets.')), unknown = once(TEXT.replace('watering guide', 'watering guide, riego'), false);
   fs.rmSync(path.join(dir, f), { force: true });
-  report(trig.only && trig.holds === false && !step.only && step.holds === true && !unknown.only && unknown.holds === true,
+  report(trig.only && trig.holds === false && trig.marker === false && !step.only && step.holds === true && step.marker === true && !unknown.only && unknown.holds === true && unknown.marker === true,
     'end: routing-only: a runbook whose only change is its triggers line sets off no project check on changed runbooks; a changed step, or one with no known start, still does', JSON.stringify({ trig, step, unknown }));
 }
 // REQ: name-var under v2: a name from docs/names.json typed out in a doc or in code text is held; in its marker, or read
@@ -786,6 +787,11 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const kept = waived({ answer: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.' }, gaps);
   report(kept.length === 2 && !kept.some(s => /item 1:/.test(s)), 'end: a runbook item the answer says does not fit, by number, is cleared and only that one', kept);
   report(waived({ answer: 'Item 1 is done.' }, gaps).length === 3, 'end: naming an item without saying it does not fit clears nothing');
+  // (a "does not fit" given in an earlier round of the same request still holds when the next answer does not repeat it.
+  // The old suite's "stop rounds" test)
+  // (a repeat round reads only what was said after the last block, said; the whole request's text is saidAll)
+  const later = waived({ answer: 'Root cause: the parser read the header twice.', said: 'Root cause: the parser read the header twice.\n', saidAll: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.\nRoot cause: the parser read the header twice.\n' }, gaps);
+  report(later.length === 2 && !later.some(s => /item 1:/.test(s)), 'end: stop rounds: a runbook item said not to fit in an earlier round of the request stays cleared in the next round', later);
   const byPath = waived({ answer: 'I left the files in `reports/` alone, since redoing them was not part of this request.' }, ['docs/playbooks/r.md item 2: The files in reports/ are updated', 'docs/playbooks/r.md item 3: The index is rebuilt']);
   report(byPath.length === 1 && /item 3/.test(byPath[0]), 'end: a not-fit line that names the item\'s path, with a plain reason, clears that item only', byPath);
   const clause = waived({ answer: 'Item 1 is done; item 2 does not apply here.' }, gaps);

@@ -144,7 +144,9 @@ const STOP = new Set(['user', 'only', 'this', 'that', 'with', 'from', 'have', 'b
 const stems = s => new Set((s.toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !STOP.has(w)).map(w => w.slice(0, 4)));
 const kept = acts => {
   // (one clause at a time: "item 3 done; item 5 n/a" clears item 5 only)
-  const all = String(acts.answer || acts.said || '').replace(/`/g, '').split(/\n|;|\.\s+/);
+  // (and what the agent said in the request's earlier rounds: a "does not fit" given once holds in the later rounds.
+  // Lesson (the old suite under v2): a waiver from round 1 was asked for again in round 2)
+  const all = `${acts.answer || ''}\n${acts.saidAll || acts.said || ''}`.replace(/`/g, '').split(/\n|;|\.\s+/);
   const lines = all.filter(l => NOFIT.test(l));
   // (or "does not apply: <a reason of 3 words or more>" in one line)
   const later = all.flatMap((l, i) => (NOTDONE.test(l) && (REASON.test(l) || REASON.test(all[i + 1] || ''))) || (NOFIT.test(l) && l.slice(l.search(NOFIT)).split(/\s+/).length >= 6) ? [stems(`${l} ${all[i + 1] || ''}`)] : []);
@@ -307,7 +309,7 @@ export function onStop(data, opts = {}) {
   const out = judge(data, opts);
   if (TIMES) process.stderr.write(`V2-STOP-TIMING ${JSON.stringify({ total: Math.round(performance.now() - t0), parts: TIMES.filter(([, ms]) => ms >= 0.5) })}\n`);
   // (each decision goes in the Stop log, "hooks.mjs last": its round, result and the steps it asked for)
-  if (!opts.shadow) logStop(data.session_id, { request: decided.request || '', round: decided.round ?? null, result: out ? 'blocked' : waiting ? 'waiting' : decided.round ? 'passed' : 'ended', steps: out ? decided.steps || [] : [] });
+  if (!opts.shadow) logStop(data.session_id, { request: decided.request || '', round: decided.round ?? null, result: out ? 'blocked' : waiting ? 'waiting' : decided.capped ? 'ended-unresolved' : decided.round ? 'passed' : 'ended', steps: out ? decided.steps || [] : [] });
   if (!out && !waiting && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
   // (REQ: recall-hint: a passing work turn leaves its line in the history, as the old engine's did, so a later request
   // like it starts from how it was done and tools/recall.mjs finds it. Lesson (the old suite under v2): v2 wrote none)
@@ -652,6 +654,10 @@ function judge(data, { shadow = false } = {}) {
       decided = { request: '', round: 1, steps: early.map(s => s.replace(/\s+/g, ' ').slice(0, 80)) };
       return { decision: 'block', reason: `Not done yet:\n${early.map(s => `- ${s}`).join('\n')}\nFix it in the answer now; the helpers' results are checked when they report back. Tell the user in a line, in their language, only what changed, with nothing about this check in it.` };
     }
+    // (logged with its request and the round the next Stop is, as the old engine did: "hooks.mjs last" shows the rounds
+    // across waits. Lesson (the old suite under v2): waits were logged with no request or round)
+    { const again0 = Boolean(saved.at && saved.blocked === saved.at), at0 = saved.at && new Date(Number.isNaN(+saved.at) ? saved.at : +saved.at);
+      decided = { request: at0 && !Number.isNaN(+at0) ? at0.toISOString() : '', round: (again0 ? saved.rounds || 1 : 0) + 1 }; }
     waiting = true; return null;
   }
   const found = turnActs(rows);
@@ -670,7 +676,8 @@ function judge(data, { shadow = false } = {}) {
   const again = Boolean(turn.at && turn.blocked === turn.at), rounds = again ? turn.rounds || 1 : 0;
   const t0 = turn.at && new Date(Number.isNaN(+turn.at) ? turn.at : +turn.at);
   decided = { request: t0 && !Number.isNaN(+t0) ? t0.toISOString() : '', round: rounds + 1 };
-  if (rounds >= MAX_BLOCKS) return null;
+  // (the cap ends the turn with its last steps not done: logged as such, never as a pass)
+  if (rounds >= MAX_BLOCKS) { decided.capped = true; return null; }
   // REQ: pause-stops. The user asked to pause, stop or restart (in the request or a message typed during the turn): the
   // turn ends now, nothing more asked; the next session's checks pick up what is open (the guard still refused anything
   // unsafe during the work). Lesson (a field report): after "get to a good pausing point, I will restart the computer",
@@ -678,6 +685,8 @@ function judge(data, { shadow = false } = {}) {
   if (pausedTurn(acts)) return null;
   // (on a repeat, what the agent said is read from after the last block: a message sent before it can't be taken back.
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
+  // (a "does not fit" said in an earlier round still holds: the whole request's text is kept for that, saidAll)
+  acts.saidAll = acts.said;
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   // REQ: answer-resent. After a block the agent is told to send only a short note of what changed, so a repeat round
   // judges the answer sent before the block together with that note ("Added: ...", "Corrected: ...", a line or two), not

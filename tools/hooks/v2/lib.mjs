@@ -636,9 +636,12 @@ export function met(item, acts) {
     const since = Date.parse(acts.at || '') || 0;
     // ("a|b": either path or glob)
     const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]);
+    // (a runbook or skill changed only in its triggers line is no change: new routing words, the same procedure. Lesson
+    // (the old engine): a question taught a runbook its Spanish wording, and the sweeps for changed runbooks held it)
+    let ro = new Set(); try { ro = routingOnly(acts); } catch { }
     return args.some(arg => { const rx = globRx(arg);
-      return acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(relp(c.input.file_path || c.input.notebook_path || '')))
-        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(at(f)).mtimeMs > since && !onlyTouched(f, since, acts.startHashes); } catch { return false; } })); });
+      return acts.calls.some(c => { const f = relp(c.input.file_path || c.input.notebook_path || ''); return /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(f) && !ro.has(f); })
+        || (!!since && filesMatching(arg).some(f => { try { return !ro.has(f) && fs.statSync(at(f)).mtimeMs > since && !onlyTouched(f, since, acts.startHashes); } catch { return false; } })); });
   }
   return null;
 }
@@ -1218,7 +1221,8 @@ export function routingOnly(acts) {
   for (const f of changedOf(acts).filter(p => ROUTED_DOC.test(p))) {
     let now; try { now = fs.readFileSync(at(f), 'utf8'); } catch { continue; }
     let before = null;
-    if (snap?.files && Object.hasOwn(snap.files, f)) before = snap.bodies?.[f] || null;
+    if (snap?.bodies && Object.hasOwn(snap.bodies, f)) before = snap.bodies[f];
+    else if (snap?.files && Object.hasOwn(snap.files, f)) before = null;
     else { const r = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); if (r.status === 0) before = bodyHash(r.stdout); }
     if (before && before === bodyHash(now)) out.add(f);
   }
@@ -2028,17 +2032,22 @@ export const loadTurn = sid => { if (!sid) return {}; try { return JSON.parse(fs
 // The uncommitted files' git hashes at turn start, by a detached process (git repos; not in timing runs or V2_NO_SNAPSHOT
 // tests; none past 2,000 files or 5 s; "done": when it ended; day-old ones removed). Lesson: HEAD missed earlier edits.
 const dirtyFile = sid => path.join(STATE(), `v2-dirty.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
-export const snapshotLater = (sid, at0) => { if (sid && !process.env.STARTER_BENCH && !process.env.V2_NO_SNAPSHOT && !process.env.V2_NO_STATE && fs.existsSync(path.join(ROOT, '.git'))) try { spawn(process.execPath, [fileURLToPath(import.meta.url), '--snapshot-dirty', sid, at0], { cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ANZUELO_ROOT: ROOT } }).unref(); } catch { } };
+// (in a folder with no git too: there it keeps only each runbook's and skill's text without its triggers line, which
+// routingOnly compares. Lesson (the old suite under v2): without git a change of routing words alone set off the checks)
+export const snapshotLater = (sid, at0) => { if (sid && !process.env.STARTER_BENCH && !process.env.V2_NO_SNAPSHOT && !process.env.V2_NO_STATE) try { spawn(process.execPath, [fileURLToPath(import.meta.url), '--snapshot-dirty', sid, at0], { cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ANZUELO_ROOT: ROOT } }).unref(); } catch { } };
 const SNAP_TEXTS = ['tools/hooks/requirements.json', 'tools/hooks/config.json', 'docs/checks/always.md'];
 export function snapshotDirty(sid, at0) {
-  const t0 = Date.now(), g = (a, input) => String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());
+  const git = fs.existsSync(path.join(ROOT, '.git'));
+  const t0 = Date.now(), g = (a, input) => !git ? [] : String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());
   try { for (const f of fs.readdirSync(STATE()).filter(n => n.startsWith('v2-dirty.'))) if (t0 - fs.statSync(path.join(STATE(), f)).mtimeMs > 864e5) fs.rmSync(path.join(STATE(), f), { force: true }); } catch { }
   const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile(); } catch { return false; } });
   const hashes = names.length && names.length <= 2000 ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
   // (the checks' own files as they were at the turn's start, each up to 256 KB: a change to them is judged against this
   // copy (REQ: hooks-tested). Oversight's design, 2026-11-09: the turn-start snapshot, no new hook)
   // (each changed runbook and skill without its triggers line, to tell a change of routing words alone: routingOnly)
-  const bodies = Object.fromEntries(names.filter(f => ROUTED_DOC.test(f)).slice(0, 200).map(f => { try { return [f, bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8'))]; } catch { return null; } }).filter(Boolean));
+  // (with no git, every runbook and skill: there is no last commit to compare with)
+  const routed = git ? names.filter(f => ROUTED_DOC.test(f)) : (() => { try { return [...listAll('docs/playbooks').filter(n => n.endsWith('.md')).map(n => `docs/playbooks/${n}`), ...fs.readdirSync(at('skills')).map(n => `skills/${n}/SKILL.md`).filter(f => fs.existsSync(at(f)))]; } catch { return []; } })();
+  const bodies = Object.fromEntries(routed.slice(0, 400).map(f => { try { return [f, bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8'))]; } catch { return null; } }).filter(Boolean));
   const texts = Object.fromEntries(SNAP_TEXTS.map(f => { try { const p = path.join(ROOT, f); return fs.statSync(p).size <= 256 << 10 ? [f, fs.readFileSync(p, 'utf8')] : null; } catch { return null; } }).filter(Boolean));
   if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))), texts, bodies })); } catch { }
 }

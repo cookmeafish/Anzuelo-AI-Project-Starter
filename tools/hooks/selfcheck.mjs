@@ -5761,18 +5761,29 @@ if (mineB() && (!TAGS || TAGS.includes('stop-reblock'))) {
       const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
       if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
       write(dir, { 'docs/rota.md': 'r' });
-      const stop = active => { save(); const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d ? v2Full(dir, d) || 'blocked' : ''; };
+      const stop = active => { save(); const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active, ...(process.env.STARTER_ENGINE === 'v2' ? { session_id: 'rounds' } : {}) }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d ? v2Full(dir, d) || 'blocked' : ''; };
+      // (under v2 each request starts with the prompt hook, as a host runs it: its turn record dated as the transcript's
+      // request. Without one v2 has no request to count rounds against)
+      const ask = (text, at) => { if (process.env.STARTER_ENGINE !== 'v2') return; save(); run(dir, 'prompt', { prompt: text, transcript_path: tp, session_id: 'rounds' });
+        const tf = path.join(dir, 'tools/hooks/state/v2-turn.rounds.json'); try { fs.writeFileSync(tf, JSON.stringify({ ...JSON.parse(fs.readFileSync(tf, 'utf8')), at: iso(at) })); } catch { } };
+      // (and its work is a call that wrote the file: v2 counts a turn's work by its calls)
+      const wrote = f => { if (process.env.STARTER_ENGINE !== 'v2') return; const u = `toolu_w${++k}`; write(dir, { [f]: 'r' });
+        rows.push({ type: 'assistant', timestamp: iso(t0 + ++k * 1000), message: { content: [{ type: 'tool_use', id: u, name: 'Write', input: { file_path: path.join(dir, f), content: 'r' } }] } },
+          { type: 'user', timestamp: iso(t0 + ++k * 1000), message: { content: [{ type: 'tool_result', tool_use_id: u, content: 'File created' }] } }); };
+      ask(P[0], t0); wrote('docs/rota.md');
       say('Done.'); stop(false);                              // 1 blocked (no Finished section)
       launch('rbj1'); say('Running the sweep.'); stop(true);   // waiting
       notice('rbj1'); say('Done.'); const r2 = stop(false);     // the notice wakes the session: 2 blocked
       launch('rbj2'); say('Running it again.'); stop(true);    // waiting
       notice('rbj2'); say('Done.'); stop(false);                // 3 blocked
       say('Done.'); const r4 = stop(true);                      // the cap: the turn ends
-      rows.push({ type: 'user', timestamp: iso(t0 + ++k * 1000), message: { role: 'user', content: P[1] } }); say('Done.'); const r5 = stop(false); // a new request: round 1
+      const t5 = t0 + ++k * 1000; rows.push({ type: 'user', timestamp: iso(t5), message: { role: 'user', content: P[1] } }); ask(P[1], t5); wrote('docs/shopping.md'); say('Done.'); const r5 = stop(false); // a new request: round 1
       const log = readOr(path.join(dir, 'tools/hooks/state/stop-log.jsonl')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).map(e => `${e.round} ${e.result}`);
       const want = ['1 blocked', '2 waiting', '2 blocked', '3 waiting', '3 blocked', '4 ended-unresolved', '1 blocked'];
       const last = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'last', '10'], { cwd: dir, encoding: 'utf8' }).stdout;
-      report(JSON.stringify(log) === JSON.stringify(want) && /round 2 of 3/.test(r2) && !r4 && /round 1 of 3/.test(r5) && /round 2\s+waiting/.test(last) && /round 3\s+blocked/.test(last),
+      // (v2's short Stop text names no round, as the user asked it short: the log and "hooks.mjs last" carry the rounds)
+      const V2R = process.env.STARTER_ENGINE === 'v2';
+      report(JSON.stringify(log) === JSON.stringify(want) && (V2R ? !!r2 : /round 2 of 3/.test(r2)) && !r4 && (V2R ? !!r5 : /round 1 of 3/.test(r5)) && /round 2\s+waiting/.test(last) && /round 3\s+blocked/.test(last),
         `stop-reblock: ${lang === 'es' ? 'Spanish, ' : ''}blocks count per request across waits for background jobs, the cap ends the turn, and a new request starts at round 1`,
         `log: ${log.join(' / ')} (want ${want.join(' / ')}) | round 2 said: ${(/round \d of \d/.exec(r2) || ['none'])[0]} | after the cap: ${r4.slice(0, 80) || 'ended'} | new request: ${(/round \d of \d/.exec(r5) || ['none'])[0]} | last: ${last.replace(/\n/g, ' / ').slice(0, 300)}`);
     } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
@@ -5798,7 +5809,7 @@ if (mineB() && (!TAGS || TAGS.includes('records-once'))) {
       const save = () => { fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); fs.utimesSync(tp, (t0 - 3600_000) / 1000, (t0 - 3600_000) / 1000); };
       const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
       if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
-      const stop = active => { save(); const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d?.decision === 'block' ? d : null; };
+      const stop = active => { save(); const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active, ...(process.env.STARTER_ENGINE === 'v2' ? { session_id: 'rounds' } : {}) }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d?.decision === 'block' ? d : null; };
       const names = d => d ? ((/Names: ([^\n]+?)\.?$/m.exec(d.reason || '') || [])[1] || '').split(/,\s*/).filter(Boolean) : [];
       const mem = path.join(os.homedir(), '.claude', 'projects', 'selfcheck-ro', 'memory', 'answer-questions-first.md');
       const file = variant === 'check' ? 'tools/import-check.mjs' : 'src/order-writer.mjs';
@@ -6289,20 +6300,33 @@ if (mineB()) { // routing-only: a runbook whose only change this turn is its tri
     const dir = copyProject();
     try {
       ownChecksOff(dir);
-      applyEdits(dir, { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, SWEEP] }), [RB]: () => TEXT }, Date.now() - 3600_000);
+      // (under v2 a project's check is a marked "Done when" item, as v2 reads checks; requirements.json is the old engine's)
+      applyEdits(dir, process.env.STARTER_ENGINE === 'v2'
+        ? { 'docs/checks/always.md': s => `${s || '# Always\n\n## Done when\n'}- [ ] Run the runbook sweeps. (when file: docs/playbooks/*.md) (ran: sweeps => RESULT: PASS) <!-- req: runbook-sweeps -->\n`, [RB]: () => TEXT }
+        : { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, SWEEP] }), [RB]: () => TEXT }, Date.now() - 3600_000);
       const since = Date.now() - 1000;
       let tp = transcript(dir, { prompt: P }, since);
       run(dir, 'prompt', { session_id: 'routing1', transcript_path: tp, prompt: P });
+      // (under v2 the turn starts where the transcript's request does, as the scenarios date it: since)
+      // (and its turn-start snapshot, taken by a detached process a moment after the prompt, is in before the change and
+      // carries the same start)
+      const tf = path.join(dir, 'tools/hooks/state/v2-turn.routing1.json'), df = path.join(dir, 'tools/hooks/state/v2-dirty.routing1.json');
+      if (process.env.STARTER_ENGINE === 'v2') for (let i = 0; i < 50 && !fs.existsSync(df); i++) spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},100)']);
+      for (const f of [tf, df]) try { fs.writeFileSync(f, JSON.stringify({ ...JSON.parse(fs.readFileSync(f, 'utf8')), at: new Date(since).toISOString() })); } catch { }
       fs.writeFileSync(path.join(dir, RB), change(TEXT));
       tp = transcript(dir, { prompt: P, tools: [editTool(RB)], answer: 'El mejor precio es el de la tienda del centro.' + FIN }, since);
-      return run(dir, 'stop', { session_id: 'routing1', transcript_path: tp }).out;
+      // (under v2 the short text names a few steps; all of them are in the session's details file)
+      const out = run(dir, 'stop', { session_id: 'routing1', transcript_path: tp }).out;
+      return `${out}\n${readOr(path.join(dir, 'tools/hooks/state/stop-details.routing1.md'))}`;
     } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
   };
   const triggersOnly = once(t => t.replace('watering guide', 'watering guide, mejor precio'));
   const stepChanged = once(t => t.replace('1. Read the plant notes.', '1. Read the plant notes and the care sheets.'));
-  report(!/runbook-sweeps|Run the runbook sweeps/.test(triggersOnly) && /runbook-sweeps|Run the runbook sweeps/.test(stepChanged),
+  // (under v2, the check's own ask; its tag can appear elsewhere, in the health check's quote of an audit line)
+  const asks = s => process.env.STARTER_ENGINE === 'v2' ? /Run the runbook sweeps/.test(s) : /runbook-sweeps|Run the runbook sweeps/.test(s);
+  report(!asks(triggersOnly) && asks(stepChanged),
     'routing-only: a runbook whose only change is its triggers line sets off no project check on changed runbooks; a changed step still does',
-    `triggers only: ${triggersOnly.slice(0, 400)} | step changed: ${stepChanged.slice(0, 400)}`);
+    `sweeps asked: triggers only ${asks(triggersOnly)}, step changed ${asks(stepChanged)} | triggers only: ${triggersOnly.slice(0, 300)} | step changed: ${stepChanged.slice(0, 300)}`);
 }
 if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one waits and prints the first one's result; stale locks are taken over
   const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
@@ -8680,7 +8704,10 @@ if (mineB()) { // autonomy-hint and the fit checklist: "autonomy auto" decided a
 }
 
 if (mineB()) { // stop rounds: round 1 lists everything; a waiver and markers given once hold; later rounds add nothing new
-  const tagsOf = r => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').filter(Boolean);
+  // (v2 names no check: its steps are recognized by what they ask, V2_ASKS and ENGINE_MSG, in the short text and details)
+  const tagsOf = r => { const n = (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').filter(Boolean); if (n.length) return n;
+    const v2r = `${r.reason || ''}\n${r.details || ''}`;
+    return [...Object.keys(V2_ASKS).filter(t => V2_ASKS[t].test(v2r)), ...Object.keys(ENGINE_MSG).filter(t => ENGINE_MSG[t] && v2r.includes(`- Check: ${ENGINE_MSG[t]}`))]; };
   const s = { prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x', 'src/parser.js': 'export const parse = s => s;', 'docs/CHANGELOG.md': 'x' } };
   const a1 = 'Skill: debug. Fixed it. N/A(debug-test-added): this fixture has no test framework yet. N/A(verification-report): a fixture with no app to run.' + FIN;
   const r1 = runStop({ ...s, answer: a1 }), t1 = tagsOf(r1);
@@ -9905,10 +9932,12 @@ if (!TAGS && !HELPER && !REUSE) {
       if (!otherSuites(undefined, { busy: true }) && (turn = takeLock(lock, { what: 'stop timing' }).taken)) break;
     const others = otherSuites(undefined, { busy: true }) + (turn ? 0 : 1);
     const samples = [];
+    // (under v2, its own Stop on a session, timed by its "V2-STOP-TIMING" line: each check by name)
+    const V2T = process.env.STARTER_ENGINE === 'v2';
     for (let i = 0; i < 5; i++) {
-      const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, last_assistant_message: 'Playbook: plan.md. Saved the plan.' + FIN }),
+      const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, last_assistant_message: 'Playbook: plan.md. Saved the plan.' + FIN, ...(V2T ? { session_id: `timing${i}` } : {}) }),
         env: { ...process.env, STARTER_TIMING: '1', STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
-      try { samples.push(JSON.parse(/STOP-TIMING (.*)/.exec(r.stderr || '')[1])); } catch { }
+      try { samples.push(JSON.parse(/(?:V2-)?STOP-TIMING (.*)/.exec(r.stderr || '')[1])); } catch { }
     }
     // (over budget: time the previous engine on the same turn, in the same copy, to tell a slow machine from a slow change)
     let prev = null;
@@ -9937,7 +9966,7 @@ if (!TAGS && !HELPER && !REUSE) {
     STOP_JUDGED = !!v && v.total <= budget && v2best <= budget;
     // and the verdict names the slowest checks when the budget is missed
     const tight = v ? stopVerdict(samples, 1) : null;
-    report(!!tight && !tight.ok && tight.slow.length === 3 && tight.slow.every(s => /^[\w(][^]* \d+(\.\d)? ms$/.test(s)) && samples[0].parts.some(([l]) => /^check /.test(l)) && samples[0].parts.some(([l]) => /^core /.test(l)),
+    report(!!tight && !tight.ok && tight.slow.length === 3 && tight.slow.every(s => /^[\w(][^]* \d+(\.\d)? ms$/.test(s)) && (V2T ? samples[0].parts.length >= 3 : samples[0].parts.some(([l]) => /^check /.test(l)) && samples[0].parts.some(([l]) => /^core /.test(l))),
       'stop-budget: over its budget the verdict names the 3 slowest checks', JSON.stringify(tight));
   } finally { releaseLock(timingLock()); markWaiting(false); fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
