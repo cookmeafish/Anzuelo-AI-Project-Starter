@@ -324,6 +324,15 @@ export function onPrompt(data) {
   const real = sid && data.transcript_path && fs.existsSync(String(data.transcript_path));
   if (text && projectConfig().promptDigest !== false && !(sid && (fs.existsSync(at(`tools/hooks/state/checklist.${sid}.json`)) || fs.existsSync(at(`tools/hooks/state/digest.${sid}.json`))))) {
     digest = DIGEST; if (real) try { fs.mkdirSync(at('tools/hooks/state'), { recursive: true }); fs.writeFileSync(at(`tools/hooks/state/digest.${sid}.json`), '{}'); } catch { } }
+  // (REQ: trigger-words: each message the upset, rule or praise handling fired on goes to the trigger log
+  // (tools/hooks/state/triggers.jsonl, git ignores it), so a word that keeps firing for nothing can be whitelisted. Not a
+  // relayed message, a timing run, or a made-up session id with no readable transcript. Lesson (the old suite under v2):
+  // v2 kept no log, so the trigger-words runbook had nothing to compare)
+  const kinds = [['upset', /This sounds upset: open skills\/learn-from-upset/], ['rule', /RULE REQUEST:/], ['praise', /^Praise: the user liked/m]].filter(([, rx]) => rx.test(text || '')).map(([k]) => k);
+  if (kinds.length && (!sid || real) && !process.env.STARTER_BENCH && !process.env.KS_BENCH && !relayedRx.test(String(data.prompt || ''))) try {
+    const f = at('tools/hooks/state/triggers.jsonl'), rows = (() => { try { return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean); } catch { return []; } })();
+    rows.push(JSON.stringify({ at: new Date().toISOString(), kinds, text: String(userWords(data.prompt || '')).replace(/\s+/g, ' ').slice(0, 500), ...(sid ? { sid } : {}) }));
+    fs.mkdirSync(at('tools/hooks/state'), { recursive: true }); fs.writeFileSync(f, rows.slice(-500).join('\n') + '\n'); } catch { }
   // (last: what the reminder leads with, a question to answer or the runbook to open, stays first)
   const all = [text, digest].filter(Boolean).join('\n');
   return all ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: all } } : null;

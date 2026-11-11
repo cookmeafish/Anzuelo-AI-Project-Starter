@@ -201,6 +201,16 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     const dg = (sid, prompt = 'add a csv export for the orders page') => /^\[rules\] /m.test(onPrompt({ ...(sid ? { session_id: sid, transcript_path: tx } : {}), prompt })?.hookSpecificOutput?.additionalContext || '');
     const d = { first: dg('dg1'), again: dg('dg1'), started: dg('dg2'), noSid: dg(''), noSidAgain: dg(''), notice: dg('dg3', '[Cross-session idle notice] a peer went idle') };
     for (const f of ['checklist.dg2.json', 'digest.dg1.json', 'digest.dg3.json']) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+    // (REQ: trigger-words: a message the upset handling fired on goes to the trigger log; a calm one, or a made-up
+    // session with no transcript, adds nothing)
+    const tf = path.join(dir, 'tools/hooks/state/triggers.jsonl'), rowsOf = () => { try { return fs.readFileSync(tf, 'utf8').trim().split('\n').filter(Boolean); } catch { return []; } };
+    const hadSkill = fs.existsSync(path.join(dir, 'skills/learn-from-upset/SKILL.md')); if (!hadSkill) put('skills/learn-from-upset/SKILL.md', '---\nname: learn-from-upset\n---\n# x\n');
+    const n0 = rowsOf().length; onPrompt({ prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN' }); const n1 = rowsOf().length, last = (() => { try { return JSON.parse(rowsOf().at(-1)); } catch { return {}; } })();
+    onPrompt({ prompt: 'add a csv export for the orders page' }); const n2 = rowsOf().length;
+    onPrompt({ session_id: 'madeUpTrig', transcript_path: path.join(dir, 'no-such.jsonl'), prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN' }); const n3 = rowsOf().length;
+    if (!hadSkill) fs.rmSync(path.join(dir, 'skills/learn-from-upset'), { recursive: true, force: true });
+    const trig = { logged: n1 === n0 + 1 && (last.kinds || []).includes('upset') && /SKIP THE SOURCES/.test(last.text || ''), calm: n2 === n1, madeUp: n3 === n2 };
+    report(trig.logged && trig.calm && trig.madeUp, 'start: trigger-words: a message the upset handling fired on goes to the trigger log; a calm one, or a made-up session with no transcript, adds nothing', JSON.stringify({ ...trig, n: [n0, n1, n2, n3], last }));
     report(d.first && !d.again && !d.started && d.noSid && d.noSidAgain && !d.notice,
       'start: prompt-digest: a session with no session start hears the rules digest once; one whose start gave the rules, a second prompt, or a prompt with no reminder does not; with no session id every reminder has it', d);
   }
