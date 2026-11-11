@@ -1032,7 +1032,11 @@ const reqRe = s => String(s).startsWith('(?c)') ? new RegExp(String(s).slice(4),
 export const engineChecks = () => {
   const j = f => { try { return JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { return {}; } };
   const file = j('tools/hooks/requirements.json'), tags = new Set((j('tools/hooks/engine-checks.json').requirements || []).map(r => r.tag)), off = new Set((file.disabled || []).map(d => d.tag));
-  const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
+  // (a project's own check that runs a validator on each changed file ("runEach") stays read from requirements.json:
+  // always.md has no marker for it, so the convert leaves it there. Whether the hook runs its command itself is the
+  // approved-list rule's (runEach below). The user, 2026-11-10: no project loses a check it had)
+  const eachOf = q => !!q && typeof q === 'object' && (!!q.runEach || (q.anyOf || []).some(eachOf));
+  const own = (file.requirements || []).filter(r => r && (tags.has(r.tag) || (!r.pack && eachOf(r.require))));
   // (a check shipped off, "enabled": false, stays off until configured on, as under the old engine. Lesson (the old suite
   // under v2): every app-pack project was asked to raise its version number with no version file set)
   // (a check switched off after friction is skipped, and a development copy adds the trial check, as the old engine.

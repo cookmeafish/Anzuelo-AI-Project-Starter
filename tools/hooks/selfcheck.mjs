@@ -478,7 +478,9 @@ const GUISHOT = w => `SCREENSHOT: ${SHOT}\n${w ? 'WARN sideways scroll at page 3
 const PEOPLE = { 'profiles/alice/PROFILE.md': () => '---\naliases: ali\n---\n# Alice', 'profiles/bob/PROFILE.md': () => '# Bob' };
 // checks a scenario adds for itself always apply, whatever packs are installed
 const SCENARIO_TAGS = new Set();
-const withReqs = extra => { SCENARIO_TAGS.add(extra.tag); return { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, extra] }) }; };
+// (each test-made check's message, so a v2 "Check: <message>" line names its tag, as the engine's own checks do)
+const SCENARIO_MSG = {};
+const withReqs = extra => { SCENARIO_TAGS.add(extra.tag); if (extra.message) SCENARIO_MSG[extra.tag] = extra.message; return { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, extra] }) }; };
 const VALIDATOR = withReqs({ tag: 'data-valid', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'validate', pass: 'RESULT: PASS' } }, message: 'Run the validator until it passes.' });
 // (under v2 every block asks for a line or two on only what changed, never the answer again, whatever its length: the
 // user's rule of 2026-11-07, docs/checks/user-requirements.md row 44, "the user reads each answer once". A deliberate
@@ -5310,7 +5312,7 @@ for (const s0 of STOP) {
   // (a follow-on v2 names in this round, "Then, once <files> are written: <the ask>", names that ask, as v1's "Then:")
   // (v2 shows a short text and keeps the full steps in tools/hooks/state/stop-details.md: both are read)
   const v2r = `${r.reason || ''}\n${v2 ? r.details || '' : ''}`.replace(/^- Then, once .+? (?:is|are) written: /gm, '- ');
-  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (v2 && ((!!V2_ASKS[t] && V2_ASKS[t].test(v2r)) || (!!ENGINE_MSG[t] && v2r.includes(`- Check: ${ENGINE_MSG[t]}`))));
+  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (v2 && ((!!V2_ASKS[t] && V2_ASKS[t].test(v2r)) || (!!ENGINE_MSG[t] && v2r.includes(`- Check: ${ENGINE_MSG[t]}`)) || (!!SCENARIO_MSG[t] && v2r.includes(`- Check: ${SCENARIO_MSG[t]}`))));
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || `(no block)${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
   // a scenario with nothing to judge would always pass. Lesson: a project scenario meant as a pass had only a name.
