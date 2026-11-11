@@ -638,7 +638,7 @@ export function met(item, acts) {
     const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]);
     // (a runbook or skill changed only in its triggers line is no change: new routing words, the same procedure. Lesson
     // (the old engine): a question taught a runbook its Spanish wording, and the sweeps for changed runbooks held it)
-    let ro = new Set(); try { ro = routingOnly(acts); } catch { }
+    const ro = { has: f => routingWordsOnly(acts, f) };
     return args.some(arg => { const rx = globRx(arg);
       return acts.calls.some(c => { const f = relp(c.input.file_path || c.input.notebook_path || ''); return /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(f) && !ro.has(f); })
         || (!!since && filesMatching(arg).some(f => { try { return !ro.has(f) && fs.statSync(at(f)).mtimeMs > since && !onlyTouched(f, since, acts.startHashes); } catch { return false; } })); });
@@ -734,6 +734,16 @@ export function touchedSince(acts, any = false) {
   if (any) return all();
   if (!walked.has(acts)) walked.set(acts, acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : all().filter(x => ranAt(acts, x.t, x.f)));
   return walked.get(acts);
+}
+// Another session's turn active in this folder during this turn (its record written since this turn began, not ended,
+// started in the last 12 hours): the folder is shared, so this turn's work is only what its own calls name.
+function othersOpen(acts) {
+  const own = String(acts.session || '').replace(/[^\w-]/g, '').slice(0, 64), since = Date.parse(acts.at || '') || 0;
+  if (!own || !since) return false;
+  try {
+    return fs.readdirSync(STATE()).some(n => { const m = /^v2-turn\.([\w-]+)\.json$/.exec(n); if (!m || m[1] === own || m[1] === 'manual') return false;
+      try { const p = path.join(STATE(), n); if (fs.statSync(p).mtimeMs < since) return false; const t = JSON.parse(fs.readFileSync(p, 'utf8')); return !!t.at && !t.ended && Date.now() - Date.parse(t.at) < 12 * 3600_000; } catch { return false; } });
+  } catch { return false; }
 }
 // (what the safety scans read: every file changed since the turn began, but none when no call of the turn can write. A
 // turn of reads and messages wrote nothing to scan. Lesson (2026-11-10, the speed self-test): the forbidden-words scan
@@ -1084,7 +1094,9 @@ export function securityGaps(acts) {
   // (a file the turn edited with a tool is judged by those edits only)
   const since = Date.parse(acts.at || '') || 0, viaTool = new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')));
   if (since) {
-    for (const f of touchedSince(acts, true).map(x => x.f).filter(f => covered(f) && !viaTool.has(f))) {
+    // (with another session open in the folder, only the files this turn's own calls wrote or named: the other session's
+    // code is its own review's)
+    for (const f of touchedSince(acts, !othersOpen(acts)).map(x => x.f).filter(f => covered(f) && !viaTool.has(f))) {
       // (a file made this turn is read whole; one that was there is read by what git says it gained, or not at all)
       const made = (() => { try { return fs.statSync(at(f)).birthtimeMs > since; } catch { return false; } })();
       const d = made ? null : spawnSync('git', ['diff', '-U0', '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
@@ -1228,6 +1240,9 @@ export function routingOnly(acts) {
   }
   return (acts._routingOnly = out);
 }
+// (asked per file, and worked out only for a runbook or skill: a check on other files costs nothing. Lesson (a
+// project's timing after an upgrade): every check on changed files paid for the whole routing-only pass)
+export const routingWordsOnly = (acts, f) => { if (!ROUTED_DOC.test(f)) return false; try { return routingOnly(acts).has(f); } catch { return false; } };
 export function holdsReq(c, acts, x) {
   const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
   const tests = {
@@ -1244,7 +1259,7 @@ export function holdsReq(c, acts, x) {
     // (a runbook or skill whose only change this turn is its triggers line does not count: new routing words, the same
     // procedure. Lesson (the old engine): a question taught a runbook its Spanish wording, and the project's sweeps for
     // changed runbooks held the turn for 30 minutes)
-    filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f)) && !routingOnly(acts).has(f)),
+    filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f)) && !routingWordsOnly(acts, f)),
     filesIgnore: () => true,
     answerMatches: v => reqRe(v).test(acts.answer || ''), answerNotMatches: v => !reqRe(v).test(acts.answer || ''),
     promptMatches: v => reqRe(v).test(acts.heard || ''), promptNotMatches: v => !reqRe(v).test(acts.heard || ''),

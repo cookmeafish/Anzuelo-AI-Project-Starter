@@ -308,7 +308,9 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
         at(late ? 23 : 21, say('Tidied; the tests pass.'))];
       const bgAsk = (sid, writeAt) => { put('src/b.js', 'x'); const t = new Date(Date.parse(T(writeAt))); fs.utimesSync(path.join(dir, 'src/b.js'), t, t);
         sv(sid, { at: T(10), runbook: null }); fs.writeFileSync(main, lines(bgRows(writeAt > 20))); return onStop({ session_id: sid, transcript_path: main })?.reason || ''; };
-      const during = bgAsk('bgrun1', 15), after = bgAsk('bgrun2', 22);
+      // (the first session's turn is over before the second's is judged: no other session works in the folder then)
+      const during = bgAsk('bgrun1', 15); sv('bgrun1', { at: T(10), runbook: null, ended: true });
+      const after = bgAsk('bgrun2', 22);
       fs.rmSync(path.join(dir, 'src/b.js'), { force: true });
       report(!/Run the tests after the last code change/.test(during) && /Run the tests after the last code change/.test(after),
         'end: a background test run counts until it ends: a file written while it ran is no change after it; one written after it ended is', [during.slice(0, 160), after.slice(0, 160)]);
@@ -1829,6 +1831,20 @@ const login = call('Edit', { file_path: path.join(dir, 'src/login.js'), old_stri
 report(securityGaps(acts([user('add sign-in'), login, say('Done.')])).length === 0, 'end: a project that declares no security pattern is not checked');
 put('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'security-code', when: { changedContentMatches: { pattern: '\\b(bcrypt|password|subprocess)\\b', files: ['**/*.js', '**/*.py'], ignore: ['tools/hooks/**'] } } }], disabled: BASE_OFF.disabled }));
 report(securityGaps(acts([user('add sign-in'), login, say('Done.')])).length === 1, 'end: security-sensitive code with no review is named');
+// (another session's turn active in the folder during this turn: code it wrote, outside this turn's own runs, is not
+// this turn's to review; alone, the same file is. Lesson (a field report): a headless build that wrote one helper was
+// held to the security review for code the owner's terminal edited. The old suite's "other session" test)
+{
+  const T0 = Date.now() - 60_000, T = s => new Date(T0 + s * 1000).toISOString(), ts = (s, r) => [r].flat().map(x => ({ ...x, timestamp: T(s) }));
+  const run1 = sid => { put('src/zz-auth.js', 'const password = process.env.PW;\n'); const a = acts([ts(0, user('build the tulip order')), ts(1, call('Write', { file_path: path.join(dir, '.cache/tulips/build.py'), content: 'print(1)\n' })),
+    ts(2, call('Bash', { command: 'python .cache/tulips/build.py' }, '1')), ts(3, say('The order is built.'))]); a.at = T(0); a.session = sid; return securityGaps(a).length; };
+  const otherRec = path.join(dir, 'tools/hooks/state/v2-turn.other9.json');
+  const alone = run1('own1');
+  fs.mkdirSync(path.dirname(otherRec), { recursive: true }); fs.writeFileSync(otherRec, JSON.stringify({ at: new Date().toISOString() }));
+  const shared = run1('own1');
+  fs.rmSync(otherRec, { force: true }); fs.rmSync(path.join(dir, 'src/zz-auth.js'), { force: true });
+  report(alone === 1 && shared === 0, 'end: with another session\'s turn active in the folder, code changed outside this turn\'s own runs asks for no security review; alone, it does', JSON.stringify({ alone, shared }));
+}
 report(securityGaps(acts([user('add sign-in'), login, call('Skill', { skill: 'security-review' }), say('Done.')])).length === 0
   && securityGaps(acts([user('add sign-in'), login, call('Write', { file_path: path.join(dir, 'docs/reviews/security-2026-11-05.md'), content: 'PASS' }), say('Done.')])).length === 0,
   'end: the security review run, or its report written, in the turn passes');

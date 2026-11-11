@@ -666,6 +666,8 @@ function judge(data, { shadow = false } = {}) {
   const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
   const acts = withBackgroundOutputs({ ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls }, rows);
   acts.startHashes = loadDirty(data.session_id || '', saved.at || '');
+  // (the session, so a turn can tell when another session works in the same folder: touchedSince)
+  acts.session = String(data.session_id || '');
   lap('acts (turn, helpers, start hashes)');
   // (the final answer as the host hands it over: the transcript may not hold it yet when the Stop hook runs. Lesson
   // (2026-11-07): an answer that ended with its Finished section was blocked for lacking one)

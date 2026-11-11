@@ -6581,7 +6581,10 @@ if (mineB()) { // session hook output
     const ctx = j?.hookSpecificOutput?.additionalContext || '';
     const pr = run(dir, 'prompt', { prompt: 'make a plan for the csv export' }, { CLAUDE_PROJECT_DIR: dir }).out;
     let jp = null; try { jp = JSON.parse(pr); } catch { }
-    report(j?.hookSpecificOutput?.hookEventName === 'SessionStart' && ctx.includes('ROUTE every message') && jp?.hookSpecificOutput?.hookEventName === 'UserPromptSubmit' && /ROUTE: plan/.test(jp.hookSpecificOutput.additionalContext || ''),
+    // (under v2, its own wording: the engine account at session start, "Runbook: open docs/playbooks/plan.md" at the prompt)
+    const V2N = process.env.STARTER_ENGINE === 'v2';
+    report(j?.hookSpecificOutput?.hookEventName === 'SessionStart' && (V2N ? ctx.includes("How this project's engine works") : ctx.includes('ROUTE every message')) && jp?.hookSpecificOutput?.hookEventName === 'UserPromptSubmit'
+      && (V2N ? /Runbook: open docs\/playbooks\/plan\.md/ : /ROUTE: plan/).test(jp.hookSpecificOutput.additionalContext || ''),
       'session and prompt notices: sent as hidden context where the host supports it, plain text elsewhere', `${cc.slice(0, 200)} | ${pr.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
@@ -6598,9 +6601,12 @@ if (mineB() && (!TAGS || TAGS.includes('interrupted-work'))) { // interrupted-wo
     const tp = path.join(dir, '.cache', 'rs1.jsonl'), ses = source => run(dir, 'session', { source, session_id: 'rs1', transcript_path: tp }).out;
     write(dir, { 'inbox/notes.txt': 'x', '.cache/rs1.jsonl': JSON.stringify({ type: 'user', message: { role: 'user', content: 'hi' } }) + '\n' });
     const first = ses('startup');
-    write(dir, { 'tools/hooks/state/turn.rs1.json': JSON.stringify({ at: '2026-10-27T10:00:00.000Z' }), 'tools/hooks/state/turn-end.rs1.json': JSON.stringify({ at: '2026-10-27T10:05:00.000Z', clean: true }) });
+    // (each engine's own record of how the last turn ended: v2 marks its turn record "ended")
+    const V2S = process.env.STARTER_ENGINE === 'v2', lastTurn = endedOk => write(dir, V2S ? { 'tools/hooks/state/v2-turn.rs1.json': JSON.stringify({ at: '2026-10-27T10:00:00.000Z', ...(endedOk ? { ended: true } : {}) }) }
+      : { 'tools/hooks/state/turn.rs1.json': JSON.stringify({ at: '2026-10-27T10:00:00.000Z' }), 'tools/hooks/state/turn-end.rs1.json': JSON.stringify({ at: endedOk ? '2026-10-27T10:05:00.000Z' : '2026-10-27T09:00:00.000Z', clean: true }) });
+    lastTurn(true);
     const again = ses('resume');
-    write(dir, { 'tools/hooks/state/turn-end.rs1.json': JSON.stringify({ at: '2026-10-27T09:00:00.000Z', clean: true }) });
+    lastTurn(false);
     const cut = ses('resume');
     report(/INBOX/i.test(first) && !/INBOX/i.test(again) && !/RESUMED|INTERRUPTED/.test(again) && /RESUMED/.test(cut),
       'session: a resume after a turn that ended repeats no reminder and claims no interruption; a resume mid-turn checks the files', `${first.slice(-200)} | ${again.slice(-200)} | ${cut.slice(-200)}`);
@@ -6608,7 +6614,7 @@ if (mineB() && (!TAGS || TAGS.includes('interrupted-work'))) { // interrupted-wo
     // user): "it doesnt gotta tell me the obvious things that are implied")
     const shown = o => { try { return JSON.parse(o).systemMessage || ''; } catch { return ''; } };
     const cc = (source, extra = {}) => run(dir, 'session', { source, ...extra }, { CLAUDE_PROJECT_DIR: dir }).out;
-    write(dir, { 'tools/hooks/state/turn-end.rs1.json': JSON.stringify({ at: '2026-10-27T09:00:00.000Z', clean: true }) });
+    lastTurn(false);
     const start = cc('startup', { session_id: 'rs2' }), resumed = cc('resume', { session_id: 'rs1', transcript_path: tp });
     write(dir, { 'data/settings.json': '{ "a": 1,' });
     const broken = cc('resume');
@@ -6696,7 +6702,8 @@ if (mineB()) { // another session in the same project: its edits are not this tu
     try {
       const since = Date.now() - 2000;
       write(dir, { '.cache/tulips/build.py': 'print(1)\n', 'src/auth.js': 'const password = process.env.PW;\nexport const check = p => p === password;\n' });
-      if (other) write(dir, { 'tools/hooks/state/turn.other9.json': JSON.stringify({ at: new Date().toISOString() }) });
+      // (each engine's own record of the other session's open turn: v2 keeps v2-turn.<session>.json)
+      if (other) write(dir, { [`tools/hooks/state/${process.env.STARTER_ENGINE === 'v2' ? 'v2-turn' : 'turn'}.other9.json`]: JSON.stringify({ at: new Date().toISOString() }) });
       const s = { prompt: 'build the tulip order', tools: [{ name: 'Write', input: { file_path: '.cache/tulips/build.py', content: 'print(1)\n' } }, { name: 'Bash', input: { command: 'python .cache/tulips/build.py' } }] };
       const tp = transcript(dir, s, since);
       return run(dir, 'stop', { transcript_path: tp, last_assistant_message: 'The order is built.' + FIN, session_id: 'own1' }).out || '';
