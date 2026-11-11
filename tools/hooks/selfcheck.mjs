@@ -2477,6 +2477,9 @@ PRETOOL.push(
   // "cd <project> && ..." commands per setup were held for approval and sent again)
   { name: 'cd-dropped: "cd <project> && ..." runs without the cd', tool: 'Bash', input: { command: 'cd "<DIR>" && ls docs' }, prompt: 'list the docs',
     deny: false, rewrites: { command: /^ls docs$/ } },
+  // (in auto mode the host refuses a call whose input a hook changed after its review, and a compound command is not
+  // held there: the command goes as written. Lesson (a project's report, 2026-11-10): rewritten calls were refused)
+  { name: 'cd-dropped in auto mode: the command goes as written', tool: 'Bash', input: { command: 'cd "<DIR>" && ls docs' }, prompt: 'list the docs', mode: 'auto', deny: false },
   { name: 'cd-dropped: a cd into another folder is kept', tool: 'Bash', input: { command: 'cd "<DIR>/docs" && ls' }, prompt: 'list the docs', deny: false },
   // Lesson, field report: "git stash push" is local, and a quoted line that only names a command runs nothing
   { name: 'outward-gate: "git stash push <file>" is local: allowed', tool: 'Bash', input: { command: 'git stash push tools/hooks/own_hooks.py -q' }, prompt: 'set the hook change aside', deny: false },
@@ -2515,6 +2518,10 @@ PRETOOL.push(
   // (the brief line is put in front of the prompt, not denied: a denial cost a full extra round that resent the prompt)
   { name: 'sub-agent brief without the rules: the line is added in place, not denied', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, deny: false,
     rewrites: { prompt: /^Read AGENTS\.md first and follow its rules[^\n]*\n\nReview the export feature\.$/, subagent_type: /^general-purpose$/ } },
+  // (in auto mode a changed input is refused by the host after its review, so the call is not rewritten: it is refused
+  // once with the line to add, and the agent's resend with it goes through)
+  { name: 'sub-agent brief without the rules in auto mode: refused with the line to add, never rewritten', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, mode: 'auto',
+    deny: true, tag: 'subagent-brief' },
   // a program held for the user's approval is not run another way (Lesson, trial round 9: "go test" was held, and the
   // next call ran it through node's spawnSync)
   { name: 'permission-respected: a held program run through a node one-liner: denied', tool: 'Bash', input: { command: `node -e "const {spawnSync}=require('child_process');spawnSync('go',['test','./...'],{stdio:'inherit'})"` },
@@ -5350,7 +5357,7 @@ for (const s of PRETOOL) {
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
     // ("<DIR>" in a command stands for the fixture's own folder, as in a transcript's tool calls)
     if (typeof input.command === 'string') input.command = input.command.split('<DIR>').join(dir.replace(/\\/g, '/'));
-    const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp, ...(s.agentId ? { agent_id: s.agentId } : {}) }, s.host);
+    const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp, ...(s.agentId ? { agent_id: s.agentId } : {}), ...(s.mode ? { permission_mode: s.mode } : {}) }, s.host);
     const denied = /"permissionDecision":"deny"/.test(out);
     // tags: every rule named in one denial; exact: the whole denial text; says: a pattern the denial must match
     let reason = ''; try { reason = JSON.parse(out).hookSpecificOutput?.permissionDecisionReason || ''; } catch { }

@@ -3818,7 +3818,11 @@ function cmdPretool(data) {
   // REQ: subagent-brief, met in place: the brief line goes in front of the prompt (the host's updatedInput), so the
   // call is not denied and sent again. The user's permission settings still decide the call. Lesson: every helper
   // launched without the line cost a denial and a full extra round that resent its whole prompt (4 in one trial round).
-  const brief = briefLine(data), bare = cdDropped(data);
+  // (not in auto mode: the host refuses a call whose input a hook changed after its review, so the call goes as written,
+  // and a brief without the rules is refused once with the line to add. Lesson (a project's report, 2026-11-10): every
+  // helper launch in one batch, and shell calls, were refused and sent again)
+  const auto = data.permission_mode === 'auto';
+  const brief = auto ? null : briefLine(data), bare = auto ? null : cdDropped(data);
   const d = brief ? { ...data, tool_input: { ...data.tool_input, prompt: brief } } : bare ? { ...data, tool_input: { ...data.tool_input, command: bare } } : data;
   const r = pretoolDecision(d);
   if (r) { deny(r); return; }
