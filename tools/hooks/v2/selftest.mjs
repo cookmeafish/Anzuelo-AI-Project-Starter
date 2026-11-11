@@ -735,6 +735,16 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   fs.rmSync(path.join(dir, 'docs/checks/always.md'));
   report(fired.every(n => n === 1) && quiet.every(n => n === 0), 'end: the project-wide always list is checked every turn, with answer, tool, file and prompt conditions', JSON.stringify({ fired, quiet }));
   report(mt.read === 1 && mt.maintained === 0 && mt.named === 1, 'end: an always item set off by reading a runbook is off when the turn read it to edit it (maintenance), and on when the answer names it as followed', JSON.stringify(mt));
+  // (a gate with no pass text is judged by its own exit code: chained before "; ..." it is asked to run on its own;
+  // alone, or before "&&", it counts)
+  put('docs/checks/always.md', '# Always\n\n## Done when\n- [ ] The build passes (when file: src/**) (ran: npm run build) <!-- req: build-gate -->\n');
+  const srcW = call('Write', { file_path: path.join(dir, 'src/app.js'), content: 'x' }, 'ok');
+  const gt = { chained: ag([user('add the page'), srcW, call('Bash', { command: 'npm run build && npm test; echo done' }, 'built\ndone'), say('Done.')]),
+    alone: ag([user('add the page'), srcW, call('Bash', { command: 'npm run build' }, 'built'), say('Done.')]).length,
+    andAfter: ag([user('add the page'), srcW, call('Bash', { command: 'npm run build && npm test' }, 'built'), say('Done.')]).length };
+  fs.rmSync(path.join(dir, 'docs/checks/always.md')); fs.rmSync(path.join(dir, 'src'), { recursive: true, force: true });
+  report(gt.chained.length === 1 && /run `npm run build` on its own/.test(gt.chained[0]) && gt.alone === 0 && gt.andAfter === 0,
+    'end: a gate with no pass text chained before "; ..." is asked to run on its own; alone or before "&&" it counts', JSON.stringify(gt));
   // (rule 11, scope-separate: one person's data never mixes with another's, in the files a turn changed or in its answer)
   {
     const { scopeGaps } = await import('./lib.mjs');

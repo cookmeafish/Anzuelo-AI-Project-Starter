@@ -72,7 +72,12 @@ const read = f => { try { return fs.readFileSync(at(f), 'utf8').replace(/\r\n?/g
 // turn. Lesson (a field report): a project's rule kept in requirements.json looked enforced and was not read by v2.
 export const ALWAYS = 'docs/checks/always.md';
 export function alwaysGaps(acts) {
-  return doneWhen(read(ALWAYS)).filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts) && !maintained(it, acts) && met(it, acts) === false).map(it => `${ALWAYS} item ${it.n}: ${it.text}`);
+  // (with what the check found, when it says: such as a gate to run on its own)
+  const out = [];
+  for (const it of doneWhen(read(ALWAYS))) { if (!it.kind || it.kind === 'evidence' || !applies(it, acts) || maintained(it, acts)) continue; acts.detail = '';
+    if (met(it, acts) === false) out.push(`${ALWAYS} item ${it.n}: ${it.text}${acts.detail ? ` (${acts.detail})` : ''}`); }
+  acts.detail = '';
+  return out;
 }
 // (an item set off by reading a runbook or skill (the convert's "used" marker) is off when the turn edited that same
 // file: reading it to change it is maintenance, not following it, unless the answer names it as followed ("Playbook:
@@ -602,7 +607,15 @@ export function met(item, acts) {
     // (output sent to a file, "> .cache/t.txt", is read from that file. Replay: a test run redirected that way passed
     // and was still asked for)
     const printed = c => { const f = /(?:^|\s)1?>{1,2}\s*(["']?)([^\s"'&|;<>]+)\1/.exec(String(c.input.command || ''))?.[2]; return `${c.out || ''}\n${f ? read(f) : ''}`; };
-    return acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error && (!out || new RegExp(out).test(printed(c)))); }
+    // (with no pass text, the run's exit code is the verdict, so it must be the command's own: one followed in the same
+    // shell line by "; ..." or "|| ..." reports the later command's code. Run it on its own. "&&" after it keeps its code
+    // (a failure stops the line); a pipe (| tail) is left alone, it is how output is read. Lesson (the old suite under
+    // v2): "npm run build && npm test; echo done" was taken as a passing build)
+    const hidden = cmdText => { const parts = String(cmdText).split(/(\s*(?:&&|\|\||;|\|)\s*)/), i = parts.findIndex((p, k) => k % 2 === 0 && rx.test(p));
+      return i >= 0 && parts.slice(i + 1).some((s, k) => k % 2 === 0 && /;|\|\|/.test(s)); };
+    const ok = acts.calls.filter(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error && (!out || new RegExp(out).test(printed(c))));
+    if (!out && ok.length && ok.every(c => hidden(c.input.command))) { acts.detail = `run \`${String(ok[ok.length - 1].input.command).split(/\s*(?:&&|\|\||;|\|)\s*/).find(p => rx.test(p)) || cmd}\` on its own: chained with other commands, its exit code is not the result`; return false; }
+    return ok.length > 0; }
   // (changed this turn by a tool or anything since the turn began; only naming it does not count. In the starter its own
   // changelog stands for docs/CHANGELOG.md, the template. Lessons: "cat" met "updated"; 3 re-blocks on a written line)
   if (item.kind === 'file') {
