@@ -6,7 +6,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { passLine } from './lines.mjs';
 import { planRequired, OPEN_WORK, planOpen } from '../planreq.mjs';
-import { keyWords, closestRunbook, coreRunbook } from '../near.mjs';
+import { keyWords, closestRunbook, coreRunbook, userWords as userWordsOf } from '../near.mjs';
+import { appendHistory } from '../history.mjs';
 import { relayedBody } from '../relay.mjs';
 // REQ: plan-open, under v2: the shared planreq.mjs rule, on the plans the prompt hook found open when the turn began;
 // asked once (round 1), as the old engine. Lesson (the old suite under v2): a work turn that continued an open plan
@@ -308,6 +309,14 @@ export function onStop(data, opts = {}) {
   // (each decision goes in the Stop log, "hooks.mjs last": its round, result and the steps it asked for)
   if (!opts.shadow) logStop(data.session_id, { request: decided.request || '', round: decided.round ?? null, result: out ? 'blocked' : waiting ? 'waiting' : decided.round ? 'passed' : 'ended', steps: out ? decided.steps || [] : [] });
   if (!out && !waiting && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
+  // (REQ: recall-hint: a passing work turn leaves its line in the history, as the old engine's did, so a later request
+  // like it starts from how it was done and tools/recall.mjs finds it. Lesson (the old suite under v2): v2 wrote none)
+  if (!out && passed && !opts.shadow && worked(passed.acts) && !process.env.STARTER_BENCH) try {
+    const a = passed.acts, books = [...runbooks(), ...skillBooks({ parts: true })];
+    appendHistory(at('tools/hooks/state/history.jsonl'), { key: `${data.session_id || 'x'}|${passed.turn.at || ''}`, at: new Date().toISOString().slice(0, 10),
+      prompt: String(userWordsOf(a.heard || '')).replace(/\s+/g, ' ').slice(0, 300), used: [...new Set(books.filter(b => opened(b, a)).map(b => b.name))],
+      changed: changedOf(a).slice(0, 12), answer: String(a.answer || '').split(/^#{1,6}\s*\**finished\b/im)[0].replace(/\s+/g, ' ').trim().slice(0, 400) });
+  } catch { }
   // (a turn that passed tells the user what the engine did, where the host shows it: opts.show. REQ: prompt-visible)
   const line = !out && passed && opts.show ? passLine(passed) : '';
   return out || (line ? { systemMessage: line } : null);

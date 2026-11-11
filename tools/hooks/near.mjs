@@ -131,3 +131,13 @@ export function multiPart(p) {
   const joins = (t.match(/(?<!\p{L})(and also|also|and then|as well as|además|también|y luego)(?!\p{L})/giu) || []).length;
   return items >= 3 || joins >= 2;
 }
+// Words too common to be evidence on their own. A trigger made only of these ("fix it", "i added", "look up") matches
+// ordinary sentences, so it never routes. Lesson: single generic words sent requests to the wrong runbook.
+export const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'change', 'update', 'check', 'write', 'new', 'help', 'want', 'need',
+  'think', 'look', 'find', 'see', 'go', 'put', 'set', 'run', 'show', 'tell', 'give', 'keep', 'take', 'work', 'thing', 'here', 'there', 'now', 'just',
+  'also', 'please', 'can', 'could', 'would', 'should', 'will', 'what', 'how', 'why', 'which', 'who', 'when', 'where', 'about', 'more', 'some', 'any',
+  'all', 'one', 'up', 'out', 'so', 'not', 'no', 'yes', 'ok', 'like', 'have', 'has', 'had', 'was', 'were', 'if', 'then', 'but', 'very', 'really',
+  'let', 'try', 'start', 'open', 'read', 'file', 'files', 'again', 'still', 'same', 'time', 'other', 'into', 'over', 'done', 'build', 'got', 'way', 'own',
+  's', 't', 'll', 're', 've', 'd', 'm', 'into', 'him', 'her', 'them', 'they', 'he', 'she', 'us', 'them', 'there', 'their', 'something', 'anything',
+  // (the same common verbs in Spanish, without accents)
+  'anade', 'anadir', 'agrega', 'agregar', 'haz', 'hacer', 'pon', 'poner', 'cambia', 'cambiar', 'quiero', 'puedes', 'necesito'].map(stem));

@@ -29,8 +29,6 @@ prompt: goal-loop: "keep improving it until the tests never flake" routes to the
 prompt: inbox files are announced
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
-prompt: recall: Spanish, a close earlier request is recalled
-prompt: recall: a close earlier request is recalled
 prompt: requirement hint: the same words as the user's own requirement still count
 prompt: requirement: a lasting requirement fires ("cada factura debe mostrar el número de impuesto")
 prompt: requirement: a lasting requirement fires ("every invoice must show the tax number")

@@ -8,6 +8,7 @@ import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
 import { openPlansOf } from '../planreq.mjs';
 import { expandMenuOf, menuLines } from '../menu.mjs';
+import { recallLine } from '../history.mjs';
 
 // REQ: check-preview. What the end check will also ask for if the work changes files, beyond the runbook's own list: the
 // engine checks that name this runbook or skill and apply once files change, and the project's own always.md items that
@@ -227,6 +228,10 @@ function remind(prompt) {
   // a relayed message, where a code is the other session's text. Lesson (the old suite under v2): only the first code
   // routed, and an unknown one was guessed at)
   const menuL = relayedRx.test(raw) ? [] : menuLines(expandMenuOf(String(userWords(prompt)), { root: ROOT }));
+  // (REQ: recall-hint: a request much like an earlier finished one starts from how that was done, the shared
+  // tools/hooks/history.mjs; never for a relayed message, which is no request of the user's)
+  const recall = relayedRx.test(raw) ? '' : recallLine(at('tools/hooks/state/history.jsonl'), String(userWords(prompt)));
+  if (recall) menuL.push(recall);
   if (!book) return { book: null, text: [...menuL, ...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : [], { unrouted: !(sk && skill) }) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project

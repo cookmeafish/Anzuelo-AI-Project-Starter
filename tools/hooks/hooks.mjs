@@ -3,6 +3,7 @@
 // The docs say what the rules are; this file makes them automatic so nobody has to remind the agent.
 // Project-specific checks belong in requirements.json (data), not here. Core checks carry a "REQ: <tag>" comment that
 // docs/checks/rule-enforcement.md and tools/audit.mjs refer to. "Lesson:" marks a failure seen in an earlier project.
+import { appendHistory, recallMatchesIn, recallLine } from './history.mjs';
 import { menuOf, expandMenuOf } from './menu.mjs';
 import { ROOT_TOOLCHAINS, rootToolchainFile as sharedRootToolchain } from './rootfiles.mjs';
 export { ROOT_TOOLCHAINS };
@@ -45,7 +46,7 @@ export { doneWhenItems, DONE_LABEL, ledgerItems };
 import { makeProof } from './proof.mjs';
 import { makeHookTests } from './hooktests.mjs';
 import { makeSkillLearn } from './skilllearn.mjs';
-import { STOP_STEMS, fold, STOP, stem, keyWords, AUTONOMY_WORDS, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
+import { GENERIC, STOP_STEMS, fold, STOP, stem, keyWords, AUTONOMY_WORDS, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
 export { AUTONOMY_WORDS };
 export { keyWords };
 import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText, PASTE_LONG, ownEnds, EXAMPLE_CLASS, SHARED_HINT, multiPart } from './near.mjs';
@@ -381,16 +382,7 @@ export function skillHasCheck(s) {
 // Word match for multi-word triggers: every key word of the trigger appears in the message, in any order and with
 // simple endings ("why does this code exist" matches "explain why this code exists"). Exact phrases score higher.
 // (STOP, stem and keyWords: tools/hooks/near.mjs, shared with engine v2)
-// Words too common to be evidence on their own. A trigger made only of these ("fix it", "i added", "look up") matches
-// ordinary sentences, so it never routes. Lesson: single generic words sent requests to the wrong runbook.
-const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'change', 'update', 'check', 'write', 'new', 'help', 'want', 'need',
-  'think', 'look', 'find', 'see', 'go', 'put', 'set', 'run', 'show', 'tell', 'give', 'keep', 'take', 'work', 'thing', 'here', 'there', 'now', 'just',
-  'also', 'please', 'can', 'could', 'would', 'should', 'will', 'what', 'how', 'why', 'which', 'who', 'when', 'where', 'about', 'more', 'some', 'any',
-  'all', 'one', 'up', 'out', 'so', 'not', 'no', 'yes', 'ok', 'like', 'have', 'has', 'had', 'was', 'were', 'if', 'then', 'but', 'very', 'really',
-  'let', 'try', 'start', 'open', 'read', 'file', 'files', 'again', 'still', 'same', 'time', 'other', 'into', 'over', 'done', 'build', 'got', 'way', 'own',
-  's', 't', 'll', 're', 've', 'd', 'm', 'into', 'him', 'her', 'them', 'they', 'he', 'she', 'us', 'them', 'there', 'their', 'something', 'anything',
-  // (the same common verbs in Spanish, without accents)
-  'anade', 'anadir', 'agrega', 'agregar', 'haz', 'hacer', 'pon', 'poner', 'cambia', 'cambiar', 'quiero', 'puedes', 'necesito'].map(stem));
+// (GENERIC: tools/hooks/near.mjs, shared with the recall history; moved 2026-11-10)
 // (RELAY, PEER_NOUN, PEER and the "also asks for work" test: in relay.mjs, shared with engine v2)
 import { RELAY, PEER_NOUN, PEER, ALSO_WORK, STARTER_UPGRADE, HANDBACK, RELAY_START, relayedBody, relayRouteText, relayRequestText as relayRequestTextOf, typedRouteText } from './relay.mjs';
 export { HANDBACK, relayedBody, relayRouteText, typedRouteText };
@@ -3241,8 +3233,8 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const hints = [];
   // REQ: recall-hint. A request much like an earlier one starts from how that one was solved.
   // (not for a relayed message: another session's report is no request of the user's to recall)
-  const best = !relayed && recallMatches(p, 3).find(r => r.share >= 0.5 && r.close);
-  if (best) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
+  const recall = relayed ? '' : recallLine(HISTORY, p);
+  if (recall) hints.push(recall);
   // (menu codes and flags are the user's shorthand: in a relayed message they are the other session's text)
   const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: relayRequestText(relayRouteText(p), cfg), codes: {}, flags: {} } : expandMenu(p);
   if (!relayed) m.expanded = typedRouteText(m.expanded);
@@ -5501,35 +5493,11 @@ export const waived = (tag, text, specific = false) => re(specific ? `N/?A\\s*\\
 const HISTORY = path.join(STATE, 'history.jsonl'), HISTORY_MAX = 2000;
 function recordHistory(x, key) {
   if (!x.workTurn || envOf('BENCH') || DRY_STATE) return;
-  const lines = read(HISTORY).split('\n').filter(Boolean);
-  if (lines.length && lines[lines.length - 1].includes(JSON.stringify(key).slice(1, -1))) return;
   const answer = x.answer.split(EN_COPIES)[0].split(/^#{1,6}\s*\**finished\b/im)[0].replace(/\s+/g, ' ').trim().slice(0, 400);
-  lines.push(JSON.stringify({ key, at: today(), prompt: x.prompt.replace(/\s+/g, ' ').slice(0, 300), used: [...x.usedPb, ...x.usedSkills].map(p => p.name), changed: x.changed.slice(0, 12), answer }));
-  try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(HISTORY, lines.slice(-HISTORY_MAX).join('\n') + '\n'); } catch { }
+  appendHistory(HISTORY, { key, at: today(), prompt: x.prompt.replace(/\s+/g, ' ').slice(0, 300), used: [...x.usedPb, ...x.usedSkills].map(p => p.name), changed: x.changed.slice(0, 12), answer });
 }
-// The past turns most like this text: shared key words, weighted toward the request itself.
-export function recallMatches(text, limit = 3) {
-  const want = new Set(keyWords(text).filter(w => w.length > 2));
-  if (want.size < 2) return [];
-  return read(HISTORY).split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)
-    .map(h => { const p = new Set(keyWords(h.prompt)), rest = new Set(keyWords(`${h.answer} ${h.used.join(' ')} ${h.changed.join(' ')}`)); let score = 0; for (const w of want) score += p.has(w) ? 2 : rest.has(w) ? 1 : 0; return { h, score, share: [...want].filter(w => p.has(w)).length / want.size }; })
-    .filter(r => r.score >= 4).sort((a, b) => b.score - a.score || (b.h.at > a.h.at ? 1 : -1)).slice(0, limit)
-    .map(r => ({ ...r, close: recallClose(want, r.h) }));
-}
-// The RECALL hint needs a close match: at least two words that name the subject (not common words, not a verdict like
-// "good" or "bad", not Spanish small words) shared with the earlier request, covering half of the new one's.
-// Lesson: "is it doing a good job?" recalled an unrelated edit whose request said "good and bad".
-// (time and effort words too. Lesson, field report: "what took so long" recalled an unrelated git-clone request)
-const RECALL_WEAK = new Set(['good', 'bad', 'job', 'great', 'nice', 'better', 'worse', 'best', 'worst', 'well', 'right', 'wrong', 'okay', 'fine',
-  'took', 'take', 'takes', 'taking', 'long', 'longer', 'time', 'slow', 'fast', 'quick', 'much', 'many', 'tokens', 'cost', 'done', 'finished', 'still',
-  'terrible', 'awful', 'poor', 'bien', 'mal', 'bueno', 'buena', 'malo', 'mala', 'trabajo', 'las', 'los', 'del', 'que', 'una', 'uno', 'unos', 'unas',
-  'para', 'por', 'con', 'est', 'esta', 'este', 'esto', 'eso', 'esa', 'ese', 'como', 'muy', 'pero', 'les', 'sus', 'mis', 'tus', 'hac', 'haciendo', 'hecho'].map(stem));
-function recallClose(want, h) {
-  const content = [...want].filter(w => !GENERIC.has(w) && !RECALL_WEAK.has(w));
-  const p = new Set(keyWords(h.prompt));
-  const shared = content.filter(w => p.has(w));
-  return shared.length >= 2 && shared.length / content.length >= 0.5;
-}
+// (the matcher and the RECALL line: tools/hooks/history.mjs, shared with engine v2; moved whole 2026-11-10)
+export const recallMatches = (text, limit = 3) => recallMatchesIn(HISTORY, text, limit);
 
 const USAGE_SEEN = 'usage-seen.json';
 export function recordUsage(x, key) {
