@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites, TEST_GLOBS, onPath } from './hooks/hooks.mjs';
+import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites, TEST_GLOBS, onPath } from './hooks/hooks-main.mjs';
 import { PROJECT, where, whereWrite } from './hooks/paths.mjs';
 
 // (pack sources come from the engine; what a pack installs, and the settings it changes, go to the project's own
@@ -202,5 +202,5 @@ if (isMain) {
   else if (cmd === 'status') console.log(`installed: ${installed().join(', ') || 'core only'}\navailable payloads: ${available().map(p => p.name).join(', ') || '(pruned)'}`);
   else { console.log(usageOf(import.meta.url)); process.exit(1); }
   // runbooks and skills changed: regenerate their skills, mirrors and DIRECTORY.md right away, not "later"
-  if (['install', 'prune'].includes(cmd)) { const { syncAll } = await import('./hooks/hooks.mjs'); syncAll(); }
+  if (['install', 'prune'].includes(cmd)) { const { syncAll } = await import('./hooks/hooks-main.mjs'); syncAll(); }
 }

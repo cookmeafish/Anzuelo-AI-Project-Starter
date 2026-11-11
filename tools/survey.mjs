@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ROOT, usageOf, projectSurvey, SURVEY_KINDS } from './hooks/hooks.mjs';
+import { ROOT, usageOf, projectSurvey, SURVEY_KINDS } from './hooks/hooks-main.mjs';
 
 if (process.argv.includes('--help')) { console.log(usageOf(import.meta.url)); process.exit(0); }
 const sv = projectSurvey();

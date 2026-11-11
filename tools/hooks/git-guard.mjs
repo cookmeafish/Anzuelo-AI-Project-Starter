@@ -55,7 +55,8 @@ if (mode === 'pre-commit') {
   { const sid = unseenSession(); if (sid) { console.error(UNSEEN('commit', sid)); process.exit(1); } }
   // REQ: no-secrets and stray files, enforced by git itself for every agent and for manual commits
   const { spawnSync } = await import('node:child_process');
-  const git = (...a) => spawnSync('git', a, { encoding: 'utf8' }).stdout || '';
+  // (a large buffer: the default 1 MB cut a test file over 1 MB short, and a staged change over 1 MB hid what came after)
+  const git = (...a) => spawnSync('git', a, { encoding: 'utf8', maxBuffer: 256 << 20 }).stdout || '';
   const added = git('diff', '--cached', '-U0').split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).join('\n');
   if (forbidHit(added)) { console.error(FORBID_MSG); process.exit(1); }
   const hit = secretHit(added, cfg);

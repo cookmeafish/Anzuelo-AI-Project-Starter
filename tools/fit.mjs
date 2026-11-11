@@ -17,7 +17,7 @@
 // in the project; skip with a reason that answers any signal the survey found; later with "when: <condition>".
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, read, abs, config, usageOf, FIT_FILE, fitRows, fitCandidates, fitSignals, fitProblems, fitBoilerplate, fitDecision, fitWhenOf, FIT_WHEN_TAIL, projectSurvey, flushEngineWrites } from './hooks/hooks.mjs';
+import { ROOT, read, abs, config, usageOf, FIT_FILE, fitRows, fitCandidates, fitSignals, fitProblems, fitBoilerplate, fitDecision, fitWhenOf, FIT_WHEN_TAIL, projectSurvey, flushEngineWrites } from './hooks/hooks-main.mjs';
 
 const args = process.argv.slice(2);
 const VALUED = ['--kind', '--file'];

@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ROOT, config, syncAll, findLibrary, CORE_SKILLS, today, usageOf, flushEngineWrites, bulkDir } from './hooks/hooks.mjs';
+import { ROOT, config, syncAll, findLibrary, CORE_SKILLS, today, usageOf, flushEngineWrites, bulkDir } from './hooks/hooks-main.mjs';
 import { where, whereWrite, relOf } from './hooks/paths.mjs';
 
 const cfg = config();

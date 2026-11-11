@@ -24,7 +24,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, upgradeReport, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, upgradeReport, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks-main.mjs';
 import { wire } from './hooks/wire.mjs';
 import { dataLikeDirs } from './hooks/datadirs.mjs';
 import { carryRunEach, carryLine } from './hooks/selfcmds.mjs';
@@ -34,7 +34,7 @@ const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { 
 
 // Engine: generic machinery, replaced on --upgrade. Everything else is the project's own content.
 const ENGINE = [
-  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/hooks/people.mjs', 'tools/hooks/labels.mjs', 'tools/hooks/base-checks.mjs', 'tools/hooks/wakeups.mjs', 'tools/hooks/injection.mjs', 'tools/hooks/jsonl.mjs', 'tools/hooks/selfcmds.mjs', 'tools/hooks/pause.mjs', 'tools/hooks/caps.mjs', 'tools/hooks/relay.mjs', 'tools/hooks/claims.mjs', 'tools/hooks/grant.mjs', 'tools/hooks/count.mjs', 'tools/hooks/datadirs.mjs', 'tools/hooks/names.mjs', 'tools/hooks/rootfiles.mjs', 'tools/hooks/menu.mjs', 'tools/hooks/history.mjs', 'tools/hooks/writing.mjs', 'tools/hooks/excuse.mjs', 'tools/hooks/extstop.mjs', 'tools/hooks/decide.mjs', 'tools/hooks/worth.mjs', 'tools/hooks/gui.mjs', 'tools/hooks/correct.mjs', 'tools/hooks/praise.mjs', 'tools/hooks/planreq.mjs', 'tools/hooks/near.mjs', 'tools/hooks/skilllearn.mjs', 'tools/hooks/hooktests.mjs', 'tools/hooks/donewhen.mjs', 'tools/hooks/gates.mjs', 'tools/hooks/launchers.mjs', 'tools/hooks/trace.mjs', 'tools/hooks/proof.mjs', 'tools/hooks/knowledge.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
+  'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/hooks/people.mjs', 'tools/hooks/labels.mjs', 'tools/hooks/base-checks.mjs', 'tools/hooks/wakeups.mjs', 'tools/hooks/injection.mjs', 'tools/hooks/jsonl.mjs', 'tools/hooks/selfcmds.mjs', 'tools/hooks/pause.mjs', 'tools/hooks/caps.mjs', 'tools/hooks/relay.mjs', 'tools/hooks/claims.mjs', 'tools/hooks/grant.mjs', 'tools/hooks/count.mjs', 'tools/hooks/datadirs.mjs', 'tools/hooks/names.mjs', 'tools/hooks/rootfiles.mjs', 'tools/hooks/menu.mjs', 'tools/hooks/history.mjs', 'tools/hooks/writing.mjs', 'tools/hooks/excuse.mjs', 'tools/hooks/extstop.mjs', 'tools/hooks/decide.mjs', 'tools/hooks/worth.mjs', 'tools/hooks/gui.mjs', 'tools/hooks/correct.mjs', 'tools/hooks/praise.mjs', 'tools/hooks/planreq.mjs', 'tools/hooks/near.mjs', 'tools/hooks/skilllearn.mjs', 'tools/hooks/hooktests.mjs', 'tools/hooks/donewhen.mjs', 'tools/hooks/gates.mjs', 'tools/hooks/launchers.mjs', 'tools/hooks/trace.mjs', 'tools/hooks/proof.mjs', 'tools/hooks/knowledge.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
   'tools/writing-check.mjs', 'tools/integrity-check.mjs',
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
@@ -474,13 +474,14 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const prevShipped = (() => { try { return JSON.parse(fs.readFileSync(path.join(dest, 'tools', 'hooks', 'engine-checks.json'), 'utf8')).requirements || null; } catch { return null; } })();
   const keptChecks = [], addedChecks = [];
   // the setup questions this project's engine asked, read before it is replaced: only questions added since are new
-  const prevHooks = (() => { try { return fs.readFileSync(path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'utf8').replace(/\r\n/g, '\n'); } catch { return ''; } })();
+  // (the engine body: hooks-main.mjs since hooks.mjs became a small entry, hooks.mjs before that)
+  const prevHooks = (() => { for (const n of ['hooks-main.mjs', 'hooks.mjs']) { try { return fs.readFileSync(path.join(dest, 'tools', 'hooks', n), 'utf8').replace(/\r\n/g, '\n'); } catch { } } return ''; })();
   const prevQuestions = [...prevHooks.matchAll(/export const INTERVIEW\w* = \[([^\]]*)\]/g)].flatMap(m => [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
   // the starter commit this project last took its engine from (its hooks.mjs as shipped then), or null when unknown
   const gitAt = (c, rel) => spawnSync('git', ['show', `${c}:${rel}`], { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 }).stdout || '';
   const baseCommit = (() => {
-    for (const c of (spawnSync('git', ['log', '--format=%H', '--', 'tools/hooks/hooks.mjs'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean))
-      if (gitAt(c, 'tools/hooks/hooks.mjs').replace(/\r\n/g, '\n') === prevHooks) return c;
+    for (const c of (spawnSync('git', ['log', '--format=%H', '--', 'tools/hooks/hooks-main.mjs', 'tools/hooks/hooks.mjs'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean))
+      if ((gitAt(c, 'tools/hooks/hooks-main.mjs') || gitAt(c, 'tools/hooks/hooks.mjs')).replace(/\r\n/g, '\n') === prevHooks) return c;
     return null;
   })();
   if (!dry) for (const f of SNAP.filter(f => fs.existsSync(path.join(dest, f)))) { const b = path.join(backupDir, f + '.orig'); fs.mkdirSync(path.dirname(b), { recursive: true }); fs.copyFileSync(path.join(dest, f), b); }
@@ -732,7 +733,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // what the upgrade wrote is the engine's doing, not the agent's work in the next turn, as with the pack installer
   // (Lesson: the files an upgrade added asked for a plan at the next Stop)
   const wrote = [...log.map(l => /^(?:updated|created)\s+(\S+)/.exec(l)?.[1]).filter(Boolean), ...SNAP.filter(f => fs.existsSync(path.join(dest, f)))];
-  if (wrote.length) spawnSync(process.execPath, ['--input-type=module', '-e', `import { flushEngineWrites } from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; flushEngineWrites(${JSON.stringify(wrote)});`], { cwd: dest, encoding: 'utf8' });
+  if (wrote.length) spawnSync(process.execPath, ['--input-type=module', '-e', `import { flushEngineWrites } from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks-main.mjs')).href)}; flushEngineWrites(${JSON.stringify(wrote)});`], { cwd: dest, encoding: 'utf8' });
   const items = [];
   // new hard rules the project doesn't have yet (by their bold title), unless an earlier review decided them
   const decided = fs.existsSync(path.join(dest, 'docs', 'DECISIONS.md')) ? fs.readFileSync(path.join(dest, 'docs', 'DECISIONS.md'), 'utf8') : '';
@@ -759,7 +760,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   if (fitNew.status !== 0) console.log(`skipped  the fit checklist: ${(fitNew.stderr || '').split(/\r?\n/)[0]}`);
   else { if (fresh) items.push(`fit: ${fresh} new candidates`); if (autoSkipped) console.log(`fit: decided "skip" for new candidates with no sign of need here (change a row in docs/fit-checklist.md if one fits): ${autoSkipped}`); }
   // packs and library skills that fit the project's setup answers and were never enabled or declined
-  const fit = spawnSync(process.execPath, ['--input-type=module', '-e', `import { fitGaps } from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; console.log(JSON.stringify(fitGaps()));`], { cwd: dest, encoding: 'utf8' });
+  const fit = spawnSync(process.execPath, ['--input-type=module', '-e', `import { fitGaps } from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks-main.mjs')).href)}; console.log(JSON.stringify(fitGaps()));`], { cwd: dest, encoding: 'utf8' });
   try { items.push(...JSON.parse(fit.stdout)); } catch { log.push(`skipped  the fit check: ${(fit.stderr || '').split('\n')[0]}`); }
   // the project's own runbooks whose job an engine skill now does: merge what is special about them, then retire them
   for (const [rb, into] of Object.entries(MERGED_RUNBOOKS)) if (fs.existsSync(path.join(dest, 'docs', 'playbooks', `${rb}.md`)) && !decided.includes(`- merge: docs/playbooks/${rb}.md`)) items.push(`merge: docs/playbooks/${rb}.md into the ${into} skill`);
@@ -784,7 +785,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   }
   // setup questions added since this project's interview: the setup check would ask for them with no warning
   // (Lesson: a new "Involvement" question failed audit --setup in an adopted project, and the review never named it)
-  const iv = spawnSync(process.execPath, ['--input-type=module', '-e', `import * as h from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; const f = h.setupInterview(); console.log(JSON.stringify(Object.keys(f).length ? [...h.INTERVIEW, ...h.INTERVIEW_AFTER, ...(h.config().packs || []).includes('app') ? h.INTERVIEW_APP : []].filter(k => !(k.toLowerCase() in f) && !${JSON.stringify(prevQuestions)}.includes(k)) : []));`], { cwd: dest, encoding: 'utf8' });
+  const iv = spawnSync(process.execPath, ['--input-type=module', '-e', `import * as h from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks-main.mjs')).href)}; const f = h.setupInterview(); console.log(JSON.stringify(Object.keys(f).length ? [...h.INTERVIEW, ...h.INTERVIEW_AFTER, ...(h.config().packs || []).includes('app') ? h.INTERVIEW_APP : []].filter(k => !(k.toLowerCase() in f) && !${JSON.stringify(prevQuestions)}.includes(k)) : []));`], { cwd: dest, encoding: 'utf8' });
   try { const keys = JSON.parse(iv.stdout); if (keys.length && !decided.includes(`- interview: ${keys.join(', ')} (`)) items.push(`interview: ${keys.join(', ')} (new setup question${keys.length > 1 ? 's' : ''}; record each answer under "## Setup interview" in docs/DECISIONS.md, or the setup check asks for it)`); } catch { log.push(`skipped  the new setup questions: ${(iv.stderr || '').split('\n')[0]}`); }
   for (const [file, h] of movedSections) items.push(`sections: ${file} is an engine file, so the section "${h}" this project added moved to its "## Project lessons" section (check it still reads right there)`);
   for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);

@@ -52,13 +52,13 @@ process.env.ANZUELO_SESSION_GATE = 'off';
 // (nor is the session that runs the tests theirs: "begin" in a sample would record it, with its whole transcript)
 delete process.env.CLAUDE_CODE_SESSION_ID; delete process.env.CLAUDECODE;
 // what the tests depend on, as the run starts (audit --setup reuses a full pass while it is unchanged)
-const INPUTS0 = await (async () => { try { return (await import('./hooks.mjs')).testInputsHash(); } catch { return null; } })();
+const INPUTS0 = await (async () => { try { return (await import('./hooks-main.mjs')).testInputsHash(); } catch { return null; } })();
 // the commit the run tests, when its files are exactly that commit's (the proof names it; the push gate reads it)
 const TESTED0 = await (async () => { try { return (await import('./selftest-cache.mjs')).testedCommit(ROOT); } catch { return null; } })();
-const CORE_SKILLS = await (async () => { try { return (await import('./hooks.mjs')).CORE_SKILLS || []; } catch { return []; } })();
+const CORE_SKILLS = await (async () => { try { return (await import('./hooks-main.mjs')).CORE_SKILLS || []; } catch { return []; } })();
 
 if (process.argv[2] === '--route') {
-  const { promptHints, relayedBody, config } = await import('./hooks.mjs');
+  const { promptHints, relayedBody, config } = await import('./hooks-main.mjs');
   const msg = process.argv.slice(3).join(' ');
   // a relayed message is routed the way the prompt hook routes it (its body, as relayed). Lesson: --route printed
   // "no hints" for a relayed upgrade request the hook itself routed to the project runbook.
@@ -72,7 +72,7 @@ if (process.argv[2] === '--route') {
 // (node tools/hooks/hooks.mjs contract): a field or marker they read that the engine no longer prints, or a contract
 // version they were last checked against that is older. Exit 1 when one needs a look. Quick: no test copies.
 if (process.argv[2] === '--contract') {
-  const { contractProblems, CONTRACT, config } = await import('./hooks.mjs');
+  const { contractProblems, CONTRACT, config } = await import('./hooks-main.mjs');
   const cfg = config(), files = [].concat(cfg.externalHooks || []), probs = contractProblems(cfg);
   for (const p of probs) console.log(`- ${p}`);
   console.log(`CONTRACT: ${probs.length ? 'WARN' : 'PASS'} (engine contract ${CONTRACT.version}; ${files.length ? `${files.length} project hook file(s) checked${Number.isFinite(cfg.hookContract) ? `, last checked against ${cfg.hookContract}` : ''}` : 'no "externalHooks" in tools/hooks/config.json, nothing to check'})`);
@@ -161,7 +161,7 @@ function buildBase(host) {
   // and dedupe would find its real duplicates. Everything the survey sees as the project's (not the engine's) is removed,
   // plus the usual content folders. Lesson: in a large project the fit and dedupe tests read its real files.
   if (!fs.existsSync(path.join(ROOT, '.starter-template'))) {
-    const list = spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectSurvey } from ${JSON.stringify(pathToFileURL(at('tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(projectSurvey({ git: false }).files.map(f => f.p)));`], { cwd: BASE, encoding: 'utf8' });
+    const list = spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectSurvey } from ${JSON.stringify(pathToFileURL(at('tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(projectSurvey({ git: false }).files.map(f => f.p)));`], { cwd: BASE, encoding: 'utf8' });
     let own = []; try { own = JSON.parse(list.stdout || '[]'); } catch { }
     // the project's own tools and skill scripts stay: its checks run them (runEach, toolPassed). Lesson: a sprite check's
     // script was deleted from the base, so its "blocked" scenario passed only because the missing script crashed.
@@ -250,7 +250,7 @@ function fixturesOnly(at, src) {
     if (from) fs.copyFileSync(from, at(rel));
     else if (src || !CORE_RB.test(n)) fs.rmSync(at(rel), { force: true });
   }
-  let core = []; try { core = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { CORE_SKILLS } from ${JSON.stringify(pathToFileURL(at('tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(CORE_SKILLS));`], { encoding: 'utf8' }).stdout); } catch { }
+  let core = []; try { core = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { CORE_SKILLS } from ${JSON.stringify(pathToFileURL(at('tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(CORE_SKILLS));`], { encoding: 'utf8' }).stdout); } catch { }
   const removed = [];
   for (const n of ls(at('skills'))) {
     const rel = `skills/${n}`, md = (() => { try { return fs.readFileSync(at(`${rel}/SKILL.md`), 'utf8'); } catch { return ''; } })();
@@ -4359,7 +4359,7 @@ const LETTER = 'To: the tenant of flat 2 (letter)\n\nDear Sam,\n\nThe rent goes 
 const ENGINE_EDIT = dir => fs.appendFileSync(path.join(dir, 'tools/hooks/wire.mjs'), '\n// a change to the hook logic\n');
 const SELFTEST_RECORD = passed => dir => {
   ENGINE_EDIT(dir);
-  const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+  const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
   write(dir, { 'tools/hooks/state/selftest.json': JSON.stringify({ at: localDay(), passed, count: 40, inputs: h, mode: 'reused' }) });
 };
 const REFUSED = 'This Bash command contains multiple operations. The following part requires approval: rm SETUP-PROMPT.md';
@@ -4406,7 +4406,7 @@ STOP.push(
     bash('node tools/audit.mjs --setup 2>&1 | grep -E "FAIL|WARN"', 'WARN 21. git hygiene')],
     prep: dir => {
       turnStart('requirements.json', NEW_CHECK)(dir);
-      const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+      const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
       write(dir, { 'tools/hooks/state/selftest.json': JSON.stringify({ at: localDay(), passed: true, count: 40, inputs: h, mode: 'full' }) });
     },
     files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Added the meal check.' + FIN, expect: { not: ['hooks-tested'] } },
@@ -4416,7 +4416,7 @@ STOP.push(
     name: `hooks-tested: a tagged run, out of sight, that recorded ${passed ? 'a pass' : 'a failure'} for ${tags.join(',')}: ${block ? 'blocked' : 'passes'}`, prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs')],
     prep: dir => {
       turnStart('requirements.json', NEW_CHECK)(dir);
-      const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+      const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
       write(dir, { 'tools/hooks/state/selftest-tags.json': JSON.stringify({ at: new Date().toISOString(), passed, tags, inputs: h }) });
     },
     files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Added the meal check.' + FIN, expect: block ? { block: true, tags: ['hooks-tested'] } : { not: ['hooks-tested'] } })),
@@ -5502,7 +5502,7 @@ if (mineB() && (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t)))) {
     const t0 = Date.now(), dir = copyProject();
     let restoreFs = () => { };
     try {
-      const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+      const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
       const CASES = (await import(pathToFileURL(path.join(dir, 'tools/hooks/trigger-cases.mjs')).href)).default;
       // the copy doesn't change while the cases run: its file reads are served from memory, so ~450 calls stay fast in a
       // temp folder an antivirus scans on every read. Lesson: uncached, the block took 25 s on Windows.
@@ -5866,7 +5866,7 @@ if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
         { type: 'assistant', isSidechain: true, timestamp: iso(at + 1000), message: { content: [{ type: 'tool_use', id: 'toolu_hs1', name: 'Read', input: { file_path: path.join(dir, 'docs/playbooks/project.md') } }] } },
         { type: 'user', isSidechain: true, timestamp: iso(at + 2000), message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_hs1', content: '# Project' }] } },
         { type: 'assistant', isSidechain: true, timestamp: iso(at + 3000), message: { content: [{ type: 'text', text: 'HELPER TEXT, NOT THE ANSWER' }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
-      const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + `?hw=${when.length}`);
+      const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href + `?hw=${when.length}`);
       const t = H.turn(tp);
       const reads = new Set(H.toolUses([...(t.entries || []), ...(t.helperEntries || [])]).filter(u => u.name === 'Read').map(u => String(u.input.file_path).replace(/\\/g, '/')));
       const helperRead = [...reads].some(p => p.endsWith('docs/playbooks/project.md'));
@@ -5883,7 +5883,7 @@ if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
 if (mineB() && (!TAGS || TAGS.includes('trial-wording')) && fs.existsSync(path.join(ROOT, 'tools/starter/trials/scenarios.json'))) {
   const label = 'trial-wording: no trial scenario\'s names, titles or keepOut words in the shipped engine files';
   try {
-    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href + '?tw=1');
+    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href + '?tw=1');
     const sc = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/starter/trials/scenarios.json'), 'utf8'));
     const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const rxs = [];
@@ -5909,7 +5909,7 @@ if (mineB() && (!TAGS || TAGS.includes('trial-wording')) && fs.existsSync(path.j
 if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) {
   const label = 'upset-acknowledged: a read-only loop and the note scripts\' read commands count as reads; a write inside them still does not';
   try {
-    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href + '?ro=1');
+    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href + '?ro=1');
     const reads = ['for f in notes/*.md; do echo "== $f"; cat "$f"; done; git status --short notes',
       'node skills/obsidian/scripts/notes.mjs check --all; node skills/notes-vault/scripts/vault.mjs backlinks "notes/Tea.md"; node skills/obsidian/scripts/notes.mjs suggest "notes/Tea.md"'];
     const writes = ['for f in notes/*.md; do echo x >> "$f"; done', 'for f in notes/*.md; do rm "$f"; done', 'node skills/obsidian/scripts/notes.mjs check --all --fix'];
@@ -5923,7 +5923,7 @@ if (mineB() && (!TAGS || TAGS.includes('hooks-tested'))) {
   const label = 'hooks-tested: editing a machine-local *.local.json keeps the self-test fingerprint; editing requirements.json changes it';
   const dir = copyProject();
   try {
-    const hash = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+    const hash = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
     const a = hash();
     fs.mkdirSync(path.join(dir, 'tools/starter'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'tools/starter/watch.local.json'), JSON.stringify({ projects: [{ engine: 'abc1234' }] }));
@@ -5943,7 +5943,7 @@ if (mineB() && (!TAGS || TAGS.includes('hooks-tested'))) {
 if (mineB() && (!TAGS || TAGS.includes('usage-quiet'))) {
   const dir = copyProject();
   try {
-    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + '?uq=1');
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href + '?uq=1');
     const f = path.join(dir, 'tools/hooks/state/runbook-usage.json'), x = { usedPb: [{ name: 'meal-plan' }], usedSkills: [] };
     const snap = () => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } };
     const counts = [];
@@ -5980,7 +5980,7 @@ if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
     fs.writeFileSync(path.join(sub, 'agent-a9.jsonl'), [{ type: 'user', timestamp: iso(t0 + 4000), message: { role: 'user', content: 'run the setup' } },
       { type: 'assistant', timestamp: iso(t0 + 5000), message: { content: [{ type: 'tool_use', id: 'toolu_hf1', name: 'Write', input: { file_path: report1, content: 'x' } }] } },
       { type: 'user', timestamp: iso(t0 + 6000), message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_hf1', content: 'File created' }] } }].map(r => JSON.stringify({ ...r, isSidechain: true })).join('\n') + '\n');
-    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + '?hwf=1');
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href + '?hwf=1');
     const t = H.turn(tp), x = H.context(t, H.config());
     report((t.bgRunning || []).length > 0 && x.changed.includes('docs/reviews/security-2026-11-05.md') && !x.changed.includes('docs/stray.md'),
       'helper-work-counts: while the helper still runs, the file it wrote counts as changed; a file nobody here wrote does not',
@@ -6004,7 +6004,7 @@ if (mineB() && (!TAGS || TAGS.includes('helper-runs-in-time'))) {
     fs.mkdirSync(sub, { recursive: true });
     fs.writeFileSync(path.join(sub, 'agent-1.jsonl'), [{ type: 'user', isSidechain: true, timestamp: iso(t0 + 3000), message: { role: 'user', content: 'fix the soup prices' } },
       ...run('toolu_hs1', t0 + 10000, 'soup: no price\nRESULT: FAIL')].map(r => JSON.stringify({ ...r, isSidechain: true })).join('\n') + '\n');
-    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + '?hrt=1');
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href + '?hrt=1');
     const x = H.context(H.turn(tp), H.config());
     const outs = x.runs.filter(r => /check_menu/.test(r.cmd)).map(r => r.out.trim().split('\n').pop());
     report(outs.length === 2 && outs[1] === 'RESULT: PASS', 'helper-runs-in-time: a helper\'s early failing run is not the last run when the session passed later',
@@ -6460,7 +6460,7 @@ if (mineB()) { // setup-complete people: one owner with qualifiers, or staff who
       ['3 (flat-1, flat-2, flat-3)', 'several'],
       ['several - each flat has its own tenants, whose data stays in its own folder', 'several'],
       ['assumed - several (one folder per flat in profiles/, so tenants\' data stays apart)', 'several']];
-    const href = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const href = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const got = JSON.parse(nodeIn(dir, ['--input-type=module', '-e', `import { peopleAnswer } from ${href}; console.log(JSON.stringify(${JSON.stringify(cases.map(c => c[0]))}.map(peopleAnswer)));`]).stdout || '[]');
     const wrong = cases.filter((c, i) => got[i] !== c[1]).map(c => `${c[0].slice(0, 50)} -> ${got[cases.indexOf(c)]}`);
     // the gate itself: the qualified single owner passes, a list of people without profiles is asked for them
@@ -6487,14 +6487,14 @@ if (mineB() && SPEED) { // setup interview: an assumed always/never answer is th
   const dir = copyProject();
   try {
     const ask = body => { write(dir, { 'docs/DECISIONS.md': `# Decisions\n\n## Setup interview (2026-11-06)\n${body}\n` });
-      return nodeIn(dir, ['--input-type=module', '-e', `import { setupInterview } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; const f = setupInterview(); console.log(JSON.stringify([f['always/never'], !!f['always/never (assumed)']]))`]).stdout.trim(); };
+      return nodeIn(dir, ['--input-type=module', '-e', `import { setupInterview } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; const f = setupInterview(); console.log(JSON.stringify([f['always/never'], !!f['always/never (assumed)']]))`]).stdout.trim(); };
     const guessed = ask('- Always/never: assumed - never send anything to the client'), given = ask('- Always/never: never send anything to the client');
     report(guessed === '["never send anything to the client",true]' && given === '["never send anything to the client",false]',
       'setup interview: an always/never answer marked "assumed" is kept as the agent\'s guess, so setup does not ask to write it as the user\'s rule', { guessed, given });
     // (and a Branches answer the agent only assumed does not ask to unprotect main. Lesson (trial v43): two setups that
     // assumed "work on master directly" were told to set protectedBranches to [], and the push guard went off)
     const branches = body => { write(dir, { 'docs/DECISIONS.md': `# Decisions\n\n## Setup interview (2026-11-06)\n${body}\n` });
-      return nodeIn(dir, ['--input-type=module', '-e', `import { setupCompleteness } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(setupCompleteness({ protectedBranches: ['main', 'master'] }, { final: true }).some(p => /says the work goes on/.test(p)))`]).stdout.trim(); };
+      return nodeIn(dir, ['--input-type=module', '-e', `import { setupCompleteness } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(setupCompleteness({ protectedBranches: ['main', 'master'] }, { final: true }).some(p => /says the work goes on/.test(p)))`]).stdout.trim(); };
     const assumedMain = branches('- Branches: assumed - work on master directly (single author)'), saidMain = branches('- Branches: I work on master directly');
     report(assumedMain === 'false' && saidMain === 'true',
       'setup interview: a Branches answer marked "assumed" keeps main protected; the user\'s own "I work on master" still asks to unprotect it', { assumedMain, saidMain });
@@ -6503,7 +6503,7 @@ if (mineB() && SPEED) { // setup interview: an assumed always/never answer is th
 if (mineB() && SPEED) { // test-inputs: the audit's reuse hash ignores what the test copies drop (setup interview, review rows), not rules or checks
   const dir = copyProject();
   try {
-    const h = () => nodeIn(dir, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`]).stdout.trim();
+    const h = () => nodeIn(dir, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(testInputsHash());`]).stdout.trim();
     const h0 = h();
     fs.appendFileSync(path.join(dir, 'docs/DECISIONS.md'), '\n## Setup interview (2026-10-21)\n- Involvement: everything\n- Focus: desks\n');
     fs.appendFileSync(path.join(dir, 'docs/security.md'), '\n| 2026-10-21 | sign-in | PASS |\n');
@@ -6751,7 +6751,7 @@ if (mineB()) { // adoption review: an established project's own pieces are liste
     fs.writeFileSync(cfgP, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgP, 'utf8')), adopted: '2026-11-07' }, null, 2));
     const probs = decisions => {
       fs.writeFileSync(path.join(dir, 'docs/DECISIONS.md'), `# Decisions\n${decisions}`);
-      const o = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(setupProblems().filter(p => /Adoption review/.test(p))));`], { cwd: dir, encoding: 'utf8' });
+      const o = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(setupProblems().filter(p => /Adoption review/.test(p))));`], { cwd: dir, encoding: 'utf8' });
       try { return JSON.parse(o.stdout.trim().split('\n').pop()); } catch { return [`(no output) ${o.stderr.slice(0, 200)}`]; }
     };
     const none = probs(''), undecided = probs('## Adoption review\n- keep: its pre-commit lint hook - the engine adds no lint gate\n- improve: add a release runbook | small | adopted - adds only\n- improve: replace its test script with the engine gate | big | ?\n');
@@ -6763,7 +6763,7 @@ if (mineB()) { // adoption review: an established project's own pieces are liste
 }
 
 if (mineB()) { // a skill or runbook checked by a "Done when" marker has a check; a when condition alone is none
-  const code = `import { skillHasCheck as s, runbookHasCheck as r } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href)};
+  const code = `import { skillHasCheck as s, runbookHasCheck as r } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href)};
 const t = m => '---\\nname: zz\\n---\\n## Done when\\n- [ ] The thing is saved ' + m + '\\n';
 console.log(JSON.stringify([s({ name: 'zzq', fm: {}, text: t('(file: out/**)') }), r({ name: 'zzq', fm: {}, text: t('(when ran: build) (ran: test)') }), s({ name: 'zzq', fm: {}, text: t('(when file: out/**)') }), r({ name: 'zzq', fm: {}, text: t('(judgment: a reader)') })]));`;
   const o = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
@@ -6771,7 +6771,7 @@ console.log(JSON.stringify([s({ name: 'zzq', fm: {}, text: t('(file: out/**)') }
 }
 
 if (mineB()) { // the starter's size warning leaves out DIRECTORY.md's section 5, which no project starts with
-  const code = `import { starterOnlyChars as f } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href)};
+  const code = `import { starterOnlyChars as f } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href)};
 const five = '## 5. What this starter can add (packs)\\n| a | b |\\n';
 console.log(JSON.stringify([f('# D\\n' + five + '## Where things live\\nx\\n'), five.length, f('# D\\n' + five), f('# D\\n## 1. Runbooks\\n')]));`;
   const o = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
@@ -6845,7 +6845,7 @@ if (mineB()) { // rule and prove commands: a standing rule written everywhere it
 
 if (mineB()) { // answer-language: a choice made for a user who asked not to be asked is a plain sentence in the answer; the
   // form line is for plans. Lesson: Spanish answers read like forms ("Supuesto: X - por qué - coste").
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks-main.mjs')).href);
   const es = h.assumedHint(true), en = h.assumedHint(false);
   report(/Supuse <decisión> porque/.test(es) && /in a plan: "Supuesto:/.test(es) && /I assumed <choice> because/.test(en) && /in a plan: "Assumed:/.test(en)
     && !/"Supuesto: <decisión>/.test(h.LABELS_ES_HINT) && /only place the rounds appear/.test(h.LABELS_ES_HINT),
@@ -6872,7 +6872,7 @@ if (mineB()) { // answer-language: a choice made for a user who asked not to be 
 // answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the same
 // Spanish answer without the label still fails. A new label without a Spanish sample here fails this test.
 if (mineB()) {
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks-main.mjs')).href);
   const ES = {
     'root cause': 'Causa raíz: el analizador no leía el año.', 'research-cited': 'El total es 40 [1].\n\nFuentes:\n[1] exports/a.csv',
     'research-ledger': 'Verificadas: 5 afirmaciones trazadas a 3 fuentes.', 'skill-finder-report': 'Habilidades existentes revisadas: la biblioteca - ninguna sirve.',
@@ -6978,7 +6978,7 @@ if (mineB()) {
 // Lesson: research-cited said "from exports/2026-W42.csv" was enough; the agent wrote "(from `exports/2026-W42.csv`)",
 // the backticks broke the match, and the answer was blocked twice and rewritten with footnotes.
 if (mineB()) {
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks-main.mjs')).href);
   const branches = c => c.anyOf ? c.anyOf.flatMap(branches) : c.answerMatches || c.answerNotMatches || c.answerCites ? [{ answerMatches: c.answerMatches, answerNotMatches: c.answerNotMatches, answerCites: c.answerCites }] : [];
   const PARTS = {
     'research-cited': ['Sources:'], // the heading of the numbered list
@@ -7019,7 +7019,7 @@ if (mineB()) {
   const NA_ASK = /\b(write|with|say so with|waive it with|or)\s+[`"\\]*N\/A\(/i;
   const offenders = [];
   const scan = (label, text) => { for (const line of String(text).split('\n')) if (NA_ASK.test(line)) offenders.push(`${label}: ${line.trim().slice(0, 120)}`); };
-  scan('tools/hooks/hooks.mjs', fs.readFileSync(path.join(ROOT, 'tools/hooks/hooks.mjs'), 'utf8').split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n'));
+  scan('tools/hooks/hooks-main.mjs', fs.readFileSync(path.join(ROOT, 'tools/hooks/hooks-main.mjs'), 'utf8').split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n'));
   const msgs = (f, list) => { try { for (const q of list(JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')))) scan(`${f} [${q.tag}]`, q.message || ''); } catch { } };
   msgs('tools/hooks/requirements.json', j => j.requirements || []);
   for (const p of (() => { try { return fs.readdirSync(path.join(ROOT, 'packs')); } catch { return []; } })()) msgs(`packs/${p}/pack.json`, j => j.requirements || []);
@@ -7064,10 +7064,10 @@ if (mineS()) { // walks never follow links: a workspace link that loops back int
 if (mineB()) { // knowledgeDirs, fit, labels and names: what a notes-only project (an adopted vault) needs
   const dir = copyProject();
   try {
-    const imp = async () => import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + `?t=${Date.now()}`);
+    const imp = async () => import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href + `?t=${Date.now()}`);
     applyEdits(dir, { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), knowledgeDirs: ['Notas de Salud'] }) });
     const sub = `--input-type=module`, js = code => spawnSync(process.execPath, [sub, '-e', code], { cwd: dir, encoding: 'utf8' }).stdout.trim();
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     // every knowledge check that names docs/knowledge/** also covers the vault folder
     const globs = js(`import { loadRequirements } from ${H}; console.log(JSON.stringify(loadRequirements().reqs.filter(r => JSON.stringify(r).includes('docs/knowledge/**')).map(r => JSON.stringify(r).includes('Notas de Salud/**'))))`);
     const allCovered = (() => { try { const a = JSON.parse(globs); return a.length > 0 && a.every(Boolean); } catch { return false; } })() || !INSTALLED.includes('knowledge');
@@ -7128,7 +7128,7 @@ if (mineB()) { // fit: in a project with no code, code tools are decided "later"
   // Lesson: a notes-only project had 63 code tools to decide one by one
   const dir = copyProject();
   try {
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const survey = () => JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectSurvey } from ${H}; const s = projectSurvey({ git: false }); console.log(JSON.stringify({ code: s.n.code, files: s.files.filter(f => f.kind === 'code' || /\\.(m?js|cjs|ts|tsx|py|sh|ps1|bat|go|rs|java|cs|rb|php)$/i.test(f.p)).map(f => f.p) }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
     for (const p of survey().files || []) fs.rmSync(path.join(dir, p), { force: true }); // the project's own code goes: a notes-only project
     const sv = String(survey().code);
@@ -7162,7 +7162,7 @@ if (mineB()) { // fit: what the brief says the work is counts as evidence, so a 
   const dir = copyProject();
   try {
     fs.writeFileSync(path.join(dir, 'docs/BRIEF.md'), '# Brief\nPosts and a monthly newsletter for the shop, plus questions about the lease.\n');
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const s = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { fitSignals } from ${H}; const s = fitSignals({ files: [], n: { visual: 0, tabular: 0, code: 0, notes: 0, python: 0, shell: 0, jsts: 0 }, manifests: [], big: [], git: null }); console.log(JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.map(x => x.label)]))))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
     report(/newsletter/.test((s['skill:marketing'] || []).join()) && /lease/.test((s['skill:legal-review'] || []).join()) && !s['skill:manuscript'],
       'fit: the brief\'s words are evidence for the skills they call for', JSON.stringify(s).slice(0, 300));
@@ -7183,7 +7183,7 @@ if (mineB()) { // Codex transcripts: its rollout lines are read like Claude Code
       line('response_item', { type: 'function_call', name: 'shell', arguments: JSON.stringify({ command: ['bash', '-lc', 'git push origin main'] }), call_id: 'c1' }),
       line('response_item', { type: 'function_call_output', call_id: 'c1', output: JSON.stringify({ output: 'REQ: git-safety. This pushes to the protected branch "main"', metadata: { exit_code: 1 } }) })
     ].join('\n') + '\n');
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const t = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { turn } from ${H}; const t = turn(${JSON.stringify(tp)}); console.log(JSON.stringify({ prompt: t.prompt, tools: t.entries.flatMap(e => e.message?.content || []).filter(x => x.type === 'tool_use').map(x => x.name + ':' + x.input.command), err: t.entries.flatMap(e => e.message?.content || []).some(x => x.is_error) }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
     const stop = run(dir, 'stop', { transcript_path: tp, last_assistant_message: 'Pushed.' }).out;
     report(t.prompt === 'push my work' && t.tools?.[0] === 'Bash:git push origin main' && t.err && /claim-checked/.test(stop),
@@ -7198,7 +7198,7 @@ if (mineB()) { // adoption: every rule the project had before is still in the me
     fs.mkdirSync(path.join(dir, '.starter/original-rules'), { recursive: true });
     fs.writeFileSync(path.join(dir, '.starter/original-rules/CLAUDE.md'), '# Rules\n- Never touch the billing module without asking.\n- Tests are written in pytest only.\n');
     fs.appendFileSync(path.join(dir, 'AGENTS.md'), '\n- Tests use pytest only, never unittest.\n');
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const lost = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { lostRules } from ${H}; console.log(lostRules().join('\\n'))`], { cwd: dir, encoding: 'utf8' }).stdout;
     const before = lost();
     fs.appendFileSync(path.join(dir, 'docs/DECISIONS.md'), '\n## Dropped rules\n- 2026-10-19: "never touch the billing module without asking": the billing module was removed.\n');
@@ -7209,7 +7209,7 @@ if (mineB()) { // adoption: every rule the project had before is still in the me
 
 if (mineB()) { // globs and word stems: "**/name" means a file of that name in any folder; plurals and past forms meet their base word
   // Lesson: "**/schema.*" matched "sales.schema.json", and "notes" was cut to the common word "not"
-  const H = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const H = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href);
   const r = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { match, keyWords } from ${H}; console.log(JSON.stringify({
     g: [match('data/schema/sales.schema.json', ['**/schema.*']), match('db/schema.sql', ['**/schema.*']), match('schema.sql', ['**/schema.*']), match('a/node_modules/b', ['**/node_modules/**'])],
     k: ['notes', 'noted', 'boxes', 'created', 'saved', 'changed', 'passed'].map(w => keyWords(w).join('')) }))`], { cwd: ROOT, encoding: 'utf8' }).stdout || '{}');
@@ -7251,7 +7251,7 @@ if (mineB()) { // "hooks.mjs jobs <transcript>": a project's own hook can ask ho
 
 if (mineB()) { // a patch script whose text names a test is not a run of it; a stopped background job is not waited on
   // Lessons: a here-document naming test_own_hooks.py was taken as the last test run; a killed job was waited on forever
-  const { cmdHead } = await import('./hooks.mjs');
+  const { cmdHead } = await import('./hooks-main.mjs');
   const head = cmdHead("python - <<'EOF'\nimport io\np='tools/hooks/test_own_hooks.py'\nprint('ok')\nEOF");
   report(!/test_own_hooks/.test(head) && /^python - <<EOF/.test(head) && cmdHead('python tools/hooks/test_own_hooks.py') === 'python tools/hooks/test_own_hooks.py',
     'gate runs: a here-document that names a test is not a run of that test', head);
@@ -7259,7 +7259,7 @@ if (mineB()) { // a patch script whose text names a test is not a run of it; a s
 
 if (mineB()) { // a long hook output is cut to what the host shows the agent, with the routing lines first
   // Lesson: a routing hint at the end of a 13,000-character output never reached the agent
-  const { fitOutput } = await import('./hooks.mjs');
+  const { fitOutput } = await import('./hooks-main.mjs');
   const long = Array.from({ length: 300 }, (_, i) => `NOTICE ${i} ${'x'.repeat(40)}`).join('\n') + '\nROUTE: trip-answer (docs/playbooks/trip-answer.md)';
   const o = fitOutput(long), short = fitOutput('ROUTE: x\nNOTICE y');
   report(o.length <= 9000 && o.startsWith('ROUTE: trip-answer') && /hooks\.mjs notices/.test(o) && short === 'ROUTE: x\nNOTICE y',
@@ -7387,7 +7387,7 @@ if (mineB()) { // a short reply to a background task's notice, after the turn en
 
 if (mineB()) { // a background run is judged by its output file and its exit code in the task notification, not by its stub
   // Lesson: a passing background run never met its check, because "running in background" was read as its output
-  const { runsOf } = await import('./hooks.mjs');
+  const { runsOf } = await import('./hooks-main.mjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-bg-'));
   try {
     const outFile = path.join(dir, 'b1.output'); fs.writeFileSync(outFile, 'selfcheck: ALL PASS (10 passed)\n');
@@ -7400,14 +7400,14 @@ if (mineB()) { // a background run is judged by its output file and its exit cod
       'background runs: judged by their output file and exit code, and pending until the notification', JSON.stringify({ done, running, failed }).slice(0, 300));
     // (one started in an earlier turn whose notice comes in this turn is this turn's run; one still running is not.
     // Lesson (this starter): a self-test chain started one turn and passed the next was asked for again, 3 turns running)
-    const { carriedRuns } = await import('./hooks.mjs');
+    const { carriedRuns } = await import('./hooks-main.mjs');
     const later = typeof carriedRuns === 'function' ? carriedRuns({ carriedEntries: [use, res] }, [note(0)]) : [];
     const still = typeof carriedRuns === 'function' ? carriedRuns({ carriedEntries: [use, res] }, []) : [null];
     report(later.length === 1 && /ALL PASS/.test(later[0].out) && !later[0].error && still.length === 0,
       'background runs: one started in an earlier turn that ends in this one counts for this turn; one still running does not', JSON.stringify({ later, still }).slice(0, 300));
     // (the launches before a turn are found in the rows before it, as the carry-over check needs for an earlier turn.
     // Lesson (this starter): that check read them from the current turn's tail, and reported "no run")
-    const { backgroundLaunches } = await import('./hooks.mjs');
+    const { backgroundLaunches } = await import('./hooks-main.mjs');
     const before = [{ type: 'user', message: { role: 'user', content: 'run the tests' } }, use, res, { type: 'assistant', message: { content: [{ type: 'text', text: 'Started.' }] } }];
     const found = typeof backgroundLaunches === 'function' ? carriedRuns({ carriedEntries: backgroundLaunches(before) }, [note(0)]) : [];
     report(found.length === 1 && /ALL PASS/.test(found[0].out), 'background runs: the launches before an earlier turn are read from the rows before it (the carry-over check)', JSON.stringify(found).slice(0, 200));
@@ -7505,7 +7505,7 @@ if (mineB()) { // publish safety in a worktree reads the main folder's .private-
     fs.mkdirSync(main); const g = (...a) => spawnSync('git', a, { cwd: main, encoding: 'utf8' });
     g('init', '-q'); fs.writeFileSync(path.join(main, 'a.md'), 'x\n'); g('add', 'a.md'); g('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'a');
     fs.writeFileSync(path.join(main, '.private-terms'), 'zzsecretname\n'); g('worktree', 'add', '-q', '--detach', wt);
-    const at = r => spawnSync(process.execPath, ['--input-type=module', '-e', `import { privateTermsListFile } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href)}; console.log(privateTermsListFile(${JSON.stringify(r)}));`], { encoding: 'utf8' }).stdout.trim();
+    const at = r => spawnSync(process.execPath, ['--input-type=module', '-e', `import { privateTermsListFile } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href)}; console.log(privateTermsListFile(${JSON.stringify(r)}));`], { encoding: 'utf8' }).stdout.trim();
     const fromWt = at(wt), fromMain = at(main), audit = fs.readFileSync(path.join(ROOT, 'tools/audit.mjs'), 'utf8');
     const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
     report(same(fromWt, path.join(main, '.private-terms')) && same(fromMain, path.join(main, '.private-terms')) && /privateTermsListFile\(ROOT\)/.test(audit) && /\.private-terms is missing, so no private term was checked/.test(audit),
@@ -7581,7 +7581,7 @@ if (mineB()) { // hook-contract: the version and shapes are printed, and a proje
   const dir = copyProject();
   try {
     const nodeIn = (...a) => spawnSync(process.execPath, a, { cwd: dir, encoding: 'utf8' });
-    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const cj = (() => { try { return JSON.parse(nodeIn('tools/hooks/hooks.mjs', 'contract', '--json').stdout); } catch { return {}; } })();
     const human = nodeIn('tools/hooks/hooks.mjs', 'contract').stdout;
     const contract = () => nodeIn('tools/hooks/selfcheck.mjs', '--contract');
@@ -7694,7 +7694,7 @@ if (mineB()) { // check-sampled: a check or no-overwrite guard added since the l
 }
 
 if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project hooks" note new since the project's engine commit, when it has its own hooks
-  const { changelogSince, breakingItems } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { changelogSince, breakingItems } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const head = '# Changelog\n\nIntro: a **Breaking for project hooks:** mark in prose is not an entry.\n\n';
   const OLD = head + '- 2026-10-21: Second.\n  - **Breaking for project hooks:** the stop note changed.\n\n- 2026-10-20: First.\n  - **Breaking for project hooks:** old note.\n';
   // a newer entry, the 10-21 entry grown by a note, and a re-check entry dated before the project's last review
@@ -7710,7 +7710,7 @@ if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project 
     'upgrade-breaking: notes new since the engine commit are listed (a re-check entry dated before the last review too), old ones are not; review items only with "externalHooks", once',
     JSON.stringify({ got, byDate: byDate.breaking, same, own, none, again }).slice(0, 900));
   // (Lesson (a field report): changelog entries printed after the items, bulleted like them, read as more items to decide)
-  const { upgradeReport } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { upgradeReport } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const rep = upgradeReport({ open: ['docs/playbooks/menu.md: the default changed'], news: got.entries, last: '2026-10-21', today: '2026-10-22', revTo: ' to abc1234' });
   const afterReview = rep.slice(rep.indexOf('UPGRADE REVIEW'));
   report(/^UPGRADE REVIEW: 1 item\(s\) to decide[^\n]*\n  - docs\/playbooks\/menu\.md: the default changed$/.test(afterReview) && /\n  changelog: 2026-10-22: Third\./.test(rep) && !/^\s*- \d{4}-/m.test(rep),
@@ -7718,7 +7718,7 @@ if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project 
 }
 
 if (mineB()) { // relay-route-text: a relayed message routes on its own words; quotes, code and commands are left out, a starter upgrade kept
-  const { relayRouteText } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { relayRouteText } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const a = relayRouteText('Fixed: the old check read "the commit failed" as an error. Tests: `claim-checked: it passes`. Upgrade again with node tools/starter.mjs update. My notes say the outline is fine.');
   const b = relayRouteText('Please run `git log --oneline` and then fix the crash in the export when the file is empty.');
   report(/upgrade the starter/.test(a) && !/commit failed|claim-checked|starter\.mjs/.test(a) && /old check read/.test(a)
@@ -7790,7 +7790,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs')
 if (mineB()) { // relay-request-text: only the sentences of a relayed message that ask for something route; a bare "upgrade"
   // is the engine's. Lesson: a report of fixes routed to a refresh runbook on "had changed since then", and "Upgrade when
   // convenient" to an adopted project's own upgrade runbook
-  const { relayRequestText } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { relayRequestText } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const report1 = relayRequestText('Both items are fixed. STATUS.md had changed since then, so the reminder stayed quiet. Checked against a copy of your checklist. Upgrade when convenient.');
   const asks = relayRequestText('Field report 9 is in. Please replay session abc. Also make me a spring order for the tulip shop. Can you look at the sweeps?');
   const order = relayRequestText('Upgrade the tulip order with the new spring plants.');
@@ -7803,7 +7803,7 @@ if (mineB()) { // relay-request-text: only the sentences of a relayed message th
 }
 if (mineB()) { // route: words joined by a hyphen are a phrase. Lesson: "15 tool calls" in a relayed report matched the
   // "on-call" trigger, whose "on" is a small word, and suggested the incident-response skill
-  const { route } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { route } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const ir = { name: 'incident-response', file: 'skills/incident-response/SKILL.md', fm: {}, triggers: ['outage', 'on call', 'on-call', 'site is down'], triggerRe: null };
   const names = t => route(t, [ir]).map(r => r.pb.name).join();
   const stray = names('the turn passed 15 tool calls before the status file was updated'), typed = names('I was on-call last night and the checkout broke, help');
@@ -7813,7 +7813,7 @@ if (mineB()) { // route: words joined by a hyphen are a phrase. Lesson: "15 tool
 }
 
 if (mineB()) { // upgrade-review-block: a review with nothing to decide updates a last review that also held only the self-tests
-  const { withReviewBlock } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { withReviewBlock } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const NOTE = '<!-- Decide each line with the user. -->';
   const rev = (d, line) => `\n## Upgrade review (${d})\n${NOTE}\n- ${line}\n`;
   const self = d => rev(d, `self-tests: node tools/hooks/selfcheck.mjs passes here: passed (${d}, run by the upgrade: ALL PASS (10 passed))`);
@@ -7887,7 +7887,7 @@ if (mineB()) { // context budget: the audit runs the project's own SessionStart/
         SessionStart: [{ hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" session' }, { type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/tools/hooks/big.mjs"' }] }],
         UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'node tools/hooks/small.mjs' }, { type: 'command', command: 'node tools/hooks/unlisted.mjs' }] }] } }) });
     applyEdits(dir, cfgEdit({ externalHooks: ['tools/hooks/big.mjs', 'tools/hooks/small.mjs'] }));
-    const sizes = (() => { try { return JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { externalHookSizes } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(externalHookSizes()));`], { cwd: dir, encoding: 'utf8' }).stdout); } catch { return []; } })();
+    const sizes = (() => { try { return JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { externalHookSizes } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(externalHookSizes()));`], { cwd: dir, encoding: 'utf8' }).stdout); } catch { return []; } })();
     const big = sizes.find(s => s.file === 'tools/hooks/big.mjs'), small = sizes.find(s => s.file === 'tools/hooks/small.mjs');
     const au = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: dir, encoding: 'utf8', timeout: 300000 }).stdout || '';
     report(sizes.length === 2 && big?.chars === 12000 && big.event === 'SessionStart' && !big.error && small?.chars === 11 && !sizes.some(s => /unlisted|hooks\.mjs/.test(s.file))
@@ -8035,7 +8035,7 @@ if (mineB()) { // hooks-tested without a transcript: the Stop hook never runs th
     write(dir, { 'tools/hooks/wire.mjs': fs.readFileSync(path.join(dir, 'tools/hooks/wire.mjs'), 'utf8') + '\n// tuned\n', '.cache/answer.md': 'Tuned the wire message.' + FIN });
     const t0 = Date.now(), c1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md')), ms = Date.now() - t0;
     node('run', 'node -e "console.log(\'selfcheck: ALL PASS (1 passed, 0 failed)\')" && echo node tools/hooks/selfcheck.mjs');
-    const { logRun } = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const { logRun } = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const logged = readOr(path.join(dir, 'tools/hooks/state/runs.jsonl'));
     fs.appendFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/hooks/selfcheck.mjs', out: 'selfcheck: ALL PASS (430 passed, 0 failed)', error: false }) + '\n');
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
@@ -8162,7 +8162,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
     const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-self-'));
     const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8' });
     const cloneAt = dir => { git(box, 'clone', '-q', ROOT, dir);
-      for (const f of ['tools/new-project.mjs', 'tools/hooks/hooks.mjs']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
+      for (const f of ['tools/new-project.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
       git(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qam', 'under test');
       git(dir, 'remote', 'set-url', 'origin', 'https://example.com/x/Some-Starter.git'); };
     const install = (dir, ...a) => spawnSync(process.execPath, [path.join(dir, 'tools/new-project.mjs'), '--self-install', ...a], { cwd: dir, encoding: 'utf8', timeout: 300000 });
@@ -8406,7 +8406,7 @@ if (mineB()) { // no-secrets: a key prefix only counts at the start of a word
   const dir = copyProject();
   try {
     const key = ['sk', 'A'.repeat(24)].join('-');
-    const out = spawnSync(process.execPath, ['--input-type=module', '-e', `import { secretHit } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify([secretHit('art/risk-assessment-chart_final.png'), secretHit('token=${key}'), secretHit('x ${key.replace('sk-', 'ghp_').replace(/-/g, '')}AAAAAAAAAA')]));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    const out = spawnSync(process.execPath, ['--input-type=module', '-e', `import { secretHit } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify([secretHit('art/risk-assessment-chart_final.png'), secretHit('token=${key}'), secretHit('x ${key.replace('sk-', 'ghp_').replace(/-/g, '')}AAAAAAAAAA')]));`], { cwd: dir, encoding: 'utf8' }).stdout;
     let r = []; try { r = JSON.parse(out); } catch { }
     report(r[0] == null && !!r[1] && !!r[2], 'no-secrets: a word that contains a key prefix passes, a real-shaped key still fails', out);
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
@@ -8431,7 +8431,7 @@ if (mineB()) { // the triggers the starter ships in packs and library skills eac
     if (fs.existsSync(d)) for (const f of fs.readdirSync(d)) if (f.endsWith('.md') && !f.startsWith('_')) files.push(`packs/${p}/files/docs/playbooks/${f}`);
   }
   for (const s of fs.existsSync(at('library/skills')) ? fs.readdirSync(at('library/skills')) : []) if (fs.existsSync(at(`library/skills/${s}/SKILL.md`))) files.push(`library/skills/${s}/SKILL.md`);
-  const { frontmatter, route, deadTriggers } = await import('./hooks.mjs');
+  const { frontmatter, route, deadTriggers } = await import('./hooks-main.mjs');
   const bad = [];
   for (const f of files) {
     const fm = frontmatter(fs.readFileSync(at(f), 'utf8')) || {};
@@ -8448,7 +8448,7 @@ if (mineB()) { // setup: a typical request written in the template's quoted styl
   try {
     applyEdits(dir, SETUP_DONE);
     applyEdits(dir, { 'docs/BRIEF.md': s => s.replace(/## Typical requests\n[\s\S]*?\n## /, '## Typical requests\n1. "make a plan for moving the whole office to the new building" → plan\n2. "debug the failing import script that reads the vendor files"\n3. "search the web for standing desk reviews under 500 dollars" → research\n4. "zorbl the quindle with a frobnicated blarnday wibble"\n5. "frobnicate the wibble" while I make a plan for the office move\n## ') });
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${H}; console.log(setupProblems().filter(p => /typical request/.test(p)).join(' | '))`], { cwd: dir, encoding: 'utf8' });
     const probs = (r.stdout || '').trim();
     report(/zorbl the quindle/.test(probs) && !/make a plan|debug the failing|search the web|frobnicate the wibble/.test(probs), 'setup: quoted typical requests route by the words inside the quotes; one that routes nowhere is still named', `${probs.slice(0, 400)} ${(r.stderr || '').slice(0, 300)}`);
@@ -8467,7 +8467,7 @@ if (mineB()) { // a message from another session after the turn ended starts its
       { type: 'user', timestamp: iso(t0 + 1800_000), message: { role: 'user', content: '<cross-session-message from="peer">your build is pushed, please upgrade</cross-session-message>' } },
       { type: 'assistant', timestamp: iso(t0 + 1800_500), message: { content: [{ type: 'text', text: 'Upgraded.' }] } }
     ].map(r => JSON.stringify(r)).join('\n') + '\n');
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
     const t = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { turn } from ${H}; const t = turn(${JSON.stringify(tp)}); console.log(JSON.stringify({ prompt: t.prompt, since: t.since }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
     report(t.prompt === '' && t.since === t0 + 1800_000, 'turns: a message from another session after the turn ended starts a turn with no user request', JSON.stringify(t));
     // (the host's idle notice about a peer is such a message too)
@@ -8566,7 +8566,7 @@ if (mineB()) { // cost: tokens, time, tool calls and helper tokens per request, 
     fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
     fs.mkdirSync(path.join(dir, 's1', 'subagents'), { recursive: true });
     fs.writeFileSync(path.join(dir, 's1', 'subagents', 'agent-a.jsonl'), JSON.stringify(u('h1', 2)) + '\n');
-    const [a, b] = (await import('./hooks.mjs')).costOf(tp, 5);
+    const [a, b] = (await import('./hooks-main.mjs')).costOf(tp, 5);
     report(a && b && a.prompt === 'build the export' && a.tools === 3 && a.read === 3000 && a.out === 150 && a.end - a.at === 6 * 60000 && a.helpers === 1 && a.helperTokens === 160 && a.helperRead === 1000
       && b.prompt === 'what took so long?' && b.read === 1000 && b.helpers === 0,
       'cost: per request, a streamed message counted once, a compaction summary continues its request, helper tokens go to the request they started in (cache reads apart), a hand-back starts no request', JSON.stringify([a, b]).slice(0, 400));
@@ -8609,7 +8609,7 @@ if (mineB()) { // status-handoff: the edit that finds the turn past 15 tool call
 
 
 if (mineB()) { // publish-safety: reserved addresses (documentation, private and special-use IP ranges, example domains) are nobody's personal data
-  const { personalDetails } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { personalDetails } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const quiet = ['blocked ranges: 10.0.0.0/8, 100.64.0.0/10, 169.254.169.254, 172.16.0.0/12, 192.168.1.10, 192.0.2.7, 198.51.100.4, 203.0.113.9, 198.18.0.1, 224.0.0.1, 255.255.255.0',
     'test client: user@evil.example, admin@site.test, a@b.invalid, me@example.net',
     // (Lesson, trial round 14: a Flask decorator in a test string and a public resolver used as "an outside address")
@@ -8739,7 +8739,7 @@ if (mineB()) { // fit-checklist: every candidate decided by the AI, each reason 
     report(/tool fd: later needs a condition/.test(noWhen) && /FIT: PASS/.test(farOff) && /FIT: PASS/.test(quiet) && /tool fd: its condition is met now/.test(met) && /FIT: a "later" is due: fd/.test(s1) && !/FIT: a "later" is due/.test(s2),
       'fit-checklist: later needs a "when:" condition; one that is met fails the check and is announced once', `${noWhen.slice(0, 150)} | ${met.slice(0, 200)} | ${s1.slice(-400)}`);
     // the upgrade review holds until the new candidates are decided
-    const up = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { upgradeProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(upgradeProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    const up = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { upgradeProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(upgradeProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
     applyEdits(dir, { 'docs/DECISIONS.md': s => s + '\n## Upgrade review (2026-10-18)\n- fit: 2 new candidates: ?\n' });
     const pending = up();
     fitFill(dir); // the new data file is evidence for the data tools too: their reasons now answer it
@@ -8750,7 +8750,7 @@ if (mineB()) { // fit-checklist: every candidate decided by the AI, each reason 
 
 if (mineB()) { // setup-gate (permissions): a destructive right goes to the owner until the user decides. Lesson: three setups
   // of the same API invented a delete-capable "manager" role, the security review passed it, and the user complained
-  const { grantProblems } = await import('./hooks.mjs');
+  const { grantProblems } = await import('./hooks-main.mjs');
   const row = v => `| Area | Decision |\n|---|---|\n| Who may do what: each destructive action and the role allowed | ${v} |\n`;
   const invented = grantProblems(row('Deleting a book: `manager` role only (test: `test_staff_cannot_delete`). Adding books: any signed-in staff member'));
   const anyone = grantProblems(row('Refunds: any staff member'));
@@ -8769,7 +8769,7 @@ if (mineB()) { // setup-gate (permissions): a destructive right goes to the owne
 
 if (mineB()) { // plain-writing in a page: tags are markup, not words; a real wall of text is still found
   // (sent back by a project through its starter feedback: a normal recipe page read as one 293-word paragraph)
-  const { writingProblems } = await import('./hooks.mjs');
+  const { writingProblems } = await import('./hooks-main.mjs');
   const page = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Apple pie</title>\n' +
     '<link rel="stylesheet" href="../style.css">\n</head>\n<body>\n<main>\n<h1>Apple pie</h1>\n<ul class="ingredients">\n' + Array.from({ length: 12 }, (_, i) => `<li class="item"><span class="qty">${i + 1}</span> apples</li>`).join('\n') +
     '\n</ul>\n<p>Bake for an hour.</p>\n</main>\n</body>\n</html>\n';
@@ -8787,7 +8787,7 @@ if (mineB()) { // plain-writing in a page: tags are markup, not words; a real wa
 
 if (mineB()) { // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured
   // (a noun no project uses: a project already had files named with the noun the test used, and the count was off. Lesson from a real project)
-  const { fitWhen } = await import('./hooks.mjs');
+  const { fitWhen } = await import('./hooks-main.mjs');
   const w = t => fitWhen(`later - when: ${t}`) || {};
   const ok = w('more than 6 zorbl files').word === 'zorbl' && w('more than 6 zorbl files').min === 7 && w('more than 20 html files').ext === 'html'
     && w('the project has 50 commits').metric === 'commits' && w('10 code files').metric === 'code' && w('the first data file appears').metric === 'tabular'
@@ -8813,7 +8813,7 @@ if (mineB()) { // gitignore-ready: a vault kept in git owns its .obsidian settin
   const dir = copyProject();
   try {
     const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
-    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
     g('init', '-q');
     // (the base's own .gitignore, with .obsidian/ listed as the starter's project template lists it)
     fs.appendFileSync(path.join(dir, '.gitignore'), '\n.obsidian/\n');
@@ -8841,7 +8841,7 @@ if (mineB()) { // gitignore-ready: every private file the engine keeps, as it is
   const dir = copyProject();
   try {
     const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
-    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout;
+    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout;
     const good = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
     g('init', '-q');
     if ((spawnSync('git', ['ls-files', '.obsidian'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim()) g('add', '-f', '.obsidian');
@@ -8858,7 +8858,7 @@ if (mineB()) { // gitignore-ready: every private file the engine keeps, as it is
     // (git re-includes a file only when its folder is written as "<folder>/*", not "<folder>/")
     const share = good.replace(/^\.cache\/\s*$/m, '.cache/*\n!.cache/shared.md');
     fs.writeFileSync(path.join(dir, '.gitignore'), share);
-    write(dir, { '.cache/shared.md': 'shared on purpose\n', 'tools/hooks/config.json': JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')), gitignoreMustKeep: [...JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { config } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(config().gitignoreMustKeep));`], { cwd: dir, encoding: 'utf8' }).stdout), '.cache/shared.md'] }, null, 2) });
+    write(dir, { '.cache/shared.md': 'shared on purpose\n', 'tools/hooks/config.json': JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')), gitignoreMustKeep: [...JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { config } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(config().gitignoreMustKeep));`], { cwd: dir, encoding: 'utf8' }).stdout), '.cache/shared.md'] }, null, 2) });
     const shared = problems(), unshared = (fs.writeFileSync(path.join(dir, '.gitignore'), share + '\n!.cache/turn-notes.md\n'), problems());
     report(clean.trim() === '[]' && /private files would be pushed: .*\.cache\/(sweeps|turn-notes)/.test(narrow) && /\+\d{4} more/.test(narrow) && /\.codex\/hooks\.json|\+\d+ more/.test(narrow)
       && /private files are committed: \.cache\/turn-notes\.md/.test(committed) && shared.trim() === '[]' && /would be pushed: \.cache\/turn-notes\.md/.test(unshared),
@@ -8871,7 +8871,7 @@ if (mineB()) { // gitignore-ready: a push waits until .gitignore keeps private f
   const dir = copyProject();
   try {
     const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
-    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
     const good = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
     g('init', '-q');
     // a vault the project keeps in git owns its .obsidian settings, so the copy tracks them too
@@ -8952,7 +8952,7 @@ if (mineB()) { // the manual path (agents without hooks): `hooks.mjs begin "<req
 if (mineB()) { // autonomy auto: setup assumes the answers instead of waiting for the user's reply
   const dir = copyProject();
   try {
-    const run = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupCompleteness } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(setupCompleteness()));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    const run = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupCompleteness } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(setupCompleteness()));`], { cwd: dir, encoding: 'utf8' }).stdout;
     const asks = run();
     applyEdits(dir, { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) });
     const auto = run();
@@ -8993,7 +8993,7 @@ if (mineB()) { // name-var: a rename is one edit to docs/names.json; sync refill
 if (mineB()) { // crash visibility: a broken hook blocks once, then lets the session end
   const dir = copyProject();
   try {
-    const f = path.join(dir, 'tools', 'hooks', 'hooks.mjs');
+    const f = path.join(dir, 'tools', 'hooks', 'hooks-main.mjs');
     fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('function cmdStop(data) {', 'function cmdStop(data) { null.boom;'));
     const a = run(dir, 'stop', { transcript_path: 'x', stop_hook_active: false }).out;
     const b = run(dir, 'stop', { transcript_path: 'x', stop_hook_active: true }).out;
@@ -9137,7 +9137,7 @@ if (mineB()) { // rule-memory: the memory folder is agent-neutral; STARTER_ env 
   const dir = copyProject();
   try {
     const md = (env, cfg) => { if (cfg) applyEdits(dir, cfgEdit(cfg)); const e = { ...process.env }; for (const k of ['STARTER_MEMORY_DIR', 'KS_MEMORY_DIR', 'CLAUDE_PROJECT_DIR', 'CLAUDECODE']) delete e[k];
-      return spawnSync(process.execPath, ['--input-type=module', '-e', `import { memoryDir } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(memoryDir());`], { cwd: dir, encoding: 'utf8', env: { ...e, ...env } }).stdout.trim().replace(/\\/g, '/'); };
+      return spawnSync(process.execPath, ['--input-type=module', '-e', `import { memoryDir } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(memoryDir());`], { cwd: dir, encoding: 'utf8', env: { ...e, ...env } }).stdout.trim().replace(/\\/g, '/'); };
     const local = md({}), claude = md({ CLAUDE_PROJECT_DIR: dir }), oldEnv = md({ KS_MEMORY_DIR: 'old-x' }), both = md({ KS_MEMORY_DIR: 'old-x', STARTER_MEMORY_DIR: 'new-x' }), set = md({}, { memoryDir: 'notes/memory' });
     report(local.endsWith('tools/hooks/state/memory') && /\.claude\/projects\/.+\/memory$/.test(claude) && oldEnv === 'old-x' && both === 'new-x' && set.endsWith('notes/memory'),
       'rule-memory: the memory folder follows the agent and config, STARTER_ env names win over the old KS_ ones', `${local} | ${claude} | ${oldEnv} | ${both} | ${set}`);
@@ -9231,7 +9231,7 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
 if (mineB() && (!TAGS || TAGS.includes('question-no-file'))) { // classifiers on real prompt shapes (field reports):
   // a request opening with "do" is work, not a question; a paste's closing tag with an id still ends the paste; "???"
   // alone is eagerness, not upset; Spanish words ending in an accent are read; a Spanish complaint is upset
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = h.config();
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href), cfg = h.config();
   const asks = [['do a deep review of the export for gaps', false], ['do the 10 sweeps', false], ['do the tests pass?', true],
     ['does it work', true], ['what did you do?', true], ['does it need 155 steps??? please go through them and cut the extra ones', false]];
   const askGot = asks.map(([t]) => h.askingOnly(t, cfg));
@@ -9247,7 +9247,7 @@ if (mineB() && (!TAGS || TAGS.includes('trigger-words'))) { // trigger-words: th
   // capitals and other trigger words still count; the built-in words that fired on a real user's calm messages are out
   // (Lesson (the user): "if the whitelisted word comes up and the user does all caps then it should trigger regardless or
   // if there is another trigger word other than the whitelisted then it should trigger anyway")
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = { ...h.config(), ignoreWords: { upset: ['wtf'] } };
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href), cfg = { ...h.config(), ignoreWords: { upset: ['wtf'] } };
   const cases = [
     ['wtf nice work on the export', false], ['WTF THIS IS WRONG AGAIN', true], ['wtf, you forgot the totals again', true],
     ['I LOVE THE NEW REPORT LAYOUT SO MUCH', false], ['do everything i told you about the export', false],
@@ -9361,7 +9361,7 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
     const proj = path.join(tmp, 'p'); fs.mkdirSync(proj); fs.writeFileSync(path.join(proj, 'README.md'), '# Their own readme\n');
     const ins = spawnSync(process.execPath, [path.join(ROOT, 'tools/starter.mjs'), 'install', proj], { encoding: 'utf8', timeout: 300000 });
     const eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
-    const gate = () => { const r = spawnSync(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(pathToFileURL(path.join(eng, 'tools/hooks/hooks.mjs')).href)}); console.log(JSON.stringify(m.setupCompleteness()));`], { cwd: proj, encoding: 'utf8', timeout: 60000 }); try { return JSON.parse(r.stdout).join('\n'); } catch { return `ERR ${r.stderr}`; } };
+    const gate = () => { const r = spawnSync(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(pathToFileURL(path.join(eng, 'tools/hooks/hooks-main.mjs')).href)}); console.log(JSON.stringify(m.setupCompleteness()));`], { cwd: proj, encoding: 'utf8', timeout: 60000 }); try { return JSON.parse(r.stdout).join('\n'); } catch { return `ERR ${r.stderr}`; } };
     const asks = q => /private git repository of their own/.test(q);
     const before = gate();
     const answer = a => spawnSync(process.execPath, [path.join(eng, 'tools/starter.mjs'), 'local-repo', a], { cwd: proj, encoding: 'utf8' });
@@ -9519,7 +9519,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     report(!denied(noLine) && !denied(shownChat) && copied, 'upset-acknowledged: an Issue line shown in the agent\'s text is copied to the notes, and nothing is held without one (REQ quiet-work)',
       JSON.stringify([noLine, shownChat].map(o => o.slice(0, 160)).concat(String(copied))));
     // (two checklists in one turn: a record line may name its runbook, and then counts only for that one)
-    const hh = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
+    const hh = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks-main.mjs')).href);
     const both = 'Done debug 3: swept 693 moments\nDone 4: plain, counts for either\nSkip status-lines 1: no lines hidden\n';
     const forDebug = hh.ledgerLines(both, 'debug'), forStatus = hh.ledgerLines(both, 'status-lines');
     report(forDebug.has(3) && forDebug.has(4) && !forDebug.has(1) && forStatus.has(1) && forStatus.has(4) && !forStatus.has(3) && forStatus.get(1).kind === 'skip',
@@ -9530,7 +9530,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
       'upset-acknowledged: a record with the runbook name before the word ("debug Done 2:") counts only for that runbook', JSON.stringify([[...bDebug.keys()], [...bStatus.keys()]]));
     // (each part of the upset check has its own round label. Lesson (a trial): two rounds repeated the one generic label
     // over a dozen sub-checks, and the agent guessed which part was missing until the round cap)
-    const upsetMsgs = [...fs.readFileSync(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs'), 'utf8').matchAll(/add\('upset-learned', (['"`])((?:(?!\1).){12,200})/g)]
+    const upsetMsgs = [...fs.readFileSync(path.join(ROOT, 'tools', 'hooks', 'hooks-main.mjs'), 'utf8').matchAll(/add\('upset-learned', (['"`])((?:(?!\1).){12,200})/g)]
       .map(m => m[2].replace(/\$\{[^}]*\}/g, 'notes-vault').replace(/\\'/g, "'"));
     const upsetLabels = upsetMsgs.map(msg => hh.shortStep({ tag: 'upset-learned', msg }));
     const generic = upsetLabels.filter(l => /^Learn from what upset the user/.test(l));
@@ -9570,12 +9570,12 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.rmSync(path.join(dir, 'tools/hooks/state/turn.json'), { force: true });
     run(dir, 'prompt', { prompt: 'rename the export button' }, env);
     fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 3: this turn\n');
-    const scoped = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
+    const scoped = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(spanOk && scoped === '3', 'upset-acknowledged: a record covers a range or list of items ("Done 1-12:", "Skip 2, 4:"); only records written this turn count, not earlier turns\' lines in the notes file', JSON.stringify([[...span.keys()], scoped]));
     // (a notes file rewritten during the turn, not appended to, keeps this turn's lines. Lesson (a field report): a
     // heredoc rewrite was cut at the old length, and the records before the cut were asked for again)
     fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 3: this turn, the file rewritten with a heredoc\nDone 4: and one more\n');
-    const rewritten = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
+    const rewritten = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(rewritten === '3,4', 'runbook-ledger: a notes file rewritten during the turn, not appended to, keeps every record of this turn', rewritten);
     // (a rewrite that changes the line endings still finds where this turn starts. Lesson (a field report): a script
     // rewrote the notes with CRLF, and the lessons of every earlier turn were asked for again)
@@ -9583,7 +9583,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.rmSync(path.join(dir, 'tools/hooks/state/turn.json'), { force: true });
     run(dir, 'prompt', { prompt: 'rename the import button' }, env);
     fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\r\nDone 5: this turn, saved with CRLF\r\n');
-    const crlf = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
+    const crlf = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(crlf === '5', 'runbook-ledger: a notes file rewritten with other line endings during the turn counts only this turn\'s records', crlf);
     // (new lines inserted above an earlier turn's lines: those old lines still don't count. Lesson (trial v30): an old
     // "Learned" line counted again and asked for a lesson, a changelog line and an audit in a turn that changed nothing)
@@ -9591,7 +9591,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.rmSync(path.join(dir, 'tools/hooks/state/turn.json'), { force: true });
     run(dir, 'prompt', { prompt: 'rename the print button' }, env);
     fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\nDone 8: also before this turn\nDone 2: this turn, inserted above\nLearned (skill): an old lesson\n');
-    const inserted = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log(JSON.stringify(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8')).trim()));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
+    const inserted = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; import fs from 'fs'; console.log(JSON.stringify(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8')).trim()));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(inserted === JSON.stringify('Done 2: this turn, inserted above'), 'runbook-ledger: new records inserted above an earlier turn\'s lines count alone; the earlier lines stay out', inserted);
     report(/⚡ running the debug skill \(✅ \d+ items to check off\)/.test(runSkill) && !/running/.test(runAgain) && /📖 running the status-lines runbook \(✅ \d+ items to check off\)/.test(runPb) && /⚡ running the learn-from-upset skill/.test(runTool),
       'upset-acknowledged: each runbook or skill the agent opens (Read, a command, the Skill tool) shows "running the X runbook" once', JSON.stringify([runSkill, runAgain, runPb, runTool].map(o => o.slice(0, 160))));
@@ -9618,7 +9618,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // engine 
 if (mineB() && (!TAGS || TAGS.includes('prompt-visible'))) { // prompt-visible: the second step of each guess from words,
   // what the agent decided with its reason (Lesson (the user): "there could be multiple more things like this that
   // could use the 2 step")
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = h.config();
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href), cfg = h.config();
   const X = o => ({ prompt: '', said: '', changed: [], routed: [], usedPb: [], routedSkills: [], usedSkills: [], workTurn: false, ...o });
   const RULE = 'from now on always cite the source file in every desk note';
   const cases = [
@@ -9640,7 +9640,7 @@ if (mineB() && (!TAGS || TAGS.includes('prompt-visible'))) { // prompt-visible: 
 if (mineB() && (!TAGS || TAGS.includes('runbook-ledger'))) { // runbook-ledger: a runbook's checklist is only as good as
   // its proofs: an item with none, or naming a check that doesn't exist, passes with no evidence (Lesson (the user): "the
   // runbooks must be accurate")
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href);
   const f = 'docs/playbooks/zz-ledger-probe.md', p = path.join(ROOT, f);
   fs.writeFileSync(p, '---\nname: zz-ledger-probe\nsummary: probe\ntriggers: zz probe\n---\n# Probe\n\n## Steps\n1. Do it.\n\n## Done when\n- [ ] Changelog updated (hook: changelog)\n- [ ] Typo in the check name (hook: chnagelog)\n- [ ] No proof at all\n- [ ] Read by a person (judgment: taste)\n');
   let probs = [];
@@ -9651,7 +9651,7 @@ if (mineB() && (!TAGS || TAGS.includes('runbook-ledger'))) { // runbook-ledger: 
 if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints and "..., always" requirements in English and
   // Spanish (Lesson, trial round 10: "otra vez pusiste texto en inglés ... tiene que estar en español, siempre" set off
   // neither the upset handling nor a rule request, and neither did its English twin)
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = h.config();
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href), cfg = h.config();
   const cases = [
     ['otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre', true, true],
     ['again you put english text on the page. everything the reader sees has to be in spanish, always', true, true],
@@ -9743,7 +9743,7 @@ if (mineB() && (!TAGS || TAGS.includes('forbidden-terms'))) { // forbidden-terms
 }
 if (mineB() && (!TAGS || TAGS.includes('transcript-tail'))) { // transcript-tail: a transcript is read from its end in a window that grows until it holds the turn's prompt
   // (Lesson: a 568 MB transcript was over the largest string a file can be read into, and every hook lost the history)
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-')), f = path.join(tmp, 't.jsonl');
   try {
     const pad = Array.from({ length: 400 }, (_, i) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `step ${i} ${'x'.repeat(200)}` }] } }));
@@ -9773,7 +9773,7 @@ if (mineB() && (!TAGS || TAGS.includes('instructions-run'))) { // instructions-r
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('answer-traced'))) { // cited claims: an inference cited to a file that does not hold it is caught, a fair reading is not
-  const { citedClaimGaps } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const { citedClaimGaps } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks-main.mjs')).href);
   const files = { 'characters.md': '# Characters\n- Bram Oaken: smith, right-handed, scar over the left eye.\n', 'chapters/02-road.md': '# The road\nMira rode north with the letter.\n' };
   const rd = p => files[p] || '';
   const doc = l => ({ text: `${l}\n\n[1] characters.md\n[2] chapters/02-road.md\n`, where: 'outputs/o.md' });
@@ -9809,12 +9809,12 @@ if (!TAGS || TAGS.includes('bench-caches')) { const dir = copyProject();
 // the upgrade's hook timing: the fastest of several bench runs per hook, so a machine still busy right after the
 // upgrade does not read as a slower engine. Lesson (a field report): three upgrades each timed Stop 87 to 131 ms
 // slower right after, and the next upgrade timed the same engine back down
-{ const { fastestBench } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+{ const { fastestBench } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href);
   const got = fastestBench(['prompt 410 ms, pretool 81 ms, stop 546 ms', 'prompt 333 ms, pretool 70 ms, stop 415 ms', 'prompt 350 ms, stop 430 ms', 'garbled']);
   report(JSON.stringify(got) === JSON.stringify({ prompt: 333, pretool: 70, stop: 415 }), 'upgrade timing: each hook is timed as the fastest of several bench runs', JSON.stringify(got)); }
 // dev mode: the proof the self-test writes when it passes, the changelog and the trial records are no engine change. Lesson (this starter's own turns): a
 // background run finished, and the next turn was asked to run the self-test again and log it in the changelog
-{ const { DEV_REQUIREMENTS, match } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+{ const { DEV_REQUIREMENTS, match } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks-main.mjs')).href);
   const fires = (tag, changed) => { const w = DEV_REQUIREMENTS.find(q => q.tag === tag)?.when || {}; return changed.some(p => match(p, [].concat(w.filesChanged || [])) && !match(p, [].concat(w.filesIgnore || []))); };
   const proofOnly = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json'], real = ['tools/hooks/engine-proof.json', 'tools/hooks/hooks.mjs'];
   report(!fires('dev-self-tests', proofOnly) && !fires('dev-changelog', proofOnly) && fires('dev-self-tests', real) && fires('dev-changelog', real),
@@ -9845,9 +9845,10 @@ const stopVerdict = (samples, budget, others = 0, prev = null) => {
 // it when the working copy is the committed one), or null where git can't give it (a project, no history).
 function prevEngineStop(dir, tp) {
   const git = (...a) => ({ stdout: spawnSync('git', a, { cwd: ROOT, encoding: 'utf8' }).stdout || '' });
-  const f = 'tools/hooks/hooks.mjs', here = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  // (the engine body, run directly on both sides; before hooks.mjs became a small entry, the body was hooks.mjs)
+  const f = 'tools/hooks/hooks-main.mjs', here = fs.readFileSync(path.join(ROOT, f), 'utf8');
   let old = git('show', `HEAD:${f}`).stdout;
-  if (!old || old === here) { const last = git('log', '-1', '--format=%H', '--', f).stdout.trim(); old = last ? git('show', `${last}^:${f}`).stdout : ''; }
+  if (!old || old === here) { const last = git('log', '-1', '--format=%H', '--', f).stdout.trim(); old = last ? (git('show', `${last}^:${f}`).stdout || git('show', `${last}^:tools/hooks/hooks.mjs`).stdout) : ''; }
   if (!old || old === here) return null;
   const at = path.join(dir, f), mine = fs.readFileSync(at, 'utf8'), times = [];
   try {
@@ -9973,7 +9974,7 @@ if (FAILED.length && !HELPER) console.log(`failing tests: ${FAILED.slice(0, 12).
 // in a project: whose failure each one is (selftest-cache.mjs failureCause)
 if (FAILED.length && !HELPER && !IS_STARTER) for (const l of failureCause({ engineFailed, projectFailed: FAILED.filter(projectTest), changed: ENGINE_CHANGED })) console.log(l);
 // recorded for agents whose tool history the hooks can't read (REQ: hooks-tested)
-try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/selfcheck.mjs ${process.argv.slice(2).join(' ')}`.trim(), `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed)`, !!fail); } catch { }
+try { const { logRun } = await import('./hooks-main.mjs'); logRun(`node tools/hooks/selfcheck.mjs ${process.argv.slice(2).join(' ')}`.trim(), `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed)`, !!fail); } catch { }
 // a whole run is what the upgrade review asks for (REQ: upgrade-review); with engine results reused it counts too, since
 // the engine passed in full under the same stamp
 // (this record is not the push gate: a push reads the proof inside the pushed commit, git-guard.mjs pre-push)

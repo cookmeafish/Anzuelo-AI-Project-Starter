@@ -19,7 +19,7 @@ const given = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--ho
 const SKIP = /^(\.git|node_modules|\.cache|dist|build|\.claude|\.agents|\.gemini|tools[\\/]hooks[\\/]state)$/;
 // installed dependencies and virtual environments are not work that an interruption could have cut short (hooks.mjs
 // bulkDir). Lesson: a fresh .venv's files were reported at session start as having unresolved merge markers.
-const { bulkDir } = await import('./hooks/hooks.mjs').catch(() => ({ bulkDir: (d, n) => /^(\.venv|venv|__pycache__|site-packages)$/.test(n) }));
+const { bulkDir } = await import('./hooks/hooks-main.mjs').catch(() => ({ bulkDir: (d, n) => /^(\.venv|venv|__pycache__|site-packages)$/.test(n) }));
 
 const files = [];
 if (given.length) files.push(...given.map(f => path.resolve(f)));

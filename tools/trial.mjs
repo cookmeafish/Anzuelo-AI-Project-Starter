@@ -189,7 +189,7 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     fs.appendFileSync(path.join(dir, 'docs/checks/evidence-standards.md'), '\n- Our own rule: two sources for every price.\n');
     // a file the enabled skill gained after this project got it (its SKILL.md links it)
     fs.rmSync(path.join(dir, 'skills/frontend-design/templates.md'), { force: true });
-    const dp = path.join(dir, 'docs/DECISIONS.md'), hp = path.join(dir, 'tools/hooks/hooks.mjs');
+    const dp = path.join(dir, 'docs/DECISIONS.md'), hp = path.join(dir, 'tools/hooks/hooks-main.mjs');
     fs.writeFileSync(dp, fs.readFileSync(dp, 'utf8').replace(/^- Involvement:.*\n/m, ''));
     fs.writeFileSync(hp, fs.readFileSync(hp, 'utf8').replace("export const INTERVIEW = ['Involvement', ", 'export const INTERVIEW = ['));
   }

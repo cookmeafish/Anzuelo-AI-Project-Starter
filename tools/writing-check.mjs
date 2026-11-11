@@ -4,7 +4,7 @@
 //   node tools/writing-check.mjs --text "some answer text"      check a piece of text
 // Exit 1 and one line per problem, or "WRITING: PASS".
 import fs from 'node:fs';
-import { writingProblems, config } from './hooks/hooks.mjs';
+import { writingProblems, config } from './hooks/hooks-main.mjs';
 
 const args = process.argv.slice(2);
 const cfg = config();

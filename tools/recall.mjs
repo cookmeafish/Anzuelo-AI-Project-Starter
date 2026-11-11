@@ -6,7 +6,7 @@
 // best history match in full and the next ones in one line each; --all lists every match.
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, read, usageOf, keyWords, recallMatches } from './hooks/hooks.mjs';
+import { ROOT, read, usageOf, keyWords, recallMatches } from './hooks/hooks-main.mjs';
 
 const args = process.argv.slice(2);
 const q = args.filter(a => !a.startsWith('--')).join(' ').trim();
