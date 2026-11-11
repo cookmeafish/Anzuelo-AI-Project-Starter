@@ -118,8 +118,6 @@ stop: maintaining a runbook (read, then edit) is not following it: its checks st
 stop: maintaining a runbook the answer names as followed: its checks apply: blocked
 stop: name-var: a name typed out in a doc and in code: blocked
 stop: name-var: the name typed in code that is not the package's own name: blocked
-stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: blocked
-stop: note-linked: a new note that links to nothing: blocked
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked

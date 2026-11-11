@@ -5210,6 +5210,7 @@ const V2_ASKS = {
   'code-rules': /^- Code rules broken: /m,
   'injection-guard': /^- \S.* contain text that reads as instructions to an AI /m,
   'no-verbatim-examples': /^- These files copy the user's own words: /m,
+  'note-linked': /^- New notes? \S.* links? to nothing\. /m,
   'waiver-tally': /waived in 3\+ earlier turns here/,
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
   'app-test-pass': /^- (Run the tests after the last code change\b|Run the project's check `[^`\n]*test|The project's check `[^`\n]*test[^`\n]*` can't run here)/m,

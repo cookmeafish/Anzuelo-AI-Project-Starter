@@ -40,7 +40,7 @@ import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, l
 const TIMES = process.env.ANZUELO_V2_TIMING ? [] : null;
 const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if (!TIMES) return; const n = performance.now(); TIMES.push([name, Math.round((n - t) * 10) / 10]); t = n; }; };
 const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
-const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts)];
+const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts)];
 // REQ: plan-required, under v2: the shared tools/hooks/planreq.mjs. A file is new this turn when git's last commit and
 // the turn-start snapshot do not have it and it was made after the turn began. The git lookup runs only when the cheap
 // conditions already hold (enough changed files, open work said, no plan or status recorded).
@@ -55,6 +55,27 @@ function planGaps(acts) {
   const msg = planRequired({ changed, said, workTurn: true, setup: fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')), wroteSelf, born,
     generated: new Set(), notWork: p => inGlobs(p, cfg.notWork || []), exists: p => fs.existsSync(at(p)) }, n);
   return msg ? [msg] : [];
+}
+
+// REQ: note-linked, under v2, as the old engine judged it. A new note links to what it relates to (a markdown link to a
+// .md file, a [[wiki link]], or a "## Related" section that says why it stands alone), so Obsidian's graph and the agent
+// see how the project's knowledge connects. Notes: docs/knowledge, docs/notes, free-standing docs/*.md and the vault's
+// own folders (knowledgeDirs), not their templates or attachments, nor the starter's own documents. New: not in git's
+// last commit or the turn-start snapshot, and made after the turn began (a saved edit resets no note into a new one).
+const NOT_A_NOTE = /(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation|fit-checklist|lessons|recommended-tools|user-requirements|starter-feedback|glossary)\.md$/i;
+export function noteLinkedGaps(acts) {
+  if (checkOff('note-linked')) return [];
+  const cfg = projectConfig(), dirs = [...new Set(['docs/knowledge', ...[].concat(cfg.knowledgeDirs || [])].map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '').toLowerCase()).filter(Boolean))];
+  const isNote = p => /\.md$/i.test(p) && !NOT_A_NOTE.test(p) && (/^docs\/(knowledge|notes)\/.+\.md$/i.test(p) || /^docs\/[^/]+\.md$/i.test(p)
+    || (dirs.some(d => p.toLowerCase().startsWith(d + '/')) && !/(^|\/)(_?templates?|attachments?|\.obsidian|\.trash)\//i.test(p)));
+  const notes = changedOf(acts).filter(isNote);
+  if (!notes.length) return [];
+  const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
+  const head = new Set((r => r.status === 0 ? r.stdout.split('\n') : [])(spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 })));
+  const born = p => { if (start[p] || head.has(p)) return false; try { return fs.statSync(at(p)).birthtimeMs > since - 1000; } catch { return false; } };
+  const unlinked = notes.filter(p => { if (!born(p)) return false; let t = ''; try { t = fs.readFileSync(at(p), 'utf8'); } catch { return false; }
+    return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
+  return unlinked.length ? [`New note${unlinked.length > 1 ? 's' : ''} ${unlinked.slice(0, 4).join(', ')} link${unlinked.length > 1 ? '' : 's'} to nothing. Link each to its related notes (in the text or under "## Related"; node skills/obsidian/scripts/notes.mjs suggest <note> finds candidates), or say under "## Related" why it stands alone (obsidian skill).`] : [];
 }
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable

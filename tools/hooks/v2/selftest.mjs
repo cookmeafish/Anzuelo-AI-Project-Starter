@@ -609,6 +609,17 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
     && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || '') && /^No runbook was opened/.test(r.relatedBefore[0] || '') && !r.namedMade.length,
     'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for; _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
 }
+// REQ: note-linked under v2: a new note that links to nothing is held; one with a link, a [[wiki link]] or a "## Related"
+// reason is not, nor a starter document (docs/CHANGELOG.md). (the old engine's check, ported)
+{
+  const { noteLinkedGaps } = await import('./end.mjs');
+  const at = new Date(Date.now() - 2000).toISOString(), note = (f, body) => { fs.writeFileSync(path.join(dir, f), body); const a = acts([user('write a note about desk cables'), call('Write', { file_path: path.join(dir, f), content: body }), say('Wrote it.')]); a.at = at; return noteLinkedGaps(a); };
+  const r = { bare: note('docs/zz-cables.md', '# Cables\nUse trays.'), link: note('docs/zz-trays.md', '# Trays\nSee [cables](zz-cables.md).'), wiki: note('docs/zz-desk.md', '# Desk\nSee [[zz-cables]].'),
+    related: note('docs/zz-lamp.md', '# Lamp\n\n## Related\n- Stands alone: a one-off purchase note.'), log: note('docs/CHANGELOG.md', '# Changelog\n- x') };
+  for (const f of ['zz-cables', 'zz-trays', 'zz-desk', 'zz-lamp']) fs.rmSync(path.join(dir, `docs/${f}.md`), { force: true });
+  report(/^New note docs\/zz-cables\.md links to nothing\./.test(r.bare[0] || '') && !r.link.length && !r.wiki.length && !r.related.length && !r.log.length,
+    'end: note-linked: a new note that links to nothing is held; a link, a [[wiki link]] or a "## Related" reason passes, and a starter document is no note', JSON.stringify(r).slice(0, 400));
+}
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
 report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
 // (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))
