@@ -64,3 +64,6 @@ prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to t
 prompt: goal-loop: "keep improving it until the tests never flake" routes to the loop	retired: 2026-11-07 docs/plans/2026-11-07-engine-v2-only.md Spec line (c) (the agent picks its runbook or skill; no exact keyword pick); triage row 348
 stop: "keep doing this" with nothing written down: blocked	retired: 2026-11-07 docs/plans/2026-11-07-engine-v2-only.md Spec line (praise and rule handling forced by a keyword match); triage row 237
 stop: turn-notes: notes left from an earlier turn do not count: blocked	retired: 2026-11-07 docs/plans/2026-11-07-engine-v2-only.md Spec line (upset handling forced by a keyword match; the notes are record lines too); triage row 182
+stop: setup: the same runbook followed in a later turn: its checks apply	another way: "end: with none routed, the runbook the agent opened is the one the turn is held to"; triage row 207
+stop: routed task that never opened its runbook: blocked	another way: "end: work done without opening the runbook is named"; triage row 255
+stop: debug skill matched but not opened: blocked	retired: 2026-11-07 docs/plans/2026-11-07-engine-v2-only.md Spec line (a skill forced by a keyword match: matched but not opened); triage row 125
