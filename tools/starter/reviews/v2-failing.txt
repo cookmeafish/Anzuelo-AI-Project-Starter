@@ -115,8 +115,6 @@ stop: spec changed without CHANGELOG or release notes: blocked
 stop: stop message: one short line per step, the details in "hooks.mjs why"
 stop: stop-follow-on: a lesson for a skill names the audit and the changelog in round 1
 stop: turn-notes: notes left from an earlier turn do not count: blocked
-stop: twin-sync: one twin lost its twin note, so the two can't be synced: blocked
-stop: twin: editing AGENTS.md syncs CLAUDE.md, no block for twin
 stop: unresolved-carryover: a turn that ended while background work ran gets its full check at the next Stop, on any request
 stop: unresolved-carryover: an owed lesson is held even on an unrelated request
 stop: unresolved-carryover: block cap reached: the user is told at once that the turn ended with steps not done

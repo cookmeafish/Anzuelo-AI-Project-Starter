@@ -5236,6 +5236,7 @@ const V2_ASKS = {
   'no-verbatim-examples': /^- These files copy the user's own words: /m,
   'name-var': /^- Names are written once, in docs\/names\.json/m,
   'root-tidy': /^- New files sit loose in the project root: /m,
+  'twin-sync': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*AGENTS\.md and CLAUDE\.md are identical twins/m,
   'runbook-exists': /^- (No runbook was opened for this work\. |This work followed docs\/playbooks\/_fallback\.md: leave a runbook)/m,
   'runbook-read': /^- Open docs\/playbooks\/\S+ and (check the work against|answer by) its steps\./m,
   'changelog': /^- Check: Add a dated line to docs\/CHANGELOG\.md for what changed/m,

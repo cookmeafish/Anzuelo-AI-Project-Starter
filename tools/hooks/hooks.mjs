@@ -6788,6 +6788,10 @@ if (isMain) {
     try {
       process.env.ANZUELO_ROOT ||= ROOT;
       // (REQ: engine-parity: what the user saw under the old engine is shown, dropped with a reason, or open: v2/lines.mjs)
+      // (REQ: twin-sync: AGENTS.md and CLAUDE.md, when both carry the twin note, are synced before the end check, the newer
+      // winning, as the old engine's Stop did; an edit made by a command reaches no post-tool hook. Lesson (the old suite
+      // under v2): an AGENTS.md edit left CLAUDE.md behind)
+      if (cmd === 'stop') syncTwin();
       const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code' });
       if (cmd === 'stop' && !v2) try { fs.rmSync(path.join(STATE, detailsFile(data.session_id)), { force: true }); } catch { }
       if (v2) process.stdout.write(JSON.stringify(cmd === 'stop' ? v2StopForm(v2, config(), HOST, STATE, data.session_id) : v2));
