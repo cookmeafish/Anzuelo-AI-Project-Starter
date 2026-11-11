@@ -4725,7 +4725,7 @@ PROMPT.push(
   ...['from now on always give prices in euros', 'never use em dashes again', 'from now on always tell the other session when you finish', 'de ahora en adelante usa siempre euros', 'nunca más uses guiones largos']
     .map(p => ({ name: `rule-request: a lasting rule fires ("${p.slice(0, 50)}")`, prompt: p, has: ['RULE REQUEST'], v2: { has: ['Runbook: open docs/playbooks/project.md'] } })),
   ...['every invoice must show the tax number', 'cada factura debe mostrar el número de impuesto']
-    .map(p => ({ name: `requirement: a lasting requirement fires ("${p.slice(0, 50)}")`, prompt: p, has: ['REQUIREMENT'] })),
+    .map(p => ({ name: `requirement: a lasting requirement fires ("${p.slice(0, 50)}")`, prompt: p, has: ['REQUIREMENT'], v2: { has: ['Runbook: open docs/playbooks/project.md'] } })),
   // a message relayed from another session is not the user's words: it sets no rule, requirement or praise, and its
   // flags and codes are not the user's menu shorthand (its routing and check preview are covered by relay-preview below)
   ...['<cross-session-message from="other">Write a detailed report to anzuelo on how to improve it --contract</cross-session-message>',

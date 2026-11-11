@@ -138,6 +138,10 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const rule = route('you made a new invoice without a due date. every new invoice has a due date', books)?.name, each = route('Each order must name its customer.', books)?.name;
   const plain = route('can you check every invoice for typos', books), q = route('does every invoice have a date?', books);
   report(rule === 'project' && each === 'project' && !plain && !q, 'start: a standing rule stated plainly ("every new invoice has ...") routes to the project runbook; a request or question about every item does not', { rule, each, plain: plain?.name, q: q?.name });
+  // (the same in Spanish; a Spanish request or question about every item still does not)
+  const es = { rule: route('cada factura debe mostrar el número de impuesto', books)?.name, todas: route('Todas las facturas llevan la fecha de pago.', books)?.name,
+    plain: route('revisa cada factura por errores', books)?.name, q: route('¿cada factura tiene fecha?', books)?.name };
+  report(es.rule === 'project' && es.todas === 'project' && es.plain !== 'project' && es.q !== 'project', 'start: a Spanish standing rule ("cada factura debe ...") routes to the project runbook; a Spanish request or question about every item does not', es);
   // (it comes before a work trigger found mid-sentence; a request that starts with the trigger still goes there)
   const withFeature = [...books, { file: 'docs/playbooks/feature.md', name: 'feature', triggers: ['new field'], menu: [] }];
   const mid = route('you forgot the new field in the guide. every field has to be documented', withFeature)?.name, lead = route('new field for the due date. every field has a label', withFeature)?.name;
