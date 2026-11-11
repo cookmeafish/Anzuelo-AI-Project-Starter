@@ -32,6 +32,12 @@ Every batch: the pre-chain quick runs; the next batch starts while a chain runs;
 oversight (commit, open count, next batch).
 
 ## Now
+- 2026-11-11 (evening, paused for a restart): main and GitHub at 2c59015 (15 open). app-port ahead (37efbf1): other-
+  session security review, session ports, the routing-only Stop speed fix (two projects measured Stop +17 to +20 ms),
+  audit-run mapping, the no-hooks follow-on guard; its chain (9ca792b) passed the timed steps and was stopped for the
+  restart: run a new chain on the app-port head. First after the restart: docs/plans/2026-11-11-temp-hygiene.md (test
+  fixtures under one temp root, removed at exit; child processes hidden). Before it: kernel paged pool 12.95 GB,
+  nonpaged 5.58 GB, 15,488 top-level entries in the temp folder (measured before the restart, so compare after one chain).
 - 2026-11-11 (later): main and GitHub at ff46f04 (27 open). app-port: hooks.mjs is a small entry with Node's compile
   cache, the body in hooks-main.mjs; prompt ~68 ms and pretool ~53 ms over bare against 75/60, measured. The Phase B
   module split stays planned as the real speedup.
