@@ -9430,21 +9430,27 @@ if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "ac
   // Issue line, once (Lesson (the user): it should show as soon as the agent decides it is a real issue to fix)
   const dir = takeCopy();
   try {
-    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: '2026-10-27T10:00:00Z', prompt: 'WHY IS THIS STILL BROKEN' }) });
-    const note = text => { write(dir, { '.cache/turn-notes.md': text }); return run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, '.cache/turn-notes.md'), content: text } }, { CLAUDE_PROJECT_DIR: '.' }).out; };
+    // (under v2 the turn is a session's own record, and the line, one the user sees, shows in Claude Code: a session id
+    // and that host)
+    // (and a transcript, as a real session has: a run with none writes no state, so "shown once" could not be kept)
+    if (process.env.STARTER_ENGINE === 'v2') write(dir, { '.cache/ack1.jsonl': JSON.stringify({ type: 'user', message: { role: 'user', content: 'WHY IS THIS STILL BROKEN' } }) + '\n' });
+    const V2 = process.env.STARTER_ENGINE === 'v2', sid = V2 ? { session_id: 'ack1', transcript_path: path.join(dir, '.cache/ack1.jsonl') } : {}, env = { CLAUDE_PROJECT_DIR: '.', ...(V2 ? { CLAUDECODE: '1' } : {}) };
+    const turnAt = (at, prompt) => write(dir, V2 ? { 'tools/hooks/state/v2-turn.ack1.json': JSON.stringify({ at }) } : { 'tools/hooks/state/turn.json': JSON.stringify({ at, prompt }) });
+    turnAt(V2 ? new Date(Date.now() - 60_000).toISOString() : '2026-10-27T10:00:00Z', 'WHY IS THIS STILL BROKEN');
+    const note = text => { write(dir, { '.cache/turn-notes.md': text }); return run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, '.cache/turn-notes.md'), content: text }, ...sid }, env).out; };
     const R = ' | runbook: debug | fixed when: the export has every row';
     const none = note('Playbook: project.md\n'), first = note(`Issue: the export drops the last row${R}\n`), again = note(`Issue: the export drops the last row${R}\nLearned (lesson): x\n`);
     report(!/acknowledged/.test(none) && /"systemMessage":"[^"]*🚨 acknowledged: the export drops the last row/.test(first) && !/acknowledged/.test(again),
       'upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once', JSON.stringify([none.slice(0, 80), first.slice(0, 300), again.slice(0, 80)]));
     // (written from the shell, which the edit hook never sees: shown at the next tool call, once)
     write(dir, { '.cache/turn-notes.md': `Issue: the totals skip refunds${R}\n` });
-    const pre = () => run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'ls' } }, { CLAUDE_PROJECT_DIR: '.' }).out;
+    const pre = () => run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'ls' }, ...sid }, env).out;
     const shell = pre(), next = pre();
     report(/"systemMessage":"[^"]*🚨 acknowledged: the totals skip refunds/.test(shell) && !/acknowledged/.test(next),
       'upset-learned: an Issue line written from the shell shows "acknowledged" at the next tool call, once', JSON.stringify([shell.slice(0, 300), next.slice(0, 80)]));
     // (a later turn whose notes still hold that line, even appended to: not shown again. Lesson (probe): an unrelated
     // later turn showed the earlier "acknowledged" at its first tool call)
-    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 500).toISOString(), prompt: 'resize the logo' }) });
+    turnAt(new Date(Date.now() - 500).toISOString(), 'resize the logo');
     const before = pre();
     fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Playbook: gui.md\n');
     const appended = pre();
