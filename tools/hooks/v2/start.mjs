@@ -309,10 +309,12 @@ export function onPrompt(data) {
   if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore, ...tx });
   // (a new turn notes its uncommitted files' contents in the background, so the end check can tell a file it only
   // touched from one it changed)
-  // (and the plans open when it began: REQ plan-open, planreq.mjs)
-  else { const at0 = new Date().toISOString(); let openPlans = [];
+  // (and the plans open when it began: REQ plan-open, planreq.mjs; and the notes file's size then, so only what the turn
+  // adds to it is its own: notesOf)
+  else { const at0 = new Date().toISOString(); let openPlans = [], notesAt = 0;
     try { openPlans = openPlansOf(fs.readdirSync(at('docs/plans')), p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } }).map(x => x.p); } catch { }
-    saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...sore, ...tx, ...(openPlans.length ? { openPlans } : {}) }); snapshotLater(data.session_id, at0); }
+    try { notesAt = fs.statSync(at('.cache/turn-notes.md')).size; } catch { }
+    saveTurn(data.session_id, { at: at0, runbook: book?.file || null, notesAt, ...sore, ...tx, ...(openPlans.length ? { openPlans } : {}) }); snapshotLater(data.session_id, at0); }
   // (REQ: prompt-digest: a session whose start did not give the rules (no session-start record for it) hears a one-line
   // digest once, with its first reminder. Lesson (the old suite under v2): the old engine said it; v2 never did)
   const sid = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);

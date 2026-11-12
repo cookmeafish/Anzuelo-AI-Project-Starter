@@ -1,7 +1,7 @@
 // Engine v2: the lines the user sees ("⚓ <name> ..."). Each kind can be hidden: config "userLines" is true (all, the
 // default), false (none) or {"hide": ["praise", ...]} (the status-lines runbook). Plan: engine v2 only, 1b user lines.
 import fs from 'node:fs';
-import { at } from './lib.mjs';
+import { at, notesOf } from './lib.mjs';
 
 const json = f => { try { return JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { return {}; } };
 export const LINE_KINDS = { upset: '🚨', question: '💬', rule: '📜', runbook: '📖', skill: '⚡', checklist: '✅', passed: '✅', praise: '🌟',
@@ -31,9 +31,7 @@ export function visible(text, set = json('tools/hooks/config.json').userLines ??
     .filter(Boolean).join('\n');
 }
 
-// The agent's notes for this turn (.cache/turn-notes.md, unless an earlier turn wrote it last), and the problem of its
-// last "Issue: <problem> | runbook: <name> | fixed when: <outcome>" line ("Issue: none - <why>" is no issue).
-export const notesSince = since => { try { const f = at('.cache/turn-notes.md'); return since && fs.statSync(f).mtimeMs < since - 1000 ? '' : fs.readFileSync(f, 'utf8'); } catch { return ''; } };
+// The problem of the turn's last "Issue: <problem> | runbook: ... | fixed when: ..." line ("Issue: none" is no issue).
 export const issueOf = notes => {
   const t = ([...String(notes).matchAll(/^[\s>*_-]*issue\s*:\s*(.+)$/gim)].pop()?.[1] || '').replace(/\s+/g, ' ').trim();
   return /^none\b/i.test(t) ? '' : t.split('|')[0].trim().slice(0, 110);
@@ -46,7 +44,7 @@ const LEARNED = /^[\s>*_-]*learned\s*\((?:one-off|lesson|rule|check|skill|engine
 export const passLine = arg => visible(passText(arg));
 // The pass line's text, before the user's settings hide any part of it.
 export function passText({ acts = {}, turn = {}, rounds = 0 } = {}) {
-  const A = brand(), calls = acts.calls || [], notes = notesSince(Date.parse(turn.at || '') || 0);
+  const A = brand(), calls = acts.calls || [], notes = notesOf({ at: turn.at, notesAt: turn.notesAt });
   const work = calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)
     || (/^(Bash|PowerShell)$/.test(c.name) && /\b(git\s+commit|writeFileSync|Set-Content|Out-File)\b|>\s*[\w./"'-]+\.\w+/.test(String(c.input?.command || ''))));
   // (REQ: upset-acknowledged: an Issue line the agent wrote in its own text, with none in the notes, is acknowledged too,

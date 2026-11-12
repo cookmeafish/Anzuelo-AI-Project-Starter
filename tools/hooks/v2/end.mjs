@@ -33,7 +33,7 @@ import { frictionGaps } from './friction.mjs';
 import { VERBATIM_ENGINE } from './verbatim.mjs';
 import { NAMES_FILE, NAME_FILES, namesIn, nameProblems, headsOf, newLinesOf } from '../names.mjs';
 import { rootToolchainFile } from '../rootfiles.mjs';
-import { waivedTag, gitClaimGaps } from './lib.mjs';
+import { waivedTag, gitClaimGaps, notesOf } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
@@ -227,7 +227,7 @@ export function missing(turn, acts, books = runbooks()) {
 const NONE_FITS = /\b(no|none of the|not an?)\s+(existing\s+)?runbooks?\b[^.\n]{0,60}\b(fits?|applies|apply|needed|covers?)\b|\bone-?off\b|\bno runbook (is )?needed\b/i;
 export function unroutedGaps(turn, acts, again, books = runbooks()) {
   if (again || checkOff('runbook-exists') || !worked(acts) || /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') || fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) return [];
-  const said = `${acts.said || ''}\n${acts.answer || ''}\n${(() => { try { const t = Date.parse(acts.at || '') || 0; return fs.statSync(at('.cache/turn-notes.md')).mtimeMs >= t ? fs.readFileSync(at('.cache/turn-notes.md'), 'utf8') : ''; } catch { return ''; } })()}`;
+  const said = `${acts.said || ''}\n${acts.answer || ''}\n${notesOf(acts)}`;
   const made = acts.calls.some(c => c.name === 'Write' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));
   const fallback = acts.calls.some(c => c.name === 'Read' && /(^|\/)docs\/playbooks\/_fallback\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));
   const anyOpened = books.some(b => opened(b, acts)) || skillBooks({ parts: true }).some(b => opened(b, acts));
@@ -400,8 +400,7 @@ const excuseV2 = (acts, rows) => {
 // (REQ: friction-reported, tools/hooks/v2/friction.mjs: the turn's Issue lines, in its notes or its own text, against the
 // checks this project runs)
 const frictionV2 = acts => {
-  const since = Date.parse(acts.at || '') || 0, nf = at('.cache/turn-notes.md');
-  let notes = ''; try { if (since && fs.statSync(nf).mtimeMs > since) notes = fs.readFileSync(nf, 'utf8'); } catch { }
+  const notes = acts.at ? notesOf(acts) : '';
   return frictionGaps(ROOT, acts.at || '', `${notes}\n${acts.said || ''}`, engineChecks().map(r => r && r.tag).filter(Boolean));
 };
 // A message the user typed this turn (the request, or one typed mid-turn) asks to pause, stop or restart.
@@ -445,7 +444,7 @@ export function noticeAnswerGaps(rows, final, again = false) {
   return ['This run is headless (claude -p or the SDK): its caller gets only the last message, and this reply to a background notice is now that message, so the answer given before is lost. End with that whole answer again, then any news from the notice.'];
 }
 // The agent's notes file, when this turn wrote it.
-const turnNotes = acts => { try { const f = at('.cache/turn-notes.md'), st = fs.statSync(f); return st.mtimeMs >= (Date.parse(acts.at || '') || 0) - 2000 ? fs.readFileSync(f, 'utf8') : ''; } catch { return ''; } };
+const turnNotes = notesOf;
 // REQ: rule-request. A standing rule the agent took on is written where every later turn reads it and enforced, not only
 // promised: the principle in AGENTS.md (CLAUDE.md), its dated row in docs/checks/user-requirements.md, how it is
 // enforced (a check, a test a check runs, a "Done when" line, a guard, or "hook: N/A <reason>"), and with
@@ -720,7 +719,7 @@ function judge(data, { shadow = false } = {}) {
         resent.push(`The correction quotes text the earlier answer does not hold word for word (${lost.map(f => `"${f.old.slice(0, 60)}"`).join(', ')}). Quote it exactly, or end with the whole answer again, corrected.`); }
       acts.answer = applied ?? `${prev.trim()}\n\n${note}`; } }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
-  acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.transcriptPath = data.transcript_path || '';
+  acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.notesAt = turn.notesAt; acts.transcriptPath = data.transcript_path || '';
   acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
   lap('session transcript (tail, history, earlier)');
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;

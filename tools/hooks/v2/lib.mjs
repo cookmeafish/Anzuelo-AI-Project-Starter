@@ -1082,8 +1082,11 @@ const waivedByCommand = (tag, acts) => { const rx = new RegExp(`^waived for this
   const since = Date.parse(acts.at || '') || 0;
   if (!since || !acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && /\bhooks\.mjs["']?\s+waive\b/.test(String(c.input?.command || '')))) return false;
   return read('tools/hooks/state/runs.jsonl').split('\n').some(l => { let r; try { r = JSON.parse(l); } catch { return false; } return Date.parse(r?.at || '') >= since && !r.error && rx.test(String(r.out || '')); }); };
-export const waivedTag = (tag, acts) => { if (waivedByCommand(tag, acts)) return true; const since = Date.parse(acts.at || '') || 0; if (!since || mtime('.cache/turn-notes.md') <= since) return false;
-  return read('.cache/turn-notes.md').split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };
+// The turn's own notes: what .cache/turn-notes.md gained since the turn began. Lesson: old Issue lines read as this turn's.
+export const notesOf = acts => { try { const f = at('.cache/turn-notes.md'), since = Date.parse(acts.at || '') || 0; if (since && fs.statSync(f).mtimeMs < since - 2000) return '';
+  const b = fs.readFileSync(f), off = acts.notesAt; return Number.isInteger(off) && off <= b.length ? b.subarray(off).toString('utf8') : b.toString('utf8'); } catch { return ''; } };
+export const waivedTag = (tag, acts) => { if (waivedByCommand(tag, acts)) return true;
+  return !!acts.at && notesOf(acts).split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };
 const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
 export function securityGaps(acts) {
   const spec = securitySpec();
@@ -1762,7 +1765,7 @@ export function scopeGeneralGaps(acts) {
   if (checkOff('scope-general') || waivedTag('scope-general', acts) || !worked(acts)) return [];
   const asked = String(acts.heard || '').replace(/<pasted_content\b[\s\S]*?(<\/pasted_content[^>]*>|\/>)/gi, ' ');
   if (!EXAMPLE_CLASS.test(userWords(asked))) return [];
-  const since = Date.parse(acts.at || '') || 0, notes = since && mtime('.cache/turn-notes.md') > since ? read('.cache/turn-notes.md') : '';
+  const notes = acts.at ? notesOf(acts) : '';
   if (/^[\s>*_-]*(scope|alcance)\s*:\s*\S.{15,}/im.test(`${acts.said || ''}\n${acts.answer || ''}\n${notes}`)) return [];
   return ['The user named examples of a wider point ("or something else", "there might be others"). Write "Scope: <the point in general terms> - <every case it covers, and how many you checked>" in .cache/turn-notes.md or the answer, and change every case, not only the ones named.'];
 }
@@ -1832,7 +1835,7 @@ export function skillReuseGaps(acts) {
 // old suite under v2): new runbooks went out unread; the writer knows what was meant, the next agent only has the text.
 export function coldReadGaps(acts) {
   if (checkOff('runbook-cold-read') || waivedTag('runbook-cold-read', acts)) return [];
-  const since = Date.parse(acts.at || '') || 0, notes = since && mtime('.cache/turn-notes.md') > since ? read('.cache/turn-notes.md') : '';
+  const notes = acts.at ? notesOf(acts) : '';
   const said = `${acts.answer || ''}\n${acts.said || ''}\n${notes}`;
   const tail = p => p.split('/').slice(-2).join('/');
   const cold = p => (acts.calls || []).some(c => /^(Agent|Task)$/.test(c.name) && JSON.stringify(c.input || {}).includes(tail(p)))
@@ -1845,7 +1848,7 @@ export function worthV2(acts) {
   if (checkOff('worth-it') || waivedTag('worth-it', acts)) return [];
   const cfg = projectConfig(), since = Date.parse(acts.at || '') || 0, calls = acts.calls || [];
   const born = bornIn(acts);
-  const notes = since && mtime('.cache/turn-notes.md') > since ? read('.cache/turn-notes.md') : '';
+  const notes = since ? notesOf(acts) : '';
   const runs = calls.filter(c => /^(Bash|PowerShell)$/.test(c.name) && typeof c.input?.command === 'string').map(c => ({ cmd: c.input.command, error: !!c.error }));
   return worthGaps({ changed: changedOf(acts), runs, uses: calls, toolsKnown: true, text: inEnglish(String(acts.answer || '') + '\n' + String(acts.said || ''), cfg) + '\n' + notes },
     { ...cfg, skillsDir: cfg.skillsDir || 'skills' },
