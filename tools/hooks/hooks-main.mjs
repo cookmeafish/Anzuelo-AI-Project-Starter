@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
+import { withOwnTemp } from './testtmp.mjs';
 import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
 import { WORD_KINDS, ignoredWords as ignoredWordsOf, withoutIgnored as withoutIgnoredOf, isPraise as isPraiseOf } from './praise.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
@@ -5329,7 +5330,8 @@ export function holds(c, x) {
     const spec = c.runEach;
     for (const f of x.changed.filter(p => match(p, globs(spec.files)) && exists(p))) {
       const cmd = spec.cmd.replaceAll('{file}', f);
-      const res = spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000 });
+      // (in a temp folder of its own, removed when it ends: what a project's check leaves never reaches the real temp folder)
+      const res = withOwnTemp(env => spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000, env: { ...process.env, ...env } }), ROOT);
       const out = (res.stdout || '') + (res.stderr || '');
       if (res.status !== 0 || (spec.pass && !r(spec.pass).test(out))) {
         x.detail = `${cmd} -> ${res.status === null ? 'timed out' : 'exit ' + res.status}: ${out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}`; return false;

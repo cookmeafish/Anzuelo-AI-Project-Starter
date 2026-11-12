@@ -130,7 +130,10 @@ export function makeTrace(io) {
       const wroteNow = new Set(x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name)).map(u => rel(u.input.file_path || '')));
       // Lesson: numbers the agent itself wrote into files earlier in the session were flagged as made up: what it wrote
       // (its Write/Edit inputs, this session) is part of what it knows, like what it read.
-      const corpus = [x.results, x.sessionResults, x.prompt, x.allPrompts?.join('\n'), today(), ...ledgers.map(p => read(abs(p))), ...cited.filter(p => !wroteNow.has(p)).map(p => read(abs(p)))].join('\n').replace(/(\d),(?=\d{3}\b)/g, '$1');
+      // (today's date is not in it: the answer's own mention of today's date is left out below instead, so its year, month
+      // and day never trace another number. Lesson (the old suite, 2026-11-12 by UTC): "they last 12 years" passed as
+      // traced because the date's "12" was in the text read)
+      const corpus = [x.results, x.sessionResults, x.prompt, x.allPrompts?.join('\n'), ...ledgers.map(p => read(abs(p))), ...cited.filter(p => !wroteNow.has(p)).map(p => read(abs(p)))].join('\n').replace(/(\d),(?=\d{3}\b)/g, '$1');
       const ownWrites = String(x.sessionWrites || '').replace(/(\d),(?=\d{3}\b)/g, '$1');
       // A rounded form of a traced figure is traced ("238,000" or "238 thousand" for 238166, "103 million" for 103383574),
       // and so is the total of the figures in one tool result (a sum of usage lines). Lesson (a field report): an answer
@@ -156,7 +159,7 @@ export function makeTrace(io) {
         const body = text.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^#{1,6}\s*\**finished\b|^\**finished\**\s*$/im)[0];
         for (const line of body.split(/\r?\n/)) {
           if (/calculated|estimate|approx|not verified|my inference|rounded|^\s*verified\s*:/i.test(line)) continue;
-          const clean = line.replace(/^\s*((playbook|skill)s?\s*:\s*\S+\s*)+/i, ' ').replace(/https?:\/\/\S+|`[^`]*`|\b[\w.-]+\/[\w./-]+|\[S\d+(?:,\s*S\d+)*\]|\bS\d+\b|\[\d+\]/g, ' ').replace(/^\s*(\d+\.|-|\*)\s+/, '');
+          const clean = line.split(today()).join(' ').replace(/^\s*((playbook|skill)s?\s*:\s*\S+\s*)+/i, ' ').replace(/https?:\/\/\S+|`[^`]*`|\b[\w.-]+\/[\w./-]+|\[S\d+(?:,\s*S\d+)*\]|\bS\d+\b|\[\d+\]/g, ' ').replace(/^\s*(\d+\.|-|\*)\s+/, '');
           for (const m of clean.matchAll(/(?<![\w.])([$€£]?)(\d[\d,]*(?:\.\d+)?)(\s?%)?(?![\w])/g)) {
             const n = m[2].replace(/,(?=\d{3}\b)/g, '').replace(/[.,]$/, '');
             if (!m[1] && !m[3] && !n.includes('.') && n.length < 2) continue; // a single plain digit is a count, not a fact

@@ -45,6 +45,15 @@ export function projectSlug(root = process.cwd()) {
   if (!n || /\{\{/.test(n)) n = path.basename(path.resolve(root));
   return String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'project';
 }
+// Calls fn(env) with TEMP, TMP and TMPDIR set to a new folder under the project's test folder, and removes that folder
+// when fn returns or throws: for the commands the engine runs for a project (its declared self-tests and check
+// commands), so what they leave never reaches the real temp folder.
+export function withOwnTemp(fn, root = process.cwd()) {
+  let dir = null;
+  try { const base = path.join(TEST_ROOT, 'projects', projectSlug(root)); fs.mkdirSync(base, { recursive: true }); dir = fs.mkdtempSync(path.join(base, 'run-')); MADE.add(dir); hook(); } catch { }
+  try { return fn(dir ? { TEMP: dir, TMP: dir, TMPDIR: dir } : {}); }
+  finally { if (dir) { rm(dir); MADE.delete(dir); const base = path.dirname(dir); for (const d of [base, path.dirname(base), TEST_ROOT]) try { fs.rmdirSync(d); } catch { break; } } }
+}
 // Runs a test command (any language) with its temp folder (TEMP, TMP, TMPDIR) pointed at a new folder under the
 // project's test folder, removes that folder when the command ends, passed or failed, and lists what the command still
 // added to the real temp folder (another program running at the same time may have added some of it).

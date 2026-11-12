@@ -52,4 +52,21 @@ Done when: two chains back to back leave the paged pool within about 300 MB of w
       run). Now up to 16 copies per base take turns, each reused only after resting 16 s (past NTFS tunnelling).
       Shard 1/12: 205 s and +28 MB paged (was 713 s, +438 MB). Test: a tagged run makes at most a third as many copies as
       scenarios (18 for 24 with the old rule).
-- [ ] The full selfcheck and the v2 self-test measured with the fix; then two chains back to back within about 300 MB.
+- [x] The full selfcheck and the v2 self-test measured with the fix: full selfcheck +456 MB paged (430 copies, 45 bases),
+      v2 self-test +3 MB. Two chains back to back (7a54337): +720 and +435 MB paged. Not yet within the bar.
+- [x] A late turn-start snapshot (busy machine) read the agent's first edit as the start: files changed after the turn
+      began are left out of it (found by the two chains' sweep).
+
+## Task 5: projects' own tests leave nothing in the temp folder
+About 15,000 folders in the temp folder came from projects' own suites and the browsers they start.
+- [x] `node tools/starter.mjs test-run [--strict] -- <cmd>`: the tests' temp folder under
+      `<temp>/anzuelo-tests/projects/<name>`, removed when they end; what they still left is listed.
+- [x] The commands the engine runs for a project (declared self-tests, check commands, both engines) get a temp folder
+      of their own (`withOwnTemp`).
+- [ ] Released; a notice asks each project session to run its suite through test-run and prove no new temp entries.
+      The existing folders stay (the user decides).
+
+## Task 6: a smaller fixture base
+Done when: two chains back to back leave the paged pool within about 300 MB of where it started.
+- [ ] Find which base files the scenarios read (809 files a copy now); build the base from only those.
+- [ ] Only if still over the bar: a borrow/return helper for the direct copies, as its own plan item with tests.

@@ -9,6 +9,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { roots, resolver } from '../paths.mjs';
+import { withOwnTemp } from '../testtmp.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
 import { writingProblems, plainWritingMsg } from '../writing.mjs';
@@ -1159,7 +1160,8 @@ const redirectedTo = cmd => [...String(cmd || '').matchAll(/(?:\d?>>?|\|\s*tee(?
 const selfRuns = new WeakMap();
 function selfRunOnce(acts, cmd) {
   const m = selfRuns.get(acts) || new Map(); selfRuns.set(acts, m);
-  if (!m.has(cmd)) { const r = spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24 }); m.set(cmd, { out: `${r.stdout || ''}\n${r.stderr || ''}`, status: r.status }); }
+  // (its temp folder is one of its own, removed when it ends: a project's tests leave nothing in the real temp folder)
+  if (!m.has(cmd)) { const r = withOwnTemp(env => spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24, env: { ...process.env, ...env } }), ROOT); m.set(cmd, { out: `${r.stdout || ''}\n${r.stderr || ''}`, status: r.status }); }
   return m.get(cmd);
 }
 // The commands the user approved for the end check to run itself (tools/hooks/config.json "selfCommands": selfcmds.mjs).
@@ -1352,7 +1354,7 @@ export function holdsReq(c, acts, x) {
         return true;
       }
       for (const f of files) {
-        const cmd = spec.cmd.replaceAll('{file}', f), res = spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000 }), out = `${res.stdout || ''}${res.stderr || ''}`;
+        const cmd = spec.cmd.replaceAll('{file}', f), res = withOwnTemp(env => spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000, env: { ...process.env, ...env } }), ROOT), out = `${res.stdout || ''}${res.stderr || ''}`;
         if (res.status !== 0 || (spec.pass && !reqRe(spec.pass).test(out))) { acts.detail = `${cmd} -> ${res.status === null ? 'timed out' : `exit ${res.status}`}: ${out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}`; return false; }
       }
       return true;
