@@ -6274,7 +6274,10 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
     // (without the starter's proof: this test is about passes recorded on this machine; engine-proof tests the proof)
     fs.rmSync(path.join(dir, PROOF_FILE), { force: true });
     write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }) });
-    const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
+    // (the nested runs use the old engine: this test is about the pass cache, which is the same code under either engine,
+    // and under v2 their smoke set would hold old scenarios retired for v2 (tools/starter/reviews/v2-retired.txt). Lesson
+    // (the v2 sweep): a retired route-precision scenario failed the nested run, so the cache was never recorded)
+    const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running'), STARTER_ENGINE: 'v1' };
     const mode = (...a) => { const r = nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--which-mode', ...a], env); return (/^selfcheck mode: .*$/m.exec(r.stdout) || [`(no mode line) ${r.stdout.slice(-300)} ${r.stderr.slice(-300)}`])[0]; };
     const first = mode();
     const manifestNow = () => { try { return JSON.parse(nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--fixture-manifest'], env).stdout); } catch { return { files: {} }; } };
