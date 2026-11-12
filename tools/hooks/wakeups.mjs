@@ -12,6 +12,7 @@ const isToolResult = c => Array.isArray(c) && c.some(x => x && x.type === 'tool_
 // Not counted: cloud routines (RemoteTrigger) and connected services' tools (mcp__...), which run elsewhere and keep
 // nothing here alive. A wakeup has ended when its prompt came back (it fired), when its time is past (one-time only),
 // or when it was cancelled: ScheduleWakeup with stop: true, or a delete or cancel tool given its id (CronDelete).
+export const WAKE_STATE = 'wakeups.json';
 export const WAKE_KNOWN = { ScheduleWakeup: { kind: 'wakeup', cancel: 'call ScheduleWakeup with stop: true' }, CronCreate: { kind: 'cron', cancel: 'call CronDelete with its id' } };
 const WAKE_TOOL = /wake|cron|schedul|timer|remind|alarm/i, WAKE_NOT = /^mcp__|list|delete|cancel|stop|get|read|remove|clear|remote|trigger/i;
 const WAKE_CANCEL = /delete|cancel|stop|remove|clear/i;

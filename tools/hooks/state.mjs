@@ -6,11 +6,9 @@ import { where, whereWrite, relOf } from './paths.mjs';
 import { read, abs, esc, config } from './settings.mjs';
 
 export const STATE = where('tools/hooks/state');
-// (absw: where a write goes; an engine-made runbook, skill or rule changed for this project is the project's local copy)
-export const absw = p => whereWrite(p);
+export const absw = p => whereWrite(p); // (where a write goes: an engine file changed for this project is its local copy)
 export const rel = p => relOf(p);
-// (AGENTS.md is the shared rules file; CLAUDE.md its local twin for Claude Code)
-export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md'));
+export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md')); // (CLAUDE.md: AGENTS.md's local twin)
 // (STARTER_ switches; the old KS_ names still read. Lesson: names from the starter's old name outlived the rename)
 export const envOf = n => process.env[`STARTER_${n}`] ?? process.env[`KS_${n}`];
 // The session these hooks run for, set once per hook call by the entry (setSession):

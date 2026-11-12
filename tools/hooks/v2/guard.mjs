@@ -7,10 +7,11 @@ import { spawnSync } from 'node:child_process';
 import { ENGINE, split, kind } from '../paths.mjs';
 import { commitIds, cutIds } from '../claims.mjs';
 import { selfListGrows, selfCmdWrites } from '../selfcmds.mjs';
-import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretHit, forbiddenRe, today } from '../settings.mjs';
+import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretHit, forbiddenRe, today, FORBID_EXEMPT, countRe, settingUp } from '../settings.mjs';
 import { stateFile, writeState, SNAPSHOT, rel, globRe, match, textOf, engineOf } from '../state.mjs';
 import { people, peopleIn, peopleFor, personOf, pathsPeople } from '../people.mjs';
-import { isWakeTool, WAKE_ASK } from '../wakeups.mjs';
+import { isWakeTool, WAKE_ASK, WAKE_STATE } from '../wakeups.mjs';
+import { namesIn } from '../names.mjs';
 import { gitignoreProblems, aiAttributedCommits } from '../repo.mjs';
 import { AUTONOMY_WORDS } from '../near.mjs';
 export { commitIds };
@@ -23,6 +24,8 @@ export const IN_WORK_GUARDS = /^REQ: (approval-gate|self-commands|browser-guard|
 // A path pattern in an approved list as a regex: "**/" is any number of folders, none included; "**" anything; "*"
 // within one folder. Lesson (a sweep for the root-file glob bug): "old/**" covered one level only, "**/*.bak" no root file
 export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
+// Code that would drive the installed Chrome/Edge instead of a bundled browser.
+export const BROWSER_CODE =/executablePath\s*[:=]|channel\s*:\s*['"](chrome|msedge|chrome-beta|msedge-beta)['"]|CHROME_BIN|(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|Google[\\/]+Chrome[\\/]+Application|Microsoft[\\/]+Edge[\\/]+Application/i;
 // One denial names every rule the call breaks, numbered, at most PRETOOL_MAX (a retry was once denied rule by rule).
 const PRETOOL_MAX = 6;
 export function pretoolDecision(data, cfg = config()) {
@@ -181,9 +184,9 @@ export function asksToChange(p, prompt) {
 // Every rule the call breaks, in the order the checks run (each message once).
 export function pretoolHits(data, cfg) {
   // (the helpers still in the old engine, handed in by use() until each moves to a shared module: plan step 1b)
-  const { turn, WAKE_STATE, isSuspended, settingUp, toolUses, loggedRuns, briefFileNamesRules, FORBID_EXEMPT, countRe,
-    BROWSER_CODE, heldSidestep, runsOf, onPath, gitPush, askedPushEarlier, runText, outwardCommand, setupCompleteness,
-    setupProblems, names, inTimeOrder, redirectedRun, shellParts, inlineCodeOut, sedInPlaceFiles, cmdHead, gateResult } = H;
+  const names = () => namesIn(ROOT);
+  const { turn, isSuspended, toolUses, loggedRuns, briefFileNamesRules, heldSidestep, runsOf, onPath, gitPush, askedPushEarlier, runText, outwardCommand, setupCompleteness,
+    setupProblems, inTimeOrder, redirectedRun, shellParts, inlineCodeOut, sedInPlaceFiles, cmdHead, gateResult } = H;
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
   // REQ: self-commands. Only the user adds a command the end check may run itself (selfcmds.mjs).
   if (selfListGrows(data.tool_name, data.tool_input, ROOT) || (/^(Bash|PowerShell)$/.test(data.tool_name || '') && selfCmdWrites(data.tool_input?.command)))

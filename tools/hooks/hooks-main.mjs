@@ -23,7 +23,7 @@ import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split 
 import { withOwnTemp } from './testtmp.mjs';
 import { STATE, absw, rel, rulesText, envOf, SID, DRY_STATE, NO_TRANSCRIPT, setSession, transcriptState, PER_SESSION, stateName, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
 export { absw, rel, rulesText, envOf, transcriptState, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
-import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
+import { FORBID_EXEMPT, countRe, settingUp, ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
 import { WORD_KINDS, ignoredWords as ignoredWordsOf, withoutIgnored as withoutIgnoredOf, isPraise as isPraiseOf } from './praise.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
 import { lines as jsonlLines } from './jsonl.mjs';
@@ -91,7 +91,7 @@ const PROOF = makeProof({ get ROOT() { return ROOT; }, read: (...a) => read(...a
 // (the proof machinery, shared with engine v2: tools/hooks/proof.mjs)
 export const { ENFORCED, enforcedClaim, autoScopes, noteDirs, enforcementGaps, newProjectChecks, savedCopies, governedFiles, checkProof, COMPLAINT_DOESNT_HOLD, complaintDisproved, cmdHead, neverRan, shellParts } = PROOF;
 const { NEVER_AGAIN, CHECK_FILE, TEST_FILE, requirementScripts, wordsOf, pathKey } = PROOF;
-import { WAKE_KNOWN, isWakeTool, WAKE_ASK, WAKE_SAID, wakeFamily, wakeupsPending, watchersArmed, watcherLeft } from './wakeups.mjs';
+import { WAKE_STATE, WAKE_KNOWN, isWakeTool, WAKE_ASK, WAKE_SAID, wakeFamily, wakeupsPending, watchersArmed, watcherLeft } from './wakeups.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from './injection.mjs';
 export { isWakeTool, WAKE_ASK, wakeupsPending };
 
@@ -842,7 +842,6 @@ function selfSentPrompt(p, tp) {
   if ((readJSON(stateFile(WAKE_STATE), {}).prompts || []).includes(want)) return true;
   return rows.some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(x => x?.type === 'tool_use' && isWakeTool(x.name, x.input) && norm(x.input?.prompt) === want));
 }
-export const WAKE_STATE = 'wakeups.json';
 function turnNotices(force, tp) {
   const shown = readJSON(stateFile(SHOWN), null), end = readJSON(stateFile(TURN_END), {});
   const mid = force ? false : transcriptMidTurn(tp);
@@ -1981,12 +1980,7 @@ export function previewOf(reason) {
   if (!reason || text.replace(/^This is the last check[^\n]*\n/m, '').trim() === 'Fix these, then send the answer once.') return { text: '', real: false };
   return { text, real: /^(Not done yet|Still not done)/.test(text) };
 }
-// (the list itself and the engine's state never count)
-export const FORBID_EXEMPT =/^(tools\/hooks\/config\.json|tools\/hooks\/state\/|\.cache\/|\.git\/)/;
-export const countRe = (rx, s) => rx ? (String(s || '').match(rx) || []).length : 0;
 
-// Code that would drive the installed Chrome/Edge instead of a bundled browser.
-export const BROWSER_CODE =/executablePath\s*[:=]|channel\s*:\s*['"](chrome|msedge|chrome-beta|msedge-beta)['"]|CHROME_BIN|(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|Google[\\/]+Chrome[\\/]+Application|Microsoft[\\/]+Edge[\\/]+Application/i;
 
 // (plain writing: letterLines, writingProblems in tools/hooks/writing.mjs, shared with engine v2)
 
@@ -2025,7 +2019,6 @@ export const assumedHint = es => es
 // (the Spanish labels hint, labelsEsHint and LABELS_ES_HINT, is in labels.mjs, shared with v2)
 
 // ---------- people / scopes ---------- (people, personOf, peopleIn, peopleFor, pathsPeople: people.mjs)
-export const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');
 // The whole setup turn is setup, also after its last step deleted SETUP-PROMPT.md: the file was there when the turn
 // began (the turn's snapshot), or a command of the turn removed it.
 // Lesson: setup ends by deleting SETUP-PROMPT.md, so the final Stop judged the setup turn as ordinary work: it asked for

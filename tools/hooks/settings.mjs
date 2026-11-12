@@ -94,6 +94,9 @@ export function privateTermsListFile(root) {
   const c = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, encoding: 'utf8' });
   return c.status === 0 && c.stdout.trim() ? path.join(path.dirname(c.stdout.trim()), '.private-terms') : own;
 }
+export const FORBID_EXEMPT = /^(tools\/hooks\/config\.json|tools\/hooks\/state\/|\.cache\/|\.git\/)/; // (the list itself and the engine's state never count)
+export const countRe = (rx, s) => rx ? (String(s || '').match(rx) || []).length : 0;
+export const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');
 export function forbiddenTerms(cfg = config()) {
   const list = [].concat(cfg.forbiddenTerms || []), f = privateTermsPath(cfg);
   if (f) { try { list.push(...fs.readFileSync(f, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'))); } catch { } }
