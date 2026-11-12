@@ -22,6 +22,11 @@ import { fileURLToPath } from 'node:url';
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { withOwnTemp } from './testtmp.mjs';
 import { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
+import { VERBATIM_ENGINE } from './settings.mjs';
+export { VERBATIM_ENGINE } from './settings.mjs';
+import { section } from './settings.mjs';
+import { nameProblems, nameFiles, lostRules, INTERVIEW, INTERVIEW_AFTER, INTERVIEW_APP, setupInterview, unanswered, packsFor, setupPrompts, ONE_LEAD, ME_LEAD, SEVERAL_LEAD, NOT_SEPARATE, peopleAnswer, localRepoAnswer, setupCompleteness } from './setupinfo.mjs';
+export { nameProblems, nameFiles, lostRules, INTERVIEW, INTERVIEW_AFTER, INTERVIEW_APP, setupInterview, packsFor, setupPrompts, peopleAnswer, localRepoAnswer, setupCompleteness } from './setupinfo.mjs';
 import { SKIP, COMPACT, isToolResult, skipped, RELAYED_TURN, relayedTurn, promptOf, CODEX_SKIP, codexRows, TAIL_START, transcriptRows, helperRows, turn, selfSent, backgroundRunning, fallbackTurn, toolResultsList, toolResults, backgroundLaunches } from './transcript.mjs';
 export { codexRows, TAIL_START, transcriptRows, helperRows, turn, toolResultsList, toolResults, backgroundLaunches } from './transcript.mjs';
 import { suspendedItems, isSuspended } from './settings.mjs';
@@ -1342,22 +1347,7 @@ export function syncDirectory(cfg = config()) {
 export const names = () => namesIn(ROOT);
 const subjects = () => subjectsIn(ROOT);
 export const stampNames = (text, nm = names()) => sharedStamp(text, nm);
-export function nameProblems(file, text, nm = names(), cfg = config()) {
-  // the engine's files belong to the starter, not the project (in the starter itself they are its own code)
-  return sharedNameProblems(file, text, { root: ROOT, nm, skip: match(file, cfg.namesIgnore) || (!exists('.starter-template') && match(file, VERBATIM_ENGINE)) });
-}
 export const codeIdentifiers = () => sharedCodeIds(ROOT);
-export function nameFiles(cfg = config()) {
-  const out = [];
-  const walk = d => { for (const n of list(d)) { const p = d ? `${d}/${n}` : n; if (match(p, cfg.ignoreForChanges) || /^(\.git|node_modules)$/.test(n)) continue; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walk(p); else if (NAME_FILES.test(n)) out.push(p); } };
-  walk('');
-  // files git ignores are this machine's own (generated agent wiring with the folder's path, local notes): not checked.
-  // Lesson: the audit flagged .codex/hooks.json, which is ignored by git and holds the project folder's path.
-  if (!out.length) return out;
-  const ig = spawnSync('git', ['check-ignore', '--stdin'], { cwd: ROOT, input: out.join('\n'), encoding: 'utf8' });
-  const ignored = new Set((ig.status === 0 ? ig.stdout : '').split(/\r?\n/).filter(Boolean).map(p => p.replace(/\\/g, '/')));
-  return out.filter(p => !ignored.has(p));
-}
 // Refill every marker when docs/names.json changed since the last fill (the stamp keeps this off the hot path).
 export function syncNames(cfg = config(), { force = false } = {}) {
   const nm = names(), key = JSON.stringify(nm), stampFile = path.join(STATE, 'names.json');
@@ -1505,9 +1495,6 @@ export const knowledgeProblems = (file, cfg) => sharedKnowledgeProblems(file, re
 export const knowledgeFromFiles = (x, cfg = config()) => sharedKnowledgeFromFiles(x, cfg, { read: f => read(abs(f)), exists, match, rel });
 
 
-// The engine's own files (what tools/new-project.mjs --upgrade replaces): written by the starter, not from the user's words.
-export const VERBATIM_ENGINE = ['tools/**', '.githooks/**', 'HOW-TO-USE.md', 'docs/recommended-tools.md', 'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md',
-  ...['session-checklist', 'finish-checklist', 'runbook-standards', 'writing-standards', 'layout-standards', 'better-or-worse'].map(n => `docs/checks/${n}.md`)];
 // Runs of verbatimWords+ consecutive words from the user's messages that appear in a changed file.
 const words = s => String(s || '').toLowerCase().replace(/[`*_>#|"'“”‘’()[\]{}]/g, ' ').match(/[a-z0-9]+(?:'[a-z]+)?/g) || [];
 export function verbatimHits(x, cfg = config()) {
@@ -1705,213 +1692,7 @@ export function staleKnowledge(cfg = config()) {
   return out;
 }
 
-// ---------- setup gate (SETUP-PROMPT.md may only be deleted when this returns nothing) ----------
-const section = (text, name) => (new RegExp(`^##\\s+${esc(name)}[^\\n]*\\n([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, 'im').exec(text) || [, ''])[1];
-// Every rule the project had before the starter came (kept in .starter/original-rules/ on adoption) is still in the
-// merged AGENTS.md, in its own words or reworded, or is listed under "## Dropped rules" in docs/DECISIONS.md with why. A
-// rule counts as kept when most of its key words appear together in one paragraph or bullet of AGENTS.md. Lesson: a
-// merge silently lost two of the user's own rules.
-export function lostRules() {
-  const dir = '.starter/original-rules', out = [];
-  if (!exists(dir)) return out;
-  const keyWords = s => [...new Set(String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4))];
-  const paras = rulesText().toLowerCase().split(/\n\s*\n|\n(?=\s*(?:[-*]|\d+\.)\s)/), dropped = section(read(abs('docs/DECISIONS.md')), 'Dropped rules').toLowerCase();
-  for (const f of list(dir)) {
-    const rules = read(abs(`${dir}/${f}`)).split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*]|\d+\.)\s+/, '').trim()).filter(l => l && !/^(#|```|<!--|\|)/.test(l) && keyWords(l).length >= 3);
-    for (const r of rules) {
-      const k = keyWords(r), need = Math.ceil(k.length * 0.6);
-      if (!paras.some(p => k.filter(w => p.includes(w)).length >= need) && k.filter(w => dropped.includes(w)).length < need)
-        out.push(`${f} rule "${r.slice(0, 80)}" is not in AGENTS.md: merge it back, or list it under "## Dropped rules" in docs/DECISIONS.md with why`);
-    }
-  }
-  return out.slice(0, 8);
-}
-export function setupProblems(cfg = config()) {
-  const probs = [];
-  const brief = read(abs('docs/BRIEF.md'));
-  if (!/status:\s*bootstrapped\s+20\d\d-\d\d-\d\d/i.test(brief)) probs.push('docs/BRIEF.md: set "status: bootstrapped YYYY-MM-DD"');
-  for (const s of ['Purpose', 'Who it serves', 'Scope', 'Typical requests', 'Sources and inputs', 'Constraints', 'Quality bar']) {
-    const body = section(brief, s).replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*(\d+\.|-)?\s*(In scope:|Out of scope:)?\s*$/gm, '').trim();
-    if (!body) probs.push(`docs/BRIEF.md: "${s}" is empty`);
-  }
-  const typical = [...section(brief, 'Typical requests').replace(/<!--[\s\S]*?-->/g, '').matchAll(/^[ \t]*(?:\d+\.|-)[ \t]+(\S.+)$/gm)].map(m => m[1].trim());
-  if (typical.length < 3) probs.push('docs/BRIEF.md: list at least 3 typical requests, each as a short, plain description of the kind of request');
-  const pbs = playbooks(), sks = routableSkills(cfg);
-  // a request written in quotes ('"How do I ...?" → x.md') is routed as the words inside them: whole, a long quote
-  // reads as pasted text and is skipped. Lesson: a project's 45-character quoted request routed to nothing.
-  // The words around the quotes count too ('"Walk me through X" in the walkthrough app'): either form may route.
-  const forms = t => { const bare = t.replace(/\s*(→|->).*$/, ''); return [/^["“']([^"”]+)["”']/.exec(t)?.[1], bare, bare.replace(/["“”]/g, '')].filter(Boolean); };
-  for (const t of typical) if (!forms(t).some(f => route(f, pbs).length || route(f, sks).length)) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/selfcheck.mjs --route "...")`);
-  const claude = rulesText();
-  if (/\{\{[A-Z_]+\}\}|<!-- One line on what/.test(claude)) probs.push('AGENTS.md: replace the template placeholders (name, one-line purpose)');
-  if (!names().PROJECT_NAME || /\{\{/.test(names().PROJECT_NAME)) probs.push(`${NAMES_FILE}: set PROJECT_NAME, and add every other name the project uses (products, brands, companies)`);
-  // files the project had before the starter came stay as the user wrote them (new-project.mjs lists them on adoption)
-  const original = new Set(read(abs('.starter/original-files.txt')).split(/\r?\n/).filter(Boolean));
-  for (const p of nameFiles(cfg).filter(p => !original.has(p))) probs.push(...nameProblems(p, read(abs(p)), names(), cfg));
-  if (/^- \(none yet\)\s*$/m.test(section(claude, "The user's standing preferences"))) probs.push('AGENTS.md: record the user\'s standing preferences as principles (or "- (none stated, YYYY-MM-DD)")');
-  if (/Not bootstrapped yet/i.test(read(abs('docs/STATUS.md')))) probs.push('docs/STATUS.md: still says "Not bootstrapped yet"');
-  for (const f of ['CLAUDE.starter.md', 'AGENTS.starter.md']) if (exists(f)) probs.push(`${f}: merge it into CLAUDE.md/AGENTS.md, then delete it`);
-  probs.push(...lostRules());
-  if (!exists('tools/hooks/state/last-session.json')) probs.push('the hooks have never run in a live session here (open the project with your agent so its session start runs them, or run node tools/hooks/hooks.mjs begin "<a request>")');
-  if (exists('CLAUDE.md') && read(abs('CLAUDE.md')) !== read(abs('AGENTS.md'))) probs.push('CLAUDE.md and AGENTS.md differ');
-  const own = readJSON(CONFIG(), {});
-  if (!(own.packs || []).length && !/core only/i.test(read(abs('docs/DECISIONS.md'))))
-    probs.push('choose the packs: node tools/packs.mjs install <packs> (or record "core only" and why in docs/DECISIONS.md)');
-  if ((own.packs || []).includes('app') && !(own.app && (own.app.test || own.app.build)))
-    probs.push('wire the app gates: node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>"');
-  if ((own.packs || []).includes('app')) {
-    // text in backticks is the page's own instruction about <...>, not a value still to fill
-    const f = read(abs('docs/foundation.md')).replace(/`[^`\n]*`/g, '');
-    if (!/status:\s*set\b/i.test(f) || /<\.\.\.>|<e\.g\./.test(f)) probs.push('set the app foundation with the user (app-foundation runbook): docs/foundation.md still has <...> values or no "status: set"');
-    probs.push(...grantProblems(read(abs('docs/foundation.md'))));
-  }
-  const sec = read(abs('docs/security.md')).replace(/`[^`\n]*`/g, '');
-  if (!/status:\s*set\b/i.test(sec) || /<\.\.\.>/.test(sec)) probs.push('set the security baseline with the user: docs/security.md still has <...> values or no "status: set"');
-  if (own.adopted && !section(read(abs('docs/STATUS.md')), 'Current state').trim()) probs.push('docs/STATUS.md: add a "## Current state" section describing the existing project before setup changed it');
-  // (an established project is improved like surgery: what it has is listed and kept, and each improvement is a
-  // decided proposal, the big ones the user's call. Lesson (the user, 2026-11-07): the engine must never override an
-  // established project's own hooks, runbooks and skills or make it worse, and asks only about what changes it a lot)
-  if (own.adopted) {
-    const rev = section(read(abs('docs/DECISIONS.md')), 'Adoption review'), lines = rev.split(/\r?\n/).filter(l => /^\s*-\s+\S/.test(l));
-    if (!lines.some(l => /^\s*-\s+keep:/i.test(l))) probs.push('docs/DECISIONS.md: add a "## Adoption review" listing what the project already has (its hooks, runbooks, skills, rules, commands), one "- keep: <item> - <what the engine does instead of overriding it>" line each');
-    const open = lines.filter(l => /^\s*-\s+improve:/i.test(l) && (!/\|\s*(small|big)\s*\|/i.test(l) || /\|\s*\??\s*$/.test(l)));
-    if (open.length) probs.push(`docs/DECISIONS.md "## Adoption review": ${open.length} improvement line(s) need "| small|big | <decision>" (a big one is the user's: ok, no or explore): ${open[0].trim().slice(0, 80)}`);
-  }
-  probs.push(...setupCompleteness(cfg, { final: true }));
-  // REQ: fit-checklist. Every candidate is decided by the AI with a reason that holds (node tools/fit.mjs check)
-  const fit = fitProblems(cfg);
-  if (fit.length) probs.push(`fit checklist: ${fit[0]}${fit.length > 1 ? ` (+${fit.length - 1} more: node tools/fit.mjs check)` : ''}`);
-  // the answers are carried out, not just recorded
-  const f = setupInterview();
-  // (only rules the user gave: an assumed answer is the agent's guess, and writing it as the user's preference would
-  // put words in their mouth. Lesson (trial v42): setup failed until the agent's guesses became "the user's" rules)
-  if (f['always/never'] && !f['always/never (assumed)'] && !/^(none|no\b|n\/a)/i.test(f['always/never']) && /^- \(none (yet|stated)/m.test(section(claude, "The user's standing preferences")))
-    probs.push('the user gave always/never rules in the setup interview, but CLAUDE.md has no standing preferences: write each as a rule with the project-rule skill');
-  const guard = section(sec, 'What needs protecting, and from whom');
-  if (/status:\s*set\b/i.test(sec) && guard && [...guard.matchAll(/^\|[^|\n]+\|\s*(N\/?A\b[^|]*)\|/gmi)].length >= 3)
-    probs.push('docs/security.md: "What needs protecting" is all N/A. Every project has something to protect (at least its files and the user\'s accounts): answer each row');
-  if (exists('README.starter.md')) probs.push('README.starter.md: merge what helps into README.md (the user\'s README stays), then delete it');
-  // the starter's leftovers: the user decides whether the project stays linked to the starter, keeps a copy, or drops it
-  if (!['link', 'keep', 'remove'].includes(own.starter)) probs.push(own.autonomy === 'auto' ? 'decide what happens to the starter (link is the default: packs, skills and upgrades stay available) and run node tools/starter.mjs link | keep | remove'
-    : 'ask the user what happens to the starter now: link this project to it (recommended), keep a copy of the unused packs and library skills in .starter/, or remove it. Then run node tools/starter.mjs link | keep | remove');
-  if (exists('packs') || exists('library')) probs.push(`packs/ or library/ is still in the project: run node tools/starter.mjs ${own.starter || 'link | keep | remove'}`);
-  return probs;
-}
 
-// ---------- setup: the interview, and everything that fits ----------
-// REQ: setup-interview. The user answers the setup questions before anything is installed, and the answers are
-// recorded in docs/DECISIONS.md under "## Setup interview" as "- Key: answer" lines.
-export const INTERVIEW = ['Involvement', 'Focus', 'Kind of work', 'Visual interface', 'Typical requests', 'Inputs', 'People', 'Sensitive data',
-  'Constraints', 'Quality bar', 'Always/never'];
-export const INTERVIEW_AFTER = ['Packs', 'Library skills', 'Starter']; // recorded as each choice is made
-export const INTERVIEW_APP = ['Commands', 'Branches', 'Sign-off', 'Release'];
-export function setupInterview() {
-  const f = {};
-  // name markers inside answers read as the name itself (Lesson: answers written with a marker stopped counting)
-  for (const m of section(read(abs('docs/DECISIONS.md')), 'Setup interview').replace(NAME_MARK, (x, k) => names()[k] || k).matchAll(/^\s*-\s*\*{0,2}([^:*\n]+?)\*{0,2}:\s*(.*)$/gm))
-  { // autonomy auto: "assumed - <answer>"; which answers were assumed is kept apart, as the agent's guess, not the user's
-    const k = m[1].trim().toLowerCase(), v = m[2].trim();
-    f[k] = v.replace(/^assumed\s*[-:]\s*/i, '');
-    if (/^assumed\s*[-:]/i.test(v)) Object.defineProperty(f, `${k} (assumed)`, { value: true, enumerable: false });
-  }
-  return f;
-}
-// a placeholder is a whole answer in angle brackets or "<...>"; "run: python -m tool <csv> <report>" is a real answer
-// (Lesson: a command with its arguments in angle brackets was read as unanswered)
-const unanswered = v => !v || /^\s*<[^>]*>\s*$|<\.\.\.>|<e\.g\.|^\.{3}$|^(tbd|todo|\?)$/i.test(v);
-// The packs the answers call for: knowledge work → knowledge, software → app, a visual interface → gui.
-export function packsFor(f) {
-  // the leading keyword decides; the words after it only describe. Lesson: "knowledge (posts and prices; no software)"
-  // read as software, and setup demanded the app pack.
-  const full = (f['kind of work'] || '').toLowerCase().replace(/^\s*assumed\s*-\s*/, ''), want = [];
-  const lead = (/^\W*(knowledge|software|both|app|neither|none)\b/.exec(full) || [])[1];
-  const kind = lead || full.split(/[(;,.]| - /)[0];
-  if (/knowledge|both/.test(kind)) want.push('knowledge');
-  if (/software|\bapp\b|both/.test(kind)) want.push('app');
-  if (/^yes\b/i.test(f['visual interface'] || '')) want.push('gui');
-  return want;
-}
-export const setupPrompts = () => readJSON(path.join(STATE, 'setup.json'), {}).prompts || 0;
-// The setup interview's "People" answer: 'one', 'several' (people whose data must stay apart, each with a profile) or
-// null (can't tell, so nothing is demanded). The leading word decides ("one", "me", "several", a number); the words after
-// it only describe. People who are only roles or app accounts ("staff are accounts in the app", "no per-person data")
-// are not separate people. A plain list of names ("Ana, Luis and Marta") is several.
-// Lesson: any comma in the answer read as "several people", so "Me (owner), plus maybe a helper later" and "one - the
-// owner; the staff are app accounts, sharing one inventory" demanded profiles, and agents reworded their answers to get past.
-const ONE_LEAD = /^(one|1|single|solo|alone|just (me|one|myself|the owner)|only (me|one|myself|the owner)|a single|an? (individual|single)|uno|una|s[oó]lo yo|individual|personal)\b/;
-const ME_LEAD = /^(me|myself|i|yo|the owner|the user|the author)\b/;
-const SEVERAL_LEAD = /^(several|multiple|many|two|three|four|five|six|seven|eight|nine|ten|[2-9]|\d{2,}|varias|varios|dos|tres|cuatro|cinco|each\b|per[- ]person)\b/;
-const NOT_SEPARATE = /\bno (per[- ]person|separate|individual|personal) (data|profiles?|records?|files?)\b|\bno profiles\b|\bnot (separate|distinct) (people|persons|users|profiles|data owners)\b|\b(roles?|accounts?|users?) (in|inside|of|within) the (app|application|database|service|system|site)\b|\bapp (users|accounts)\b|\bshar(e|es|ed|ing) (one|a single|the same) (inventory|account|database|data|record|list|vault|set)\b|\bsin perfiles\b/;
-export function peopleAnswer(raw) {
-  const t = String(raw || '').toLowerCase().replace(/^\s*(assumed|answered|decided|inferred|guessed)\s*[-:]\s*/, '').trim();
-  if (!t || unanswered(t)) return null;
-  if (ONE_LEAD.test(t)) return 'one';
-  if (NOT_SEPARATE.test(t)) return 'one';
-  if (SEVERAL_LEAD.test(t)) return 'several';
-  // a list of people: two or more short items, each a name or "me"/"my partner", split by commas, "and", "&", "+", "y"
-  const lead = t.split(/\s[-–]\s|[;(:.]/)[0];
-  const items = lead.split(/,|\s+(?:and|&|\+|y|plus)\s+/).map(s => s.trim()).filter(Boolean);
-  if (items.length >= 2 && items.every(s => s.split(/\s+/).length <= 3 && !/\b(maybe|later|perhaps|possibly|eventually|occasional|tal vez|quiz[aá]s)\b/.test(s))) return 'several';
-  // "me (owner), plus maybe a helper later": one owner with qualifiers
-  if (ME_LEAD.test(t)) return 'one';
-  return null;
-}
-// REQ: setup-complete. A project gets everything that fits it: every pack its answers call for (whole), and every
-// library skill that fits those packs, unless the user declined it with a reason. stage 'install' = before installing.
-// decide: the request says not to ask ("don't ask me, decide everything"). Until "autonomy" is set, the step says to set
-// it, not to ask. Lesson, trial rounds 14 to 16: setups whose user said not to ask were told "ask the user the setup
-// questions and wait", were denied twice each, and one agent read the engine to find the setting.
-export const localRepoAnswer = () => readJSON(path.join(LOCAL, 'config.json'), {}).privateRepo;
-export function setupCompleteness(cfg = config(), { final = false, beforeStarter = false, decide = false } = {}) {
-  const probs = [], f = setupInterview(), own = readJSON(CONFIG(), {});
-  const packs = own.packs || [];
-  const auto = cfg.autonomy === 'auto';
-  if (!auto && decide) probs.push('the user said not to ask: set "autonomy": "auto" in tools/hooks/config.json and record that choice in docs/DECISIONS.md, then decide the setup answers yourself');
-  else if (setupPrompts() < 2 && !auto) probs.push('ask the user the setup questions (SETUP-PROMPT.md Phase 2) and wait for the reply: the answers come from the user, not from guesses');
-  const after = beforeStarter ? INTERVIEW_AFTER.filter(k => k !== 'Starter') : INTERVIEW_AFTER;
-  const keys = [...INTERVIEW, ...(final ? after : []), ...(final && packs.includes('app') ? INTERVIEW_APP : [])];
-  const missing = keys.filter(k => unanswered(f[k.toLowerCase()]));
-  if (missing.length) probs.push(auto || decide ? `docs/DECISIONS.md "## Setup interview": decide and record ${missing.join(', ')} yourself ("- Key: assumed - <answer> - <why>")`
-    : `docs/DECISIONS.md "## Setup interview": record the user's answer for ${missing.join(', ')} ("- Key: answer")`);
-  // (the engine in .anzuelo/engine: whether the files made for this project get a private git repository of their own
-  // is asked once, at install or setup. Plan: engine outside the project, Task 4)
-  if (split && typeof localRepoAnswer() !== 'boolean') probs.push('ask the user once: keep the files made for this project (.anzuelo/local) in a private git repository of their own, for history and backup, never part of the project\'s pushes? Record it: node .anzuelo/engine/tools/starter.mjs local-repo yes|no');
-  if (!final) return probs;
-  // "Let the AI decide everything" holds after setup too: later choices don't ask either
-  if (/^decide/i.test(f.involvement || '') && cfg.autonomy !== 'auto') probs.push('Setup interview "Involvement: decide": set "autonomy": "auto" in tools/hooks/config.json, so later choices don\'t ask either');
-  const want = packsFor(f);
-  if (!/^(knowledge|software|app|both|neither|none)\b/i.test(f['kind of work'] || '')) probs.push('Setup interview "Kind of work" must start with knowledge, software, both or neither');
-  if (!/^(yes|no)\b/i.test(f['visual interface'] || '')) probs.push('Setup interview "Visual interface" must start with yes or no');
-  // the Branches answer decides which branches the push guard protects. Lesson: "I work on master directly" kept master
-  // protected, so every push the user asked for was refused unless they typed the branch name. An answer the agent only
-  // assumed asks for nothing: the guard stays. Lesson (trial v43): two setups that assumed it turned the push guard off.
-  const workOn = !f['branches (assumed)'] &&/(?<!\b(never|don'?t|do not|not|no)\s+)\b(work|commit|push)(s|ing)?\s+(directly\s+)?(on|to)\s+(main|master)\b(?![^.;]*\b(never|don'?t|not)\b)/i.exec(f.branches || '');
-  if (workOn && (cfg.protectedBranches || []).includes(workOn[6].toLowerCase())) probs.push(`Setup interview "Branches" says the work goes on ${workOn[6]}, but tools/hooks/config.json still protects it: set "protectedBranches" to the branches never to push to (or [])`);
-  for (const p of want.filter(p => !packs.includes(p))) probs.push(`the answers call for the ${p} pack and it is not installed: node tools/packs.mjs install ${p}`);
-  for (const p of packs.filter(p => !want.includes(p))) probs.push(`the ${p} pack is installed but the answers don't call for it: fix the "Kind of work" / "Visual interface" answer or remove the pack`);
-  // every file each installed pack owns is really here (nothing dropped on the way)
-  const reg = readJSON(abs('tools/packs-registry.json'), { packs: {} }).packs;
-  for (const p of packs) { const gone = (reg[p]?.files || []).filter(x => !exists(x)); if (gone.length) probs.push(`the ${p} pack is incomplete, missing: ${gone.slice(0, 5).join(', ')}${gone.length > 5 ? ', ...' : ''} (node tools/packs.mjs install ${p})`); }
-  if (peopleAnswer(f['people']) === 'several' && list(cfg.scopesRoot).filter(n => exists(`${cfg.scopesRoot}/${n}/PROFILE.md`)).length < 2)
-    probs.push(`several people: create ${cfg.scopesRoot}/<name>/PROFILE.md for each, so their data stays separate`);
-  if (own.starter && f.starter && !new RegExp(`^${own.starter}\\b`, 'i').test(f.starter)) probs.push(`Setup interview "Starter" says "${f.starter.slice(0, 30)}" but the project is set to ${own.starter}`);
-  // library: every skill that fits is enabled, or left out with the reason (in this line or in the fit checklist)
-  const lib = findLibrary();
-  if (lib) {
-    const line = f['library skills'] || '';
-    const [on, off = ''] = line.split(/\bleft out\b/i);
-    const fitC = new Map(fitCandidates(cfg).candidates.map(c => [fitKey(c.kind, c.item), c]));
-    const fitOut = new Set(fitRows().filter(r => r.kind === 'skill' && /^(skip|later)$/.test(fitDecision(r.decision) || '') && !fitReasonProblem(r.reason, fitC.get(fitKey(r.kind, r.item)))).map(r => r.item));
-    for (const e of readJSON(path.join(lib.dir, 'catalog.json'), { skills: [] }).skills) {
-      const enabled = exists(`${cfg.skillsDir}/${e.name}/SKILL.md`);
-      const fits = e.for === 'any' || packs.includes(e.for);
-      if (enabled && !new RegExp(`\\b${esc(e.name)}\\b`).test(on)) probs.push(`Setup interview "Library skills": list ${e.name} as enabled`);
-      if (fits && !enabled && !fitOut.has(e.name) && !new RegExp(`\\b${esc(e.name)}\\b\\s*(\\(|because|-|:)`).test(off))
-        probs.push(`library skill ${e.name} fits this project (${e.for}): enable it (node tools/skills.mjs enable ${e.name}), or skip it with the reason in ${FIT_FILE}`);
-    }
-  }
-  return probs;
-}
 
 // ---------- upgrade review: an upgrade offers what is new and fits, and nothing goes in unweighed ----------
 // tools/new-project.mjs --upgrade writes "## Upgrade review (date)" into docs/DECISIONS.md, one "- kind: item: ?" line
@@ -5936,7 +5717,7 @@ if (isMain) {
   // (under v2 the background-run notice comes from the runs this session started, never from command text)
   if (cmd === 'pretool' && ENGINE === 'v2') V2_PRETOOL = true;
   // REQ: crash-visible, for the guard: one that cannot load is told to the agent once per session, and the call goes on
-  if (cmd === 'pretool') try { const G = await import('./v2/guard.mjs'); G.use(SELF); pretoolDecision = G.pretoolDecision; } catch (e) {
+  if (cmd === 'pretool') try { const G = await import('./v2/guard.mjs'); G.use(SELF); await G.prepare(data); pretoolDecision = G.pretoolDecision; } catch (e) {
     process.stderr.write(`[hooks guard] error: ${e && e.stack || e}\n`);
     const seen = path.join(STATE, `guard-crash.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
     if (!fs.existsSync(seen)) {

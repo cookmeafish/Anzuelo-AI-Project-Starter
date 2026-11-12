@@ -18,6 +18,7 @@ import { cmdHead, shellParts, runText, gitPush, outwardCommand, sedInPlaceFiles 
 import { toolUses, loggedRuns, runsOf, inTimeOrder } from '../runs.mjs';
 import { lines as jsonlLines } from '../jsonl.mjs';
 import { turn } from '../transcript.mjs';
+import { setupCompleteness } from '../setupinfo.mjs';
 import { makeProof } from '../proof.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
@@ -31,6 +32,10 @@ const gates = () => gatesMemo ||= (() => { const P = makeProof({}), L = makeLaun
 // Shared helpers come from the loader (use(hooksModule)): an import cycle left the hook waiting forever.
 let H = null;
 export const use = h => { H = h; };
+// (the setup gate's full check routes through v2 (setup.mjs): loaded only when SETUP-PROMPT.md is there or named, before
+// the guard runs, so the pre-tool hook does not load the router for every call. One that cannot load keeps the file)
+let setupProblems = null;
+export async function prepare(data) { if (exists('SETUP-PROMPT.md') || /SETUP-PROMPT\.md/.test(JSON.stringify(data?.tool_input || ''))) try { setupProblems = (await import('../setup.mjs')).setupProblems; } catch { setupProblems = null; } }
 
 // REQ: quiet-work. Refused during work: the irreversible, leaks, a user's protection, a hung headless run. Rest: end check.
 export const IN_WORK_GUARDS = /^REQ: (approval-gate|self-commands|browser-guard|claim-checked|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
@@ -198,7 +203,6 @@ export function asksToChange(p, prompt) {
 export function pretoolHits(data, cfg) {
   // (the helpers still in the old engine, handed in by use() until each moves to a shared module: plan step 1b)
   const names = () => namesIn(ROOT);
-  const { setupCompleteness, setupProblems } = H;
   const { heldSidestep, onPath, redirectedRun, inlineCodeOut, gateResult } = gates();
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
   // REQ: self-commands. Only the user adds a command the end check may run itself (selfcmds.mjs).
@@ -458,7 +462,7 @@ export function pretoolHits(data, cfg) {
     if (/(^|[\s;&|(])(rm|del|erase|Remove-Item|ri|unlink|mv|move|Move-Item|Rename-Item|ren|git\s+rm)\b[^;&|]*SETUP-PROMPT\.md/i.test(cmd)) {
       if (exists('.starter-template')) add(`REQ: setup-gate. This is the ${names().STARTER_NAME || 'project'} starter itself: SETUP-PROMPT.md stays here (new projects get a copy).`);
       else {
-        const probs = setupProblems(cfg);
+        const probs = setupProblems ? setupProblems(cfg) : ['the setup check could not be loaded (tools/hooks/setup.mjs): run node tools/audit.mjs --setup'];
         // (an audit sent to a file is read from that file, and a helper's audit counts too)
         const audited = runsOf(inTimeOrder(t().entries, t().helperEntries)).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test((redirectedRun(r, /audit\.mjs/, t().since || 0) || r).out));
         if (!audited) probs.push('run node tools/audit.mjs --setup in this turn and get "audit: PASS"');

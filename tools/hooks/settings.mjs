@@ -109,3 +109,8 @@ export function forbiddenRe(cfg = config()) {
 // (checks the user switched off, in config.json "suspended")
 export const suspendedItems = () => (readJSON(where('tools/hooks/config.json'), {}).suspended || []).filter(s => s && s.item);
 export const isSuspended = item => suspendedItems().some(s => s.item === item);
+// (a markdown file's "## <name>" section, up to the next "## " heading)
+export const section = (text, name) => (new RegExp(`^##\\s+${esc(name)}[^\\n]*\\n([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, 'im').exec(text) || [, ''])[1];
+// The engine's own files (what tools/new-project.mjs --upgrade replaces): written by the starter, not from the user's words.
+export const VERBATIM_ENGINE = ['tools/**', '.githooks/**', 'HOW-TO-USE.md', 'docs/recommended-tools.md', 'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md',
+  ...['session-checklist', 'finish-checklist', 'runbook-standards', 'writing-standards', 'layout-standards', 'better-or-worse'].map(n => `docs/checks/${n}.md`)];

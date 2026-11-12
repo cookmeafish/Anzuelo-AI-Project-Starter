@@ -10,8 +10,8 @@ import { spawnSync } from 'node:child_process';
 const COMMON_NAMES = /^(I|OK|Windows|Linux|Mac|macOS|Android|iOS|English|Spanish|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|GitHub|Git|Google|Chrome|Edge|Firefox|Node|Python|JavaScript|TypeScript|Claude|Codex|Cursor|Copilot|Gemini|Markdown|Excel|Word|PowerShell)$/i;
 const ACRONYM = /^(API|GUI|UI|UX|AI|CLI|SDK|JSON|YAML|TOML|XML|HTML|CSS|JS|TS|URL|URI|PDF|CSV|SQL|DB|ID|IDS|OK|PR|CI|CD|OS|USB|HTTP|HTTPS|SSH|DNS|IP|VPN|GPU|CPU|RAM|SSD|NPM|LLM|GPT|MCP|TODO|FYI|ASAP|README|CHANGELOG|STATUS|AGENTS|CLAUDE|BRIEF|DECISIONS|DIRECTORY|SKILL|PASS|FAIL|N\/A|US|UK|EU|UTC|PST|PDT|AM|PM|RPG|FAQ|PNG|JPG|JPEG|SVG|GIF|MP3|MP4|ENV|LTS|ESM|II|III|IV|VI)$/;
 const USER_DECIDED = /\b(the )?(user|owner|client) (decided|chose|confirmed|asked for|approved|granted)\b|\bdecided by the (user|owner)\b|\bel usuario (decidi[oó]|eligi[oó]|confirm[oó])\b/i;
-export const VERBATIM_ENGINE = ['tools/**', '.githooks/**', 'HOW-TO-USE.md', 'docs/recommended-tools.md', 'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md',
-  ...['session-checklist', 'finish-checklist', 'runbook-standards', 'writing-standards', 'layout-standards', 'better-or-worse'].map(n => `docs/checks/${n}.md`)];
+import { VERBATIM_ENGINE } from '../settings.mjs'; // (one list, shared with the setup check and the old engine)
+export { VERBATIM_ENGINE };
 const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'skill-harden', 'skill-curate', 'project-sweeps',
   'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset', 'efficiency-review', 'goal-loop'];
 

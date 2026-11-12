@@ -11,12 +11,13 @@ import { spawnSync } from 'node:child_process';
 import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
-  setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
+  upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
   FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
   externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir, checkRe, RETIRED_TAGS, forbiddenRe, privateTermsPath, privateTermsListFile,
   nameFiles, nameProblems, match, VERBATIM_ENGINE,
   starterOnlyChars,
 } from './hooks/hooks-main.mjs';
+import { setupProblems } from './hooks/setup.mjs';
 import { listAll, split } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day

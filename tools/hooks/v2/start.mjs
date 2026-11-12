@@ -134,6 +134,17 @@ function forcedBy(p) {
   }
   return [...out.values()];
 }
+// The skill a request names by its own trigger phrase, the reminder's and the setup check's (setup.mjs). Not on a
+// one-word trigger, unless it is the request's first word as the skill's name or a label ("note: ..."); only in the first
+// sentence; on the user's own words only. Lessons (replays): one-word and later-sentence matches were noise ("compare",
+// "find out"); a relayed status named the parallel-agents skill; "investiga ..." opens with "research".
+export function skillRoute(prompt) {
+  const sk = route(String(userWords(prompt)).trim().split(/(?<=[.?!])\s+|\n/)[0] || '', skillBooks());
+  if (!sk) return null;
+  const first = (String(prompt).trim().toLowerCase().match(/^[^\s]+/) || [''])[0], firstWord = first.replace(/[^\p{L}\p{N}-]+$/u, '');
+  const opens = (t, name) => !!t && ((/:$/.test(t) && first === t) || ([firstWord, routeEnglish(firstWord)].includes(name) && [name, firstWord].includes(t)));
+  return /\s/.test(sk.matched || '') || opens(String(sk.trigger || sk.matched || ''), sk.name) ? sk : null;
+}
 export function reminder(prompt, { midTurn = false } = {}) {
   const raw = String(prompt || '');
   // (REQ: pause-stops: a request to pause, stop or restart wraps up now, whatever else the message says)
@@ -175,24 +186,9 @@ function remind(prompt) {
   // notes written in English)
   // (with the labels every answer may use, in Spanish; the end check names the rest when it holds a turn)
   const es = isSpanish(prompt) ? `LANGUAGE: the user writes in Spanish: write the whole answer in Spanish, including any label a runbook quotes in English, and any file you point them to. The checks accept these labels: ${esLabelList('')}.` : '';
-  // (with no runbook routed, a skill whose own trigger phrase fits is named: the reminder only, the end check is
-  // unchanged. Not beside a runbook, which names its own skills, and not on a one-word trigger. Lesson (replay of three
-  // sources): beside a runbook it was mostly noise, like "compare" in a scheduled request, and every miss alone was one
-  // word, like "note" or "redundant")
-  // (and in the request's first sentence, where it says what it asks: everyday phrases like "find out" come up later in
-  // long instructions. Lesson (a scheduled review request): "if it is idle, find out why" named the research skill)
-  // (on the user's own words only: a message relayed from another session suggests no skill, its words describe that
-  // session's work. Lesson (the old suite under v2): a relayed "ran in parallel" status named the parallel-agents skill)
-  const sk = book ? null : route(String(userWords(prompt)).trim().split(/(?<=[.?!])\s+|\n/)[0] || '', skillBooks());
-  // (a one-word trigger counts as the request's first word, an imperative ("research ...", "investiga ...") or a label
-  // typed as one ("note: ..."): the noise one-word triggers made came from words later in long requests)
-  const first = (String(prompt).trim().toLowerCase().match(/^[^\s]+/) || [''])[0];
-  // (only the skill's own name ("research ...") or a label typed with its colon ("note: ..."): a generic verb that opens
-  // the request, "compare the two totals", stays unnamed. Lesson (replay): one-word misses were generic words)
-  // (in Spanish, by its English: "investiga ..." opens with "research")
-  const firstWord = first.replace(/[^\p{L}\p{N}-]+$/u, '');
-  const opens = (t, name) => !!t && ((/:$/.test(t) && first === t) || ([firstWord, routeEnglish(firstWord)].includes(name) && [name, firstWord].includes(t)));
-  const skill = sk && (/\s/.test(sk.matched || '') || opens(String(sk.trigger || sk.matched || ''), sk.name)) && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
+  // (with no runbook routed, a skill whose own trigger phrase fits is named: skillRoute)
+  const sk = book ? null : skillRoute(prompt);
+  const skill = sk && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
   if (sore && !book) return { book: null, text: [sore + (quoteOn ? ' Write any lesson in general terms, not in the user\'s own words.' : ''), skill, es].filter(Boolean).join('\n') };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
