@@ -1328,7 +1328,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         // 53 before the shared modules were imported directly, 2026-11-12)
         { const gs = fs.readFileSync(path.join(v2dir, 'guard.mjs'), 'utf8');
           const fromOld = [...gs.matchAll(/const \{([^}]*)\} = H;/g)].flatMap(m => m[1].split(',').map(s => s.trim()).filter(Boolean));
-          report(fromOld.length <= 8, `guard: at most 8 helpers come from the old engine through use() (${fromOld.length} now)`, fromOld.join(', ')); }
+          report(fromOld.length <= 3, `guard: at most 3 helpers come from the old engine through use() (${fromOld.length} now)`, fromOld.join(', ')); }
       }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
