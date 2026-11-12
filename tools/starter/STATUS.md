@@ -19,6 +19,12 @@ Phase A, open v2 tests to 0, in batches of about 15 (one chain per batch, releas
   2026-11-12: every open name is ported, fixed or triaged; the last fixes (stop rounds, other session, fit-checklist x3,
   stop-budget x2, engine-cache, own-scenarios-run, host-fixtures) wait for the post-restart sweep to leave the list.
   After the restart: v2 selftest (speed must pass), two chains with the 5-minute pool log, release, notices, prune.
+- [ ] Phase B, plan step 1b (2026-11-12): the guard takes nothing from hooks-main through use() (state, shell, runs,
+  transcript, setupinfo, setup modules). Next: the user lines (one visible() filter, v2's), then the CLI.
+- [ ] Oversight decisions to carry out (2026-11-12): the held message shows the accepted not-fit wording
+  ("<runbook> doesn't fit this task: <why>") with a test that it clears the items; the knowledge pack's deliverable.md
+  one-word triggers (guide, proposal, checklist) become phrases, after a read-only router diff over the knowledge-pack
+  projects' typical requests and recent prompts; one line in the upgrade notice.
 - A test that needs a user decision goes on one "for the user" list, sent to oversight; work goes on.
 - [ ] Field report (a project, 2026-11-10): a turn that changed no project file was held for 7 items because a peer
   session edited a project file mid-turn. Likely path: the end check's walk of files changed since the turn began (on a
