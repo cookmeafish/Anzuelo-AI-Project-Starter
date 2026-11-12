@@ -7772,20 +7772,24 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // host-fi
 
 if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // own-scenarios-run: a project's "must block" scenarios run against its own checks and fail loudly
   // A made-up host project with two checks of its own on its letters: one that blocks a stiff letter (tone-good), one
-  // whose script passes everything (tone-weak), and a scenario for a check it does not have (tone-gone). Its self-test
+  // whose condition never holds (tone-weak: a mistyped folder), and a scenario for a check it does not have (tone-gone). Its self-test
   // runs the "must block" scenarios against its own checks: the working check passes, the weak one and the missing one
   // FAIL with the reason, and nothing is skipped. Lesson: these scenarios were skipped as "packs not installed here", so
   // a check that never blocked passed the project's self-test.
+  // (2026-11-12, for v2: the weak check was a script that passes everything, but v2's hook runs a project's own command
+  // only from the user's approved list, read from git (2026-11-10), so in a scenario both checks asked for the run and
+  // the weak one blocked too; a condition that never holds is weak under either engine. Each check has its own
+  // message: v2 names no check, so a step is told by its message, and a shared one credited the weak check)
   const dir = copyProject();
   try {
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
-    const check = (tag, script) => ({ tag, rule: '7', when: { filesChanged: ['letters/**'] }, require: { runEach: { files: ['letters/*.md'], cmd: `node ${script} "{file}"`, pass: 'RESULT: PASS' } }, message: 'Letters are friendly and plain.' });
+    const check = (tag, script, message, folder = 'letters') => ({ tag, rule: '7', when: { filesChanged: [`${folder}/**`] }, require: { runEach: { files: ['letters/*.md'], cmd: `node ${script} "{file}"`, pass: 'RESULT: PASS' } }, message });
     const stiff = n => `{ name: '${n}: a stiff letter: blocked', prompt: 'write the letter', files: { 'letters/a.md': 'Dear Sam,\\nyou must pay by Friday.\\n' }, answer: 'Saved letters/a.md.', expect: { tags: ['${n}'] } }`;
     write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }),
       'tools/tone.mjs': "import fs from 'node:fs';\nconsole.log(/you must/i.test(fs.readFileSync(process.argv[2], 'utf8')) ? 'RESULT: FAIL' : 'RESULT: PASS');\n",
       'tools/tone-weak.mjs': "console.log('RESULT: PASS');\n",
       'tools/hooks/project-scenarios.mjs': `export default () => ({ stop: [${['tone-good', 'tone-weak', 'tone-gone'].map(stiff).join(', ')}], pretool: [], prompt: [] });\n` });
-    applyEdits(dir, { 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.push(check('tone-good', 'tools/tone.mjs'), check('tone-weak', 'tools/tone-weak.mjs')); return JSON.stringify(j, null, 2); } });
+    applyEdits(dir, { 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.push(check('tone-good', 'tools/tone.mjs', 'Letters are friendly and plain.'), check('tone-weak', 'tools/tone-weak.mjs', 'Letters sound warm to the reader.', 'leters')); return JSON.stringify(j, null, 2); } });
     spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
     const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/selfcheck.mjs'), '--tags', 'tone-good,tone-weak,tone-gone'], { cwd: dir, encoding: 'utf8', timeout: 600000 });
     const out = r.stdout || '';
