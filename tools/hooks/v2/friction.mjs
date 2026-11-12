@@ -12,7 +12,7 @@ const WINDOW = 6, TIMES = 3;
 // Lesson (a release run): a direct path wrote hook state into a project whose engine sits in .anzuelo/engine)
 const file = root => root === ROOT ? at('tools/hooks/state/v2-friction.json') : path.join(root, 'tools/hooks/state/v2-friction.json');
 const load = root => { try { return JSON.parse(fs.readFileSync(file(root), 'utf8')); } catch { return { turns: [], asked: [], offered: [] }; } };
-const save = (root, s) => { try { fs.mkdirSync(path.dirname(file(root)), { recursive: true }); fs.writeFileSync(file(root), JSON.stringify(s)); } catch { } };
+const save = (root, s) => { if (process.env.STARTER_BENCH || process.env.KS_BENCH || process.env.V2_NO_STATE) return; /* (a timing or hand run keeps no state) */ try { fs.mkdirSync(path.dirname(file(root)), { recursive: true }); fs.writeFileSync(file(root), JSON.stringify(s)); } catch { } };
 // (a check is named by its tag, or by its tag's words: "plain-writing" or "plain writing")
 const named = (text, tags) => tags.filter(t => new RegExp(`(?<![\\w-])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '[- ]')}(?![\\w-])`, 'i').test(text));
 const issues = text => [...String(text || '').matchAll(/^[\s>*_-]*Issue:\s*(.+)$/gim)].map(m => m[1]).filter(l => !/^none\b/i.test(l.trim())).join('\n');

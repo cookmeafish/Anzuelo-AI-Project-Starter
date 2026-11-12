@@ -3157,6 +3157,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     wstop();
     wrows.push({ type: 'user', timestamp: isoW(3000), message: { role: 'user', content: 'now write the first recipe' } });
     const wTyped = wprompt('now write the first recipe');
+    // (a timing run, hooks.mjs bench, keeps no session state under v2 either. Lesson (the old suite under v2): its
+    // friction record was written by every timed Stop)
+    const stC = path.join(c, 'tools/hooks/state'); fs.rmSync(stC, { recursive: true, force: true });
+    const bench = spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'bench'], { cwd: c, encoding: 'utf8', env, timeout: 120000 });
+    const benchState = (fs.existsSync(stC) ? fs.readdirSync(stC) : []).filter(n => /^(v2-|stop-log|digest|checklist|turn|snapshot|triggers)/.test(n));
+    report(/prompt \d+ ms/.test(bench.stdout || '') && !benchState.length, 'state-hygiene: a timing run (hooks.mjs bench) keeps no session state under v2', JSON.stringify({ benchState, out: (bench.stdout || bench.stderr || '').slice(0, 160) }));
     fs.rmSync(c, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     report(!!wFirst && wWake === wFirst && !!wTyped && wTyped !== wFirst, 'start: a wakeup the session scheduled, firing mid-turn, keeps the turn\'s start; a prompt the user types starts a new turn (self-sent-prompt)', JSON.stringify({ wFirst, wWake, wTyped }));
     report(Object.values(quiet).every(r => !r.files.length && !r.logged) && real.files.includes('v2-turn.realOne.json') && real.logged && headless.files.includes('v2-turn.headlessOne.json'),
