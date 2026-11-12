@@ -36,9 +36,10 @@ How the line is built today (`tools/hooks/v2/lines.mjs`, `passText`; released en
 - **The acknowledgement shows twice:** at PostToolUse (`acknowledgedLine`) when the Issue line is written, and again in the
   Stop line.
 
-Real examples (2026-11-12, all false): "🚨 fixed: the slowdown was called fixed and came back" on a turn that fixed
-nothing, shown in a session that didn't write it; "🧠 lesson saved in tools/starter/STATUS.md, tools/hooks/hooks.mjs" with
-neither file changed that day; "…instead of all of it under .anzuelo/, and I ans" cut mid-word.
+Real examples, all false (2026-11-12):
+- "🚨 fixed: the slowdown was called fixed and came back": nothing was fixed, and another session wrote it.
+- "🧠 lesson saved in tools/starter/STATUS.md, tools/hooks/hooks.mjs": neither file changed that day.
+- "…instead of all of it under .anzuelo/, and I ans": cut mid-word.
 
 ## Constraints for every task
 - The user's rule: verify first; show if proven; drop if not. Immediate exceptions are safety refusals, the upset
