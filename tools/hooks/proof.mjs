@@ -11,6 +11,7 @@ import { esc } from './settings.mjs';
 
 // io: { ROOT, read(abs), abs(rel), exists(rel), rel(p), match(p, globs), bornThisTurn(file, since), loadRequirements(),
 // namedPaths(text), LEARNED_NONE, NOT_A_SOURCE, NOTES_FILE } (the regexes may be getters: read when used)
+import { cmdHead, shellParts } from './shell.mjs';
 export function makeProof(io) {
   const { read, abs, exists, rel, match, bornThisTurn, loadRequirements, namedPaths } = io;
   // REQ: claim-checked. Promises that a miss can't come back, and claims that a lesson was sent to the starter's makers.
@@ -319,9 +320,6 @@ export function makeProof(io) {
     if (/\b(you'?re right|you are right)\b/i.test(answer) && !/\b(partly|partially|in part)\b/i.test(answer)) return false;
     return NOT_FOUND.test(said) || NOT_WRONG.test(said);
   }
-  // A command without its here-document bodies: a patch script whose text names a test file is not a run of that test.
-  // Lesson: "python - <<'EOF' ... test_hooks.py ... EOF" was taken as the last run of the project's hook tests.
-  const cmdHead = c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g, '<<$2');
   // A command the agent's tool refused before it started (a permission prompt, a hook's denial) never ran: it is no run of
   // any gate, passing or failing. Lesson: a refused command whose inline script only mentioned "audit.mjs --setup" was
   // taken as the last audit run, so Stop asked for the audit that had just passed.
@@ -329,22 +327,5 @@ export function makeProof(io) {
   // the command line is too long" read as a run that failed)
   const NEVER_RAN = /^\s*(PreToolUse:\w+ hook (error|denied)|This (Bash |PowerShell )?command (contains multiple operations|requires approval)|Commands? that [^\n]{0,80}require[s]? (explicit )?approval|Permission to use \w+ (has been )?denied|The user doesn'?t want to (proceed|take this action)|Claude requested permissions|Command contains malformed syntax that cannot be parsed|A variable in this command can'?t be checked before it runs|Contains [^\n]{0,60}\(expansion obfuscation\)|cd in '[^'\n]*' was blocked)/i;
   const neverRan = run => !!run && !!run.error && NEVER_RAN.test(String(run.out || ''));
-  // A shell command's top-level parts and the operators between them (quotes and redirections like 2>&1 respected).
-  function shellParts(cmd) {
-    const parts = [], ops = []; let cur = '', q = null;
-    const s = String(cmd || '');
-    for (let i = 0; i < s.length; i++) {
-      const c = s[i], two = s.slice(i, i + 2);
-      if (q) { cur += c; if (c === q) q = null; else if (c === '\\' && q === '"' && i + 1 < s.length) cur += s[++i]; continue; }
-      if (c === '"' || c === "'") { q = c; cur += c; continue; }
-      if (two === '&&' || two === '||') { parts.push(cur); ops.push(two); cur = ''; i++; continue; }
-      if (c === ';' || c === '\n' || c === '|' || (c === '&' && !/[<>]/.test(s[i - 1] || '') && s[i + 1] !== '>')) { parts.push(cur); ops.push(c === '\n' ? ';' : c); cur = ''; continue; }
-      cur += c;
-    }
-    parts.push(cur);
-    const out = { parts: [], ops: [] };
-    parts.forEach((p, i) => { if (p.trim()) { if (out.parts.length) out.ops.push(ops[i - 1] || ';'); out.parts.push(p.trim()); } });
-    return out;
-  }
   return { NEVER_AGAIN, ENFORCED, enforcedClaim, autoScopes, noteDirs, enforcementGaps, CHECK_FILE, TEST_FILE, NOT_PROJECT_CHECK, SCRIPT_PATH, requirementScripts, newProjectChecks, wordsOf, pathKey, savedCopies, removedLines, headFiles, argPaths, runCovers, governedFiles, NOT_FOUND, checkProof, EDGE_CASE, COMPLAINT_DOESNT_HOLD, NOT_WRONG, complaintDisproved, cmdHead, NEVER_RAN, neverRan, shellParts };
 }

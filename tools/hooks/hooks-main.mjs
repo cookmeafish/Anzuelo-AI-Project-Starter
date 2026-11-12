@@ -21,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { withOwnTemp } from './testtmp.mjs';
+import { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
+export { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
 import { STATE, absw, rel, rulesText, envOf, SID, DRY_STATE, NO_TRANSCRIPT, setSession, transcriptState, PER_SESSION, stateName, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
 export { absw, rel, rulesText, envOf, transcriptState, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
 import { FORBID_EXEMPT, countRe, settingUp, ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
@@ -922,13 +924,6 @@ function deniedIds(entries) {
 // here-document whose prose said "git repository ... every commit" counted as a commit, and its refused run as a
 // denied commit, so an answer that said nothing was committed was told it claimed a commit.
 const gitRun = sub => c => new RegExp(`(^|[;&|(\\n]\\s*)git(\\s+-[cC]\\s+\\S+|\\s+--?[\\w-]+(=\\S+)?)*\\s+${sub}\\b`, 'i').test(cmdHead(c).replace(/"[^"\n]*"|'[^'\n]*'/g, '""'));
-// A command line without what it only quotes (a quoted argument, a heredoc's text); "bash -c '...'" and eval still run
-// what they quote. Lessons, field reports: a waive reason and a feedback line that named a command were refused as it.
-export const runText = c => cmdHead(c).replace(/(?<!(?:-c|eval)\s+)("[^"\n]*"|'[^'\n]*')/g, '""');
-// A real "git push": git, its own options, then push ("git stash push" is local). Lesson, field report: "git stash push
-// <file>" was held as an outward push.
-const GIT_PUSH = /(?:^|[;&|(\n"']\s*)git(?:\s+-[cC]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+push\b[^\n;&|"']*/i;
-export const gitPush = c => GIT_PUSH.exec(runText(c));
 // The claim words, in English and Spanish (a Spanish answer is checked too).
 const CLAIMED = [
   { kind: 'push', cmd: gitRun('push'), says: /\bpushed\b|(?<!\p{L})(hice (el )?push|sub[ií] (los cambios|el c[oó]digo|la rama)|subid[oa]s? (a|al) (github|gitlab|remoto|origin))(?!\p{L})/iu },
@@ -3281,53 +3276,6 @@ export function briefFileNamesRules(prompt) {
     try { const st = fs.statSync(full); if (st.isFile() && st.size < 1024 * 1024 && /\bAGENTS\.md\b|\bCLAUDE\.md\b/.test(fs.readFileSync(full, 'utf8'))) return true; } catch { }
   }
   return false;
-}
-// Outward actions (rule 6) in a command: mail, messaging or web APIs written to (not localhost), GitHub issues, PRs,
-// comments and reviews, and any git push. Returns the matched text, or null.
-export function outwardCommand(cmd) {
-  // (text a heredoc writes into a file is not a command that runs. Lesson, trial round 12: a DECISIONS.md entry saying
-  // "git push to GitHub, then a workflow deploys" was blocked as a push)
-  const c = String(cmd || '').replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2\b/g, '');
-  // (the commands themselves, not what is only quoted: a feedback line naming "git stash push" was held as a push)
-  const run = runText(c);
-  const pats = [
-    /\bSend-MailMessage\b[^\n;&|]*/i, /\b(sendmail|mailx|msmtp|swaks)\b[^\n;&|]*/i, /(^|[\s;&|(])mail\s+-s\b[^\n;&|]*/i,
-    /\bgh\s+(issue|pr)\s+(create|comment|close|reopen|merge|edit|review|ready)\b[^\n;&|]*/i, /\bgh\s+api\b[^\n;&|]*(-X|--method)\s*(POST|PUT|PATCH|DELETE)\b[^\n;&|]*/i,
-    GIT_PUSH
-  ];
-  for (const p of pats) { const m = p.exec(run); if (m) return m[0].replace(/^[;&|(\n"'\s]+/, ''); }
-  // web writes: curl / wget / Invoke-WebRequest / Invoke-RestMethod sending data or a writing method, to a non-local host
-  for (const seg of c.split(/&&|\|\||[;\n]/)) {
-    if (!/\b(curl|wget|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|http)\b/i.test(seg)) continue;
-    const writes = /(-X|--request|-Method)\s*["']?(POST|PUT|PATCH|DELETE)\b|\s(-d|--data(-raw|-binary|-urlencode)?|-F|--form|--post-data|-Body)\b/i.test(seg);
-    const url = (/https?:\/\/[^\s"']+/i.exec(seg) || [])[0] || '';
-    if (writes && url && !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?\b/i.test(url)) return seg.trim();
-  }
-  return null;
-}
-// The files each "sed -i" in a command edits: its words after the flags, minus the script (the first word, unless -e
-// or -f gave it). Quotes are removed, so a quoted path is still a file and a quoted script is never one.
-export function sedInPlaceFiles(cmd) {
-  const out = [], segs = [[]];
-  // split on ; | & and newlines outside quotes only (a script like s|a|b| keeps its bars)
-  for (const m of String(cmd).matchAll(/"((?:\\.|[^"\\])*)"|'([^']*)'|(&&|\|\||[;|&\n])|([^\s;|&"']+)/g))
-    if (m[3]) segs.push([]); else segs[segs.length - 1].push(m[1] ?? m[2] ?? m[4]);
-  for (const words of segs) {
-    const i = words.indexOf('sed');
-    if (i < 0) continue;
-    const rest = words.slice(i + 1);
-    if (!rest.some(w => /^-[^-]*i|^--in-place/.test(w))) continue;
-    let script = false; const files = [];
-    for (let k = 0; k < rest.length; k++) {
-      const w = rest[k];
-      if (/^-(e|f)$|^--(expression|file)$/.test(w)) { script = true; k++; continue; }
-      if (/^-/.test(w)) continue;
-      if (!script) { script = true; continue; }
-      files.push(w);
-    }
-    out.push(...files);
-  }
-  return out;
 }
 
 // A session in the middle of a long turn says it is alive (at most once a minute), so another session's Stop knows
