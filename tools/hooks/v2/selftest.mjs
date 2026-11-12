@@ -4010,6 +4010,16 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const left = { v1: [proj('a', 'v1'), tr('a', 'v1'), path.join(tmp, 'anzuelo-frozen-c0')].map(p => fs.existsSync(p)), v3: [proj('a', 'v3'), tr('a', 'v3'), path.join(tmp, 'anzuelo-frozen-c2')].map(p => fs.existsSync(p)) };
   report(n.projects === 1 && n.transcripts === 1 && n.starters === 1 && left.v1.every(x => !x) && left.v3.every(Boolean) && fs.existsSync(other) && fs.existsSync(proj('a', 'v2')),
     'leaks: a new trial round removes older rounds\' temp projects, transcript folders and frozen copies, keeps the newest rounds\' and touches nothing else', JSON.stringify({ n, left }));
+  // (engine-made files in a project's .cache/: GUI review rounds older than 14 days go, the newest 10 stay; an upgrade
+  // keeps the newest 3 backups. Lesson (2026-11-12): one project kept 106 rounds and 2,619 backup files)
+  const gp = testDir('guiprune-'), gr = path.join(gp, '.cache', 'gui-review'); fs.mkdirSync(path.join(gp, 'tools'), { recursive: true });
+  fs.copyFileSync(path.join(repoRoot, 'packs/gui/files/tools/screenshot.mjs'), path.join(gp, 'tools', 'screenshot.mjs'));
+  const old = new Date(Date.now() - 20 * 864e5);
+  for (let i = 0; i < 14; i++) { const d = path.join(gr, `2026-10-${String(10 + i).padStart(2, '0')}T00-00-00`); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, 'a.png'), ''); if (i < 12) fs.utimesSync(d, old, old); }
+  spawnSync(process.execPath, [path.join(gp, 'tools', 'screenshot.mjs'), '--url', 'http://127.0.0.1:9/'], { encoding: 'utf8', timeout: 20000, env: { ...process.env, STARTER_CHROMIUM: path.join(gp, 'no-browser.exe') } });
+  const rounds = fs.readdirSync(gr).filter(r => r.startsWith('2026-10-')), np = fs.readFileSync(path.join(repoRoot, 'tools/new-project.mjs'), 'utf8');
+  report(rounds.length === 10 && rounds.includes('2026-10-23T00-00-00') && !rounds.includes('2026-10-10T00-00-00') && /'upgrade-backup', stamp\);\n[^\n]*\n\s*if \(!dry\)[^\n]*\.slice\(2\)/.test(np),
+    'leaks: a GUI review run removes rounds older than 14 days past the newest 10, and an upgrade keeps the newest 3 backups', JSON.stringify(rounds));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

@@ -40,6 +40,10 @@ const warn = m => { warns.push(m); console.log('WARN ' + m); };
 
 const round = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const outDir = path.join(ROOT, '.cache', 'gui-review', round);
+// (rounds older than 14 days go, the newest 10 always stay: no leaks that slow the computer. Lesson (2026-11-12): a
+// project kept 106 rounds, 7,623 files)
+{ const base = path.dirname(outDir); let all = []; try { all = fs.readdirSync(base).sort().reverse(); } catch { }
+  for (const r of all.slice(10)) { try { if (Date.now() - fs.statSync(path.join(base, r)).mtimeMs > 14 * 864e5) fs.rmSync(path.join(base, r), { recursive: true, force: true }); } catch { } } }
 fs.mkdirSync(outDir, { recursive: true });
 const PAGE = (opt('--name', 'page')).replace(/[^\w.-]+/g, '-'), name = PAGE;
 

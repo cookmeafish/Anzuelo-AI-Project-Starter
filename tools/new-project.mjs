@@ -477,6 +477,8 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const before = probe('before');
   const print0 = dry ? null : fingerprint(dest);
   const backupDir = path.join(dest, '.cache', 'upgrade-backup', stamp);
+  // (the newest 3 upgrades' backups stay, older ones go: no leaks. Lesson (2026-11-12): a project kept 2,619 backup files)
+  if (!dry) try { for (const s of fs.readdirSync(path.dirname(backupDir)).sort().reverse().slice(2)) fs.rmSync(path.join(path.dirname(backupDir), s), { recursive: true, force: true }); } catch { }
   const snapMissing = SNAP.filter(f => !fs.existsSync(path.join(dest, f)));
   // the core checks this project got from its last upgrade, read before the engine files are replaced (3-way merge below)
   const prevShipped = (() => { try { return JSON.parse(fs.readFileSync(path.join(dest, 'tools', 'hooks', 'engine-checks.json'), 'utf8')).requirements || null; } catch { return null; } })();
