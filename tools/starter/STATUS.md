@@ -15,7 +15,10 @@ Phase A, open v2 tests to 0, in batches of about 15 (one chain per batch, releas
   from use), manual path, agent-neutral
 - Release: chains pass but the speed limits can't be judged under the machine's load (a game); one chain for the newest
   head once the budget passes.
-- [ ] Batch 4 on: the single-test tail (codex, engine-cache, host-fixtures, own-scenarios-run, overlap...), by file
+- [ ] Batch 4 on: the single-test tail (codex, engine-cache, host-fixtures, own-scenarios-run, overlap...), by file.
+  2026-11-12: every open name is ported, fixed or triaged; the last fixes (stop rounds, other session, fit-checklist x3,
+  stop-budget x2, engine-cache, own-scenarios-run, host-fixtures) wait for the post-restart sweep to leave the list.
+  After the restart: v2 selftest (speed must pass), two chains with the 5-minute pool log, release, notices, prune.
 - A test that needs a user decision goes on one "for the user" list, sent to oversight; work goes on.
 - [ ] Field report (a project, 2026-11-10): a turn that changed no project file was held for 7 items because a peer
   session edited a project file mid-turn. Likely path: the end check's walk of files changed since the turn began (on a
