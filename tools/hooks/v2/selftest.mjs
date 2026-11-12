@@ -2048,6 +2048,25 @@ const { questionGaps } = await import('./lib.mjs');
   fs.rmSync(g, { recursive: true, force: true });
   report(took && keptText && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot, which also keeps the check files\' text as it was; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, keptText, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
+// (a snapshot that runs late, on a busy machine, after the agent already edited a runbook, leaves that runbook out: what
+// it would read is not the turn's start. Lesson (a release chain on a loaded machine, 2026-11-11): the late copy read as
+// the start, so the edit looked like "only the triggers changed" and the project's check on changed runbooks never held)
+{
+  const g = testDir('anzuelo-v2-latesnap-'), git = a => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { cwd: g, encoding: 'utf8' });
+  fs.mkdirSync(path.join(g, 'docs/playbooks'), { recursive: true }); fs.mkdirSync(path.join(g, 'docs/checks'), { recursive: true });
+  for (const f of ['early', 'late']) fs.writeFileSync(path.join(g, `docs/playbooks/${f}.md`), `# ${f}\ntriggers: ${f}\n1. Step.\n`);
+  fs.writeFileSync(path.join(g, 'docs/checks/always.md'), '# Always\n- one\n');
+  git(['init', '-q']); git(['add', '-A']); git(['commit', '-q', '-m', 'base']);
+  const at0 = new Date(Date.now() - 5000).toISOString(), minAgo = new Date(Date.now() - 60_000);
+  fs.writeFileSync(path.join(g, 'docs/playbooks/early.md'), '# early\ntriggers: early\n1. Step, changed before the turn.\n'); fs.utimesSync(path.join(g, 'docs/playbooks/early.md'), minAgo, minAgo);
+  fs.writeFileSync(path.join(g, 'docs/playbooks/late.md'), '# late\ntriggers: late\n1. Step, changed in the turn.\n');
+  fs.writeFileSync(path.join(g, 'docs/checks/always.md'), '# Always\n- one\n- two, in the turn\n');
+  const lib = JSON.stringify(new URL('./lib.mjs', import.meta.url).href);
+  spawnSync(process.execPath, ['--input-type=module', '-e', `const L = await import(${lib}); L.snapshotDirty('late', ${JSON.stringify(at0)});`], { cwd: g, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: g } });
+  let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(g, 'tools/hooks/state/v2-dirty.late.json'), 'utf8')); } catch { }
+  const got = { early: [!!j.files?.['docs/playbooks/early.md'], !!j.bodies?.['docs/playbooks/early.md']], late: [!!j.files?.['docs/playbooks/late.md'], !!j.bodies?.['docs/playbooks/late.md'], 'docs/checks/always.md' in (j.texts || {})] };
+  report(JSON.stringify(got) === '{"early":[true,true],"late":[false,false,false]}', 'end: the turn-start snapshot keeps a file changed before the turn and leaves out one already changed after the turn began (a late snapshot on a busy machine), so an early edit is still judged as this turn\'s', JSON.stringify(got));
+}
 
 // (claim-checked: in a session where helpers worked, "the other 21 menus passed" is held unless it says who judged them
 // or the turn's own run passed with nothing missing; a description of the check is not held)

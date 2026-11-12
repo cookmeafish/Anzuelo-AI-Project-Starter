@@ -2075,15 +2075,20 @@ export function snapshotDirty(sid, at0) {
   const git = fs.existsSync(path.join(ROOT, '.git'));
   const t0 = Date.now(), g = (a, input) => !git ? [] : String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());
   try { for (const f of fs.readdirSync(STATE()).filter(n => n.startsWith('v2-dirty.'))) if (t0 - fs.statSync(path.join(STATE(), f)).mtimeMs > 864e5) fs.rmSync(path.join(STATE(), f), { force: true }); } catch { }
-  const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile(); } catch { return false; } });
+  // (a file changed after the turn began is left out: this process runs a moment after the prompt, later on a busy
+  // machine, and by then the agent may have edited it, so what it reads is not the turn's start. Left out, the file is
+  // judged against the last commit, or as changed. Lesson (a release chain on a loaded machine, 2026-11-11): a runbook
+  // edited right after the prompt was read as its own start state, so "only the triggers changed" and no check held)
+  const start = Date.parse(at0 || '') || Infinity, before = f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs < start; } catch { return false; } };
+  const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile() && before(f); } catch { return false; } });
   const hashes = names.length && names.length <= 2000 ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
   // (the checks' own files as they were at the turn's start, each up to 256 KB: a change to them is judged against this
   // copy (REQ: hooks-tested). Oversight's design, 2026-11-09: the turn-start snapshot, no new hook)
   // (each changed runbook and skill without its triggers line, to tell a change of routing words alone: routingOnly)
   // (with no git, every runbook and skill: there is no last commit to compare with)
   const routed = git ? names.filter(f => ROUTED_DOC.test(f)) : (() => { try { return [...listAll('docs/playbooks').filter(n => n.endsWith('.md')).map(n => `docs/playbooks/${n}`), ...fs.readdirSync(at('skills')).map(n => `skills/${n}/SKILL.md`).filter(f => fs.existsSync(at(f)))]; } catch { return []; } })();
-  const bodies = Object.fromEntries(routed.slice(0, 400).map(f => { try { return [f, bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8'))]; } catch { return null; } }).filter(Boolean));
-  const texts = Object.fromEntries(SNAP_TEXTS.map(f => { try { const p = path.join(ROOT, f); return fs.statSync(p).size <= 256 << 10 ? [f, fs.readFileSync(p, 'utf8')] : null; } catch { return null; } }).filter(Boolean));
+  const bodies = Object.fromEntries(routed.filter(before).slice(0, 400).map(f => { try { return [f, bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8'))]; } catch { return null; } }).filter(Boolean));
+  const texts = Object.fromEntries(SNAP_TEXTS.filter(before).map(f => { try { const p = path.join(ROOT, f); return fs.statSync(p).size <= 256 << 10 ? [f, fs.readFileSync(p, 'utf8')] : null; } catch { return null; } }).filter(Boolean));
   if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))), texts, bodies })); } catch { }
 }
 export const loadDirty = (sid, at0) => { try { const j = JSON.parse(fs.readFileSync(dirtyFile(sid), 'utf8')); return j.at === at0 ? j : null; } catch { return null; } };
