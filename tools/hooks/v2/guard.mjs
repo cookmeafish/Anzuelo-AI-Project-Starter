@@ -17,6 +17,7 @@ import { AUTONOMY_WORDS } from '../near.mjs';
 import { cmdHead, shellParts, runText, gitPush, outwardCommand, sedInPlaceFiles } from '../shell.mjs';
 import { toolUses, loggedRuns, runsOf, inTimeOrder } from '../runs.mjs';
 import { lines as jsonlLines } from '../jsonl.mjs';
+import { turn } from '../transcript.mjs';
 import { makeProof } from '../proof.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
@@ -197,7 +198,7 @@ export function asksToChange(p, prompt) {
 export function pretoolHits(data, cfg) {
   // (the helpers still in the old engine, handed in by use() until each moves to a shared module: plan step 1b)
   const names = () => namesIn(ROOT);
-  const { turn, setupCompleteness, setupProblems } = H;
+  const { setupCompleteness, setupProblems } = H;
   const { heldSidestep, onPath, redirectedRun, inlineCodeOut, gateResult } = gates();
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
   // REQ: self-commands. Only the user adds a command the end check may run itself (selfcmds.mjs).

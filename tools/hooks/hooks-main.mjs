@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url';
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { withOwnTemp } from './testtmp.mjs';
 import { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
+import { SKIP, COMPACT, isToolResult, skipped, RELAYED_TURN, relayedTurn, promptOf, CODEX_SKIP, codexRows, TAIL_START, transcriptRows, helperRows, turn, selfSent, backgroundRunning, fallbackTurn, toolResultsList, toolResults, backgroundLaunches } from './transcript.mjs';
+export { codexRows, TAIL_START, transcriptRows, helperRows, turn, toolResultsList, toolResults, backgroundLaunches } from './transcript.mjs';
 import { suspendedItems, isSuspended } from './settings.mjs';
 export { suspendedItems, isSuspended } from './settings.mjs';
 import { briefFileNamesRules } from './state.mjs';
@@ -502,233 +504,14 @@ export const routeEsBuilt = () => routeEsU !== null;
 const ROUTE_ES_U = () => routeEsU ||= ROUTE_ES.map(([r, v]) => [new RegExp(r.source.replaceAll(String.raw`\b`, UB), 'giu'), v]);
 export const routeEnglish = text => ROUTE_ES_U().reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
 
-// ---------- transcript ----------
-// (the host's own notices about other sessions are no request either. Lesson: "[Cross-session idle notice] ... is idle
-// now" got a FIT hint, a closest runbook and a CHECKS line as if the user had typed it)
-const SKIP = ['Stop hook feedback', '<system-reminder>', '<task-notification>', 'Another Claude session', '<agent-message', '<cross-session-message',
-  '[Cross-session idle notice]', '[Cross-session delivery notice]', '[SYSTEM NOTIFICATION', 'Caveat: The messages below', 'Almost done:', 'Project rules not met yet', 'Stop hook error', '<local-command-stdout>', '<local-command-stderr>', '[Request interrupted'];
-const COMPACT = 'This session is being continued from a previous conversation';
-const isToolResult = c => Array.isArray(c) && c.some(x => x && x.type === 'tool_result');
-const skipped = t => SKIP.some(s => String(t).trimStart().startsWith(s));
-// (the host's notice that a peer went idle, or held a message, also arrives on its own. Lesson, dogfood: an idle
-// notice kept the earlier turn open, and the one-line reply to it was told to list that turn's changed files)
-const RELAYED_TURN = /^\s*(<cross-session-message\b|Another Claude session sent a message|\[Cross-session (idle|delivery) notice\])/;
-const relayedTurn = r => r?.type === 'user' && !isToolResult(r.message?.content) && RELAYED_TURN.test(textOf(r.message?.content)) && !HANDBACK.test(textOf(r.message?.content));
 
-// A real user prompt: text, or text + images. Not a tool result, notification, or meta entry.
-// (a message the session sent itself, a wakeup's prompt or a task notice, is no prompt either, however the host marks
-// it: it starts no turn, so the request keeps its start and the files changed before it still count. See cmdPrompt.)
-function promptOf(r) {
-  if (!r || r.type !== 'user' || r.isMeta || selfSent(r)) return null;
-  const c = r.message && r.message.content;
-  if (c == null || isToolResult(c)) return null;
-  const t = textOf(c);
-  if (typeof c === 'string' && !t.trim()) return null;
-  if (skipped(t)) return null;
-  return t;
-}
 
-// Codex writes its transcript as rollout lines ({ type: "response_item", payload: { type: "message" | "function_call"
-// | "function_call_output" | "custom_tool_call" | ... } }). They are turned into the same user / assistant / tool_use /
-// tool_result rows as Claude Code's, so every check that reads the tool history works for Codex too. Lesson: under Codex
-// no tool call was ever seen, so every "did it run the tests" check fell back to guessing.
-const CODEX_SKIP = /^\s*(<environment_context>|<user_instructions>|<permissions instructions>|# AGENTS\.md instructions)/;
-export function codexRows(rows) {
-  if (!rows.some(r => r && r.payload && /^(response_item|session_meta|turn_context|event_msg)$/.test(r.type))) return rows;
-  const out = [], shellCmd = a => { const c = a?.command ?? a?.cmd ?? a?.action?.command; return Array.isArray(c) ? (/^(ba|z)?sh$|powershell|pwsh|cmd$/i.test(c[0] || '') && c.length >= 3 ? c[c.length - 1] : c.join(' ')) : String(c ?? ''); };
-  for (const r of rows) {
-    const p = r?.payload, ts = r?.timestamp;
-    if (r?.type !== 'response_item' || !p) continue;
-    if (p.type === 'message') {
-      const text = (Array.isArray(p.content) ? p.content : []).map(c => c?.text || '').join('\n');
-      if (p.role === 'user' && !CODEX_SKIP.test(text)) out.push({ type: 'user', timestamp: ts, message: { content: [{ type: 'text', text }] } });
-      else if (p.role === 'assistant') out.push({ type: 'assistant', timestamp: ts, message: { content: [{ type: 'text', text }] } });
-    } else if (/^(function_call|custom_tool_call|local_shell_call)$/.test(p.type)) {
-      let args = p.arguments ?? p.input ?? p.action ?? {};
-      if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = { command: args }; } }
-      const n = String(p.name || (p.type === 'local_shell_call' ? 'shell' : ''));
-      const tool = /^(shell|exec_command|container\.exec|local_shell|shell_command)$/.test(n) ? { name: 'Bash', input: { command: shellCmd(args) } }
-        : n === 'apply_patch' ? { name: 'apply_patch', input: { command: typeof p.input === 'string' ? p.input : shellCmd(args) } }
-        : { name: n, input: args };
-      if (tool.name === 'Bash' && /^\s*apply_patch\b/.test(tool.input.command)) tool.name = 'apply_patch';
-      out.push({ type: 'assistant', timestamp: ts, message: { content: [{ type: 'tool_use', id: p.call_id || p.id, ...tool }] } });
-    } else if (/^(function_call_output|custom_tool_call_output|local_shell_call_output)$/.test(p.type)) {
-      let o = p.output, err = false;
-      if (typeof o === 'string') { try { const j = JSON.parse(o); if (j && typeof j === 'object' && 'output' in j) { err = Number(j.metadata?.exit_code) > 0; o = j.output; } } catch { } }
-      else if (o && typeof o === 'object') { err = Number(o.metadata?.exit_code ?? o.exit_code) > 0; o = o.output ?? o.content ?? JSON.stringify(o); }
-      out.push({ type: 'user', timestamp: ts, message: { content: [{ type: 'tool_result', tool_use_id: p.call_id || p.id, content: String(o ?? ''), ...(err ? { is_error: true } : {}) }] } });
-    }
-  }
-  return out;
-}
 
-// The transcript's last part, from a line start: a window that grows until it holds the current turn's prompt (or the
-// whole file). Lesson: a long session's 568 MB transcript was over the largest string a file can be read into, so every
-// hook silently lost the session's tool history; and every hook call parsed the whole file.
-export const TAIL_START = 48 << 20, TAIL_MAX = 384 << 20;
-export function transcriptRows(transcript, hasStart = rows => rows.some(r => promptOf(r) !== null || relayedTurn(r)), first = TAIL_START) {
-  let size = 0; try { size = fs.statSync(String(transcript)).size; } catch { return []; }
-  for (let win = Math.min(size, first); ; win = Math.min(size, win * 2, TAIL_MAX)) {
-    let text = '';
-    try {
-      const fd = fs.openSync(String(transcript), 'r');
-      try { const b = Buffer.alloc(win); fs.readSync(fd, b, 0, win, size - win); text = b.toString('utf8'); } finally { fs.closeSync(fd); }
-    } catch { return []; }
-    const lines = text.split(/\r?\n/);
-    if (win < size) lines.shift(); // (the first line may be cut)
-    const rows = [];
-    // (the host's copies of each request, "api-request-blob" and the like, repeat the calls and messages already logged:
-    // left out, so nothing is counted twice. Lesson, trial round 17: tool calls were counted double)
-    for (const line of lines) { if (!line.trim() || line.startsWith('{"type":"api-request')) continue; try { const r = JSON.parse(line); if (!/^api-request/.test(String(r.type))) rows.push(r); } catch { } }
-    if (win >= size || win >= TAIL_MAX || hasStart(rows)) return rows;
-  }
-}
-// REQ: helper-work-counts. The tool calls of helper agents started in this turn (their transcripts sit beside the
-// session's, in <session>/subagents/): what a helper read, ran or wrote counts as this turn's work for the checks; its
-// text is never the answer. Lesson: work done in a helper (a setup, item records) was asked for again at Stop, and the
-// way to keep the main conversation small, doing heavy steps in a helper, was punished.
-export function helperRows(transcript, since) {
-  const dir = path.join(String(transcript || '').replace(/\.jsonl$/, ''), 'subagents');
-  let files = []; try { files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')); } catch { return []; }
-  const out = [];
-  for (const f of files) {
-    // (a helper file not written to since the turn began is an earlier turn's: skipped unread. Lesson, a field report:
-    // reading every helper transcript made the Stop hook 28% slower and the pre-tool hook 45%)
-    try { if (since && fs.statSync(path.join(dir, f)).mtimeMs < since - 1000) continue; } catch { continue; }
-    let rows = []; try { rows = read(path.join(dir, f)).split(/\r?\n/).filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { continue; }
-    const t0 = Date.parse(rows.find(r => r.timestamp)?.timestamp || '') || 0;
-    if (!since || t0 < since - 1000) continue;
-    for (const r of rows) {
-      const c = r.message?.content;
-      if (!Array.isArray(c)) continue;
-      const keep = c.filter(x => x?.type === 'tool_use' || x?.type === 'tool_result');
-      if (keep.length) out.push({ ...r, message: { ...r.message, content: keep }, helper: true });
-    }
-  }
-  return out;
-}
-export function turn(transcript) {
-  let rows = codexRows(transcriptRows(transcript));
-  let start = -1, prompt = '';
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const p = promptOf(rows[i]);
-    if (p !== null) { start = i; prompt = p; break; }
-    // a message from another session that arrives on its own starts a turn of its own, with no request from the user.
-    // Lesson: a session driven by a peer's messages for hours kept one turn from the user's last prompt, so work long
-    // done (an upgrade's rebuilt page) was checked again on every reply.
-    if (relayedTurn(rows[i])) { start = i; prompt = ''; break; }
-  }
-  if (start < 0) return fallbackTurn();
-  // REQ: compaction-summary. Lesson: after a compaction the turn starts with the SUMMARY, which quotes old requests;
-  // treating it as this turn's request triggered demands nobody made. Only messages typed after it count.
-  if (rows[start].isCompactSummary || prompt.trimStart().startsWith(COMPACT)) prompt = '';
-  const entries = rows.slice(start + 1);
-  // REQ: queued-messages. Messages typed while the turn runs arrive as queued_command attachments; they are part of
-  // this request and every check applies to them. Lesson: a mid-turn "do the 10 sweeps" was silently dropped.
-  const queued = [];
-  for (const r of entries) {
-    const a = r.attachment;
-    if (r.type === 'attachment' && a && a.type === 'queued_command') {
-      const q = textOf(a.prompt ?? a.content ?? '');
-      if (q.trim() && !skipped(q)) queued.push(q);
-    }
-  }
-  const since = Date.parse(rows[start].timestamp || '') || null;
-  // every message the user typed in this session (for the verbatim check), excluding compaction summaries
-  const allPrompts = rows.map(r => (r.isCompactSummary ? null : promptOf(r))).filter(p => p && !p.trimStart().startsWith(COMPACT)).map(userText);
-  for (const r of rows) { const a = r.attachment; if (r.type === 'attachment' && a?.type === 'queued_command') { const q = textOf(a.prompt ?? a.content ?? ''); if (!skipped(q)) allPrompts.push(userText(q)); } }
-  // what the agent itself wrote into files this session (tool inputs): its own numbers are not made up (REQ: answer-traced)
-  // (a helper's writes are the session's own too, REQ helper-work-counts. Lesson, efficiency trials: figures a setup
-  // helper's script wrote were called made up, and the main session ran the script again with nothing changed)
-  // (helpers read on first use only: a hook that never asks pays nothing. Lesson, a field report: read on every hook run,
-  // they made the pre-tool hook 45% slower)
-  let helperCache = null;
-  const helpers = () => helperCache ??= helperRows(transcript, since);
-  const writesOf = rs => rs.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
-    .filter(x => x && x.type === 'tool_use' && /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(x.name))
-    .map(x => [x.input?.content, x.input?.new_string, x.input?.new_source, ...(x.input?.edits || []).map(e => e.new_string)].filter(s => typeof s === 'string').join('\n')).join('\n');
-  const mainWrites = writesOf(rows);
-  // every tool input of the session (what it downloaded, wrote or moved) and when it began: a file this session made
-  // and nothing cites yet is still its own to remove or rename (REQ: protect-originals)
-  const sessionTools = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
-    .filter(x => x && x.type === 'tool_use').map(x => JSON.stringify(x.input || {})).join('\n');
-  const sessionStart = Date.parse(rows.find(r => r.timestamp)?.timestamp || '') || since;
-  // a helper ran this session, also before a compaction (its summary lists the tools used before it)
-  const sessionHelpers = rows.some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use' && /^(Agent|Task)$/.test(c.name)))
-    || rows.some(r => r.type === 'user' && /<tools-used-before-summary>[^<]*\b(Agent|Task)\b/.test(textOf(r.message?.content ?? '')));
-  // what the session's tools returned, earlier turns too, read on first use (REQ: answer-traced): a figure read in an
-  // earlier turn is no more made up than one read now. Lesson, trial round 20: two right totals, read one turn earlier,
-  // were flagged, and the forced rewrite of the answer added a wrong claim no check looked at.
-  let readCache = null;
-  // a command started in the background in an earlier turn that ends in this one is this turn's run too: its launch
-  // and stub come first, so runsOf reads its output file once this turn's notice arrives. Lesson (this starter): a full
-  // self-test chain started one turn and passed the next was asked for again, and waived in 3 turns running.
-  return {
-    get carriedEntries() { return backgroundLaunches(rows.slice(0, start + 1)); },
-    get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, raw: [prompt, ...queued].join('\n'),
-    // (the agent's own last text before the request: the list a short typed "do it" approves)
-    get before() { for (let i = start - 1; i >= 0; i--) { const c = rows[i].message?.content; if (rows[i].type === 'assistant' && Array.isArray(c)) { const s = c.filter(b => b?.type === 'text').map(b => b.text).join('\n'); if (s.trim()) return s; } } return ''; }, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), parts: [prompt, ...queued].map(userText).filter(s => s.trim()), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
-    get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart, sessionHelpers };
-}
 
 // (watchersArmed, REQ: watcher-left: tools/hooks/wakeups.mjs, shared with engine v2)
 
-// A message the session sent itself (a wakeup's or a cron job's prompt) or a background task's notice: not the user's.
-// Claude Code marks them (isMeta, turnOrigin "scheduled", promptSource "system", origin.kind "task-notification").
-const selfSent = r => !!r && r.type === 'user' && !isToolResult(r.message?.content) &&
-  (r.isMeta || r.turnOrigin === 'scheduled' || r.promptSource === 'system' || r.origin?.kind === 'task-notification');
 
-// Background helpers (Agent/Task with run_in_background) launched in this or an earlier turn that have not reported
-// back yet. Their file changes are theirs, not this turn's. A launch is done once a task notification names its id
-// (or, when no id was printed, once any task notification arrived after it).
-function backgroundRunning(rows) {
-  const launches = [], results = new Map(), notes = [], stops = [], shells = [], resumes = [];
-  rows.forEach((r, i) => {
-    const c = r.message?.content;
-    // helpers and background commands alike (Lesson: checks fired on files a still-running background sweep made)
-    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name)) (x.input?.run_in_background ? launches : shells).push({ id: x.id, i, helper: /^(Agent|Task)$/.test(x.name) });
-    // a message that resumes a finished helper ("Resuming agent ...") starts it again: it runs until its next notice.
-    // Lesson: a turn waiting on a reviewer it had resumed spent all 3 Stop rounds on steps that needed the review's verdict.
-    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && x.name === 'SendMessage') resumes.push({ id: x.id, i });
-    if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') { const tx = textOf(x.content); results.set(x.tool_use_id, tx); stops.push({ i, t: tx, id: x.tool_use_id }); }
-    const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
-    if (/<task-notification>/.test(t)) notes.push({ i, t });
-  });
-  // A launch counts only when its result says it started (a refused launch never runs); it is done when a later notice
-  // names it, or when it was stopped or killed (those send no notice). Lesson from a project's own hook: a killed job
-  // was waited on forever, and a refused launch was counted as running.
-  // A foreground command that hit its timeout is moved to the background ("... was moved to the background (ID: x)"):
-  // a launch too. Lesson: Stop asked for steps while such a command still ran, since only run_in_background counted.
-  // (a helper the host runs in the background by itself says so in its result: "Async agent launched ... agentId: x".
-  // Lesson, a field report: three helpers launched that way were not waited on, and Stop asked twice for their merged
-  // results while they still ran)
-  // (the helper line counts only in a helper's own result: a shell command's output may quote it. Lesson, dogfood: a read
-  // of a test file that printed such a line counted as a run still going, and every later check run got a false heads-up)
-  for (const s of shells) if (MOVED_BG.test(results.get(s.id) || '') || (s.helper && /^\s*async agent launched\b/i.test(results.get(s.id) || ''))) launches.push(s);
-  for (const s of resumes) { const m = /\bresumedAgentId["']?\s*[:=]\s*["']?([\w-]{4,})/i.exec(results.get(s.id) || ''); if (m) launches.push({ ...s, agentId: m[1] }); }
-  return launches.filter(l => {
-    if (l.agentId) return !notes.some(n => n.i > l.i && n.t.includes(l.agentId)) && !stops.some(s => s.i > l.i && s.t.includes(l.agentId) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t));
-    const res = results.get(l.id) || '';
-    if (results.has(l.id) && !/launched|running in background|in the background|moved to the background|async agent|agentId/i.test(res)) return false;
-    const ids = [...res.matchAll(/\b(?:agent_?id|task_?id|ID)\s*[:=]\s*["']?([\w-]{4,})/gi)].map(m => m[1]);
-    const later = notes.filter(n => n.i > l.i);
-    // (the launch's own result is not a stop: a command moved to the background says it "will be stopped" after a time
-    // limit. Lesson: that sentence made a running sweep count as stopped, so Stop asked for its results while it ran.)
-    if (ids.length && stops.some(s => s.i > l.i && s.id !== l.id && ids.some(id => s.t.includes(id)) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t))) return false;
-    return ids.length ? !later.some(n => ids.some(id => n.t.includes(id))) : !later.length;
-  }).map(l => l.id);
-}
 
-// REQ: agent-neutral. Agents whose transcript can't be read (or that have no hooks) still get checked: the prompt hook or
-// "hooks.mjs begin" records the request and its start time; tool history is then unknown, so checks that need it
-// fall back to evidence in the files and the answer, or run the project's own validators themselves.
-function fallbackTurn() {
-  // bench: a turn that starts now and changed nothing, so it times an ordinary turn whatever the real session is doing
-  if (envOf('BENCH')) return { since: Date.now(), entries: [], prompt: 'what does the brief say', queued: [], toolsKnown: false, allPrompts: ['what does the brief say'] };
-  const s = readJSON(stateFile('turn.json'), null);
-  if (!s || !s.at) return null;
-  return { since: Date.parse(s.at), entries: [], prompt: userText(s.prompt), queued: [], toolsKnown: false, allPrompts: [s.prompt || ''], bgRunning: [], sessionWrites: '' };
-}
 // What existed when the request arrived, so "new this turn" never depends on file creation times. Lesson: editors that
 // save by writing a fresh file made edited runbooks look new.
 // A message typed mid-turn adds to the request but keeps the turn's start (and what existed then).
@@ -951,15 +734,6 @@ export function outsideReads(entries, cfg = config()) {
   }
   return out.join('\n');
 }
-export function toolResultsList(entries) {
-  const out = [];
-  for (const r of entries) {
-    const c = r.type === 'user' && r.message && r.message.content;
-    if (Array.isArray(c)) for (const x of c) if (x && x.type === 'tool_result') out.push(textOf(x.content));
-  }
-  return out;
-}
-export const toolResults = entries => toolResultsList(entries).join('\n');
 
 // The answer the user will read: text after the last tool call. Lesson: a Stop-hook block starts a NEW answer, so
 // text from blocked drafts must not satisfy (or fail) the checks of the corrected answer.
@@ -1153,19 +927,6 @@ export function logRun(cmd, out, error) {
 // A real run of a node script (node, then the script's path): a grep or an editor opening the file is not a run of it.
 // Lesson: "grep -n ... tools/hooks/selfcheck.mjs" was taken as the last self-test run, which "did not print ALL PASS".
 export const runsScript = (cmd, name) => new RegExp(`(^|[\\s;&|(])node(\\.exe)?["']?\\s+(--\\S+\\s+)*["']?[^\\s"';&|]*${esc(name)}\\b`).test(cmdHead(cmd));
-// The background command launches (and their stubs) among rows before a turn, for carriedRuns.
-export function backgroundLaunches(rowsBefore) {
-  const bg = new Set(), keep = [];
-  for (const r of rowsBefore) {
-    const c = Array.isArray(r.message?.content) ? r.message.content : [];
-    const launches = c.filter(x => r.type === 'assistant' && x?.type === 'tool_use' && x.input?.run_in_background && typeof x.input?.command === 'string');
-    const stubs = c.filter(x => r.type === 'user' && x?.type === 'tool_result' && bg.has(x.tool_use_id));
-    launches.forEach(x => bg.add(x.id));
-    if (launches.length) keep.push({ ...r, message: { ...r.message, content: launches } });
-    if (stubs.length) keep.push({ ...r, message: { ...r.message, content: stubs } });
-  }
-  return keep;
-}
 // This turn's runs, after the background ones started in an earlier turn whose notice came in this one (a carried
 // run whose notice has not come, or came in an earlier turn, is left out).
 export function carriedRuns(t, entries) {
