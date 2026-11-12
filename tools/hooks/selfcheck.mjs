@@ -94,6 +94,13 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-
 const IS_STARTER = fs.existsSync(path.join(ROOT, '.starter-template'));
 let FIX_BASE = null, HOST_BASE = null;
 let COPIES = 0, BASES = 0; // (whole fixture copies and bases this process made: SELFCHECK_COPIES_FILE, see copyProject)
+// (the folders left out of each base and kept beside it, by base: buildBase; a test that needs them takes them back)
+const SLIM_DEFAULT = ['.claude/skills', '.agents/skills'], EXTRA = new Map();
+function withSkillCopies(dir, host = false) {
+  const extra = EXTRA.get(base(host)); if (!extra) return dir;
+  for (const d of SLIM_DEFAULT) if (fs.existsSync(path.join(extra, d)) && !fs.existsSync(path.join(dir, d))) fs.cpSync(path.join(extra, d), path.join(dir, d), { recursive: true, preserveTimestamps: true });
+  return dir;
+}
 // The starter a test copy links to: this folder in the starter, the linked starter (or the kept .starter) in a project.
 // Lesson: run in a project, a test linked its copy to the project itself, so the copy took the project's own config
 // (its own Stop command, whose script the base had removed) and every smoke scenario blocked on that command.
@@ -234,12 +241,17 @@ function buildBase(host) {
   // the starter's proof is a result, not test material: the test projects made from the base reuse nothing unless a
   // test writes one on purpose (engine-proof)
   fs.rmSync(path.join(BASE, PROOF_FILE), { force: true });
-  // (experiment, SELFCHECK_SLIM=<folders, comma-separated>: those folders left out of the base, to measure what each costs
-  // and which tests need it. Not used by default)
-  for (const d of String(process.env.SELFCHECK_SLIM || '').split(',').map(s => s.trim()).filter(s => s && !s.includes('..'))) fs.rmSync(path.join(BASE, d), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  // (the generated skill copies are left out of the base and kept beside it: the hooks write them again when a test needs
+  // them, and a test that needs them from the start takes them back with withSkillCopies. Measured (oversight's pool
+  // hunt, 2026-11-12): a full run held +456 MB of kernel pool with them in every copy, +51 MB without, in the same time.
+  // SELFCHECK_FULL_BASE=1 keeps them in; SELFCHECK_SLIM=<folders> leaves out others, for measuring)
+  const slim = process.env.SELFCHECK_FULL_BASE ? [] : String(process.env.SELFCHECK_SLIM ?? SLIM_DEFAULT.join(',')).split(',').map(s => s.trim()).filter(s => s && !s.includes('..'));
+  const extra = testDir('starter-extra-');
+  for (const d of slim) if (fs.existsSync(path.join(BASE, d))) { fs.mkdirSync(path.dirname(path.join(extra, d)), { recursive: true }); fs.renameSync(path.join(BASE, d), path.join(extra, d)); }
+  EXTRA.set(BASE, extra);
   const old = (Date.now() - 3600_000) / 1000;
   const age = d => { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); const s = fs.statSync(p); if (s.isDirectory()) age(p); else fs.utimesSync(p, old, old); } };
-  age(BASE);
+  age(BASE); age(extra);
   process.on('exit', () => { try { fs.rmSync(BASE, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } });
   return BASE;
 }
@@ -9195,7 +9207,8 @@ if (mineB()) { // skill-mirror: a mirror at another depth re-points relative lin
 
 if (mineB()) { // engine state: a question turn writes only under tools/hooks/state/, so a project's own hooks that skip that
   // folder see no work from the engine. Lesson: an adopted project's own hooks took the engine's records for the turn's work.
-  const dir = copyProject();
+  // (a project as it is in use, its generated skill copies in place: left out of the base, they would be written now)
+  const dir = withSkillCopies(copyProject());
   try {
     const files = () => { const out = {}; const walk = d => { for (const e of fs.readdirSync(path.join(dir, d), { withFileTypes: true })) { const p = d ? `${d}/${e.name}` : e.name;
       if (/^(\.memtest|\.git)$/.test(p)) continue; if (e.isDirectory()) walk(p); else { const s = fs.statSync(path.join(dir, p)); out[p] = `${s.size}:${s.mtimeMs}`; } } }; walk(''); return out; };

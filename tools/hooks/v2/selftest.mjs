@@ -3659,6 +3659,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // Windows leaves kernel pool behind. Lesson (oversight, 2026-11-11): each release chain left 1.5 GB more paged pool)
     const copies = (() => { try { return fs.readFileSync(copiesF, 'utf8').split('\n').filter(Boolean).reduce((a, l) => a + Number(l.split('\t').pop()), 0); } catch { return -1; } })();
     const ran = Number(/\((\d+) passed/.exec(run.stdout || '')?.[1] || 0);
+    // (and each copy leaves out the generated skill copies, kept beside the base: measured 2026-11-12, a full run held
+    // +456 MB of kernel pool with them in every copy, +51 MB without, in the same time)
+    const sc = (() => { try { return fs.readFileSync(path.join(repoT, 'tools/hooks/selfcheck.mjs'), 'utf8'); } catch { return ''; } })();
+    const slimOk = /const SLIM_DEFAULT = \['\.claude\/skills', '\.agents\/skills'\]/.test(sc) && /const slim = process\.env\.SELFCHECK_FULL_BASE \? \[\] : [^\n]*SLIM_DEFAULT/.test(sc) && /fs\.renameSync\(path\.join\(BASE, d\), path\.join\(extra, d\)\)/.test(sc);
+    report(slimOk, 'temp: the old suite\'s fixture base leaves out the generated skill copies by default (kept beside it for the tests that need them)', String(slimOk));
     report(copies >= 1 && ran >= 20 && copies * 3 <= ran, 'temp: the old suite\'s scenarios share a few fixture copies (rested between uses), not a whole copy each', JSON.stringify({ copies, ran }));
     // (a project's own tests, any language, run through "starter.mjs test-run": their temp folder is one of their own
     // under anzuelo-tests/projects/<name>, removed when they end; the exit code is kept; what they still put in the real
