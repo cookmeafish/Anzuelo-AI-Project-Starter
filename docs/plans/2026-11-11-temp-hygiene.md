@@ -63,8 +63,9 @@ About 15,000 folders in the temp folder came from projects' own suites and the b
       `<temp>/anzuelo-tests/projects/<name>`, removed when they end; what they still left is listed.
 - [x] The commands the engine runs for a project (declared self-tests, check commands, both engines) get a temp folder
       of their own (`withOwnTemp`).
-- [ ] Released; a notice asks each project session to run its suite through test-run and prove no new temp entries.
-      The existing folders stay (the user decides).
+- [x] Released (7bc9bc7); the notice asks each project session to run its suite through test-run --strict until it
+      leaves nothing, make that the way its tests run, and report. The existing folders stay (the user decides).
+- [ ] Each project's report: its test command and test-run line.
 
 ## Task 6: a smaller fixture base
 Done when: two chains back to back leave the paged pool within about 300 MB of where it started.
