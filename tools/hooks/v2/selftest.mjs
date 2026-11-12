@@ -1343,7 +1343,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           const r = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: c, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: c } });
           let o = {}; try { o = JSON.parse(r.stdout.trim().split('\n').pop()); } catch { }
           report(o.old === true && o.typ?.length === 1 && /Invoices to export/.test(o.typ[0]),
-            'setup: each typical request must route through v2\'s router; one only the old router\'s key-word match routed is listed (setup.mjs)', JSON.stringify(o) + String(r.stderr).split('\n').find(l => /Error/.test(l)) || '');
+            'setup: each typical request must route through v2\'s router; one only the old router\'s key-word match routed is listed (setup.mjs)', `${JSON.stringify(o)} ${String(r.stderr).split('\n').find(l => /Error/.test(l)) || ''}`);
           fs.rmSync(c, { recursive: true, force: true }); }
       }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
