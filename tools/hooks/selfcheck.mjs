@@ -5299,7 +5299,12 @@ const SMOKE = (() => {
 // two or three times, and each run redid the whole smoke set for a change to one of the project's own scenarios)
 const SMOKE_DONE = REUSE && !ALL_ASKED && STAMP ? findPass(`smoke:${STAMP}`) : null;
 let reusedCount = 0;
-if (REUSE) for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => !isEngine(s) || (SMOKE.has(s) && !SMOKE_DONE)); reusedCount += list.length - keep.length; list.length = 0; list.push(...keep); }
+// (under v2, SELFCHECK_SKIP_RETIRED names a list of old-suite tests retired for v2 (v2-retired.txt, each with its triage
+// row): the smoke set leaves those out, as v2 does not do what they test. Set only by a test of this file's own pass
+// cache, never by the v2 sweep, which must still see them fail. Lesson (oversight, 2026-11-12): running the cache test
+// under the old engine proved nothing about v2)
+const SKIP_RETIRED = process.env.STARTER_ENGINE === 'v2' && process.env.SELFCHECK_SKIP_RETIRED ? (() => { try { return new Set(fs.readFileSync(process.env.SELFCHECK_SKIP_RETIRED, 'utf8').split(/\r?\n/).filter(l => !l.startsWith('#')).map(l => l.split('\t')[0].trim()).filter(Boolean)); } catch { return new Set(); } })() : new Set();
+if (REUSE) for (const [kind, list] of [['stop', STOP], ['pretool', PRETOOL], ['prompt', PROMPT]]) { const keep = list.filter(s => !isEngine(s) || (SMOKE.has(s) && !SMOKE_DONE && !SKIP_RETIRED.has(`${kind}: ${s.name}`))); reusedCount += list.length - keep.length; list.length = 0; list.push(...keep); }
 if (!HELPER) console.log(TAGS ? `selfcheck mode: tags (${TAGS.join(', ')})${REUSE ? `, engine results reused because ${MODE_WHY}: the project's own scenarios and the engine's smoke scenarios run` : ''}` : IS_STARTER ? 'selfcheck mode: full (the starter always runs every test)'
   : REUSE ? `selfcheck mode: engine results reused, because ${MODE_WHY}. Running the project's own scenarios and checks${SMOKE_DONE ? ` (the ${SMOKE.size} engine smoke scenarios passed earlier today with this engine)` : ` and ${SMOKE.size} engine smoke scenarios`}. node tools/hooks/selfcheck.mjs --full runs everything.`
   : `selfcheck mode: full, because ${MODE_WHY || 'this run is not a whole run'}.${STAMP ? ' When every engine test passes, that is recorded, and the next run with this engine reuses it.' : ''}`);
@@ -6274,10 +6279,10 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
     // (without the starter's proof: this test is about passes recorded on this machine; engine-proof tests the proof)
     fs.rmSync(path.join(dir, PROOF_FILE), { force: true });
     write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }) });
-    // (the nested runs use the old engine: this test is about the pass cache, which is the same code under either engine,
-    // and under v2 their smoke set would hold old scenarios retired for v2 (tools/starter/reviews/v2-retired.txt). Lesson
-    // (the v2 sweep): a retired route-precision scenario failed the nested run, so the cache was never recorded)
-    const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running'), STARTER_ENGINE: 'v1' };
+    // (under v2 the nested runs stay on v2, and their smoke set leaves out the old scenarios retired for v2
+    // (tools/starter/reviews/v2-retired.txt); any other failure still fails. Lesson (the v2 sweep): a retired
+    // route-precision scenario failed the nested run, so no pass was recorded)
+    const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running'), SELFCHECK_SKIP_RETIRED: path.join(ROOT, 'tools/starter/reviews/v2-retired.txt') };
     const mode = (...a) => { const r = nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--which-mode', ...a], env); return (/^selfcheck mode: .*$/m.exec(r.stdout) || [`(no mode line) ${r.stdout.slice(-300)} ${r.stderr.slice(-300)}`])[0]; };
     const first = mode();
     const manifestNow = () => { try { return JSON.parse(nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--fixture-manifest'], env).stdout); } catch { return { files: {} }; } };
