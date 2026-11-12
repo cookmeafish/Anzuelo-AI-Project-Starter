@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url';
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { withOwnTemp } from './testtmp.mjs';
 import { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
+import { MOVED_BG, deniedIds, toolUses, RUN_LOG, loggedRuns, runsOf, inTimeOrder } from './runs.mjs';
+export { toolUses, loggedRuns, runsOf, inTimeOrder } from './runs.mjs';
 export { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
 import { STATE, absw, rel, rulesText, envOf, SID, DRY_STATE, NO_TRANSCRIPT, setSession, transcriptState, PER_SESSION, stateName, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
 export { absw, rel, rulesText, envOf, transcriptState, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
@@ -704,7 +706,6 @@ const selfSent = r => !!r && r.type === 'user' && !isToolResult(r.message?.conte
 // Background helpers (Agent/Task with run_in_background) launched in this or an earlier turn that have not reported
 // back yet. Their file changes are theirs, not this turn's. A launch is done once a task notification names its id
 // (or, when no id was printed, once any task notification arrived after it).
-const MOVED_BG = /moved to the background \(ID:?\s*([\w-]+)\)/i;
 function backgroundRunning(rows) {
   const launches = [], results = new Map(), notes = [], stops = [], shells = [], resumes = [];
   rows.forEach((r, i) => {
@@ -902,20 +903,6 @@ function committedBefore(since) {
   return (committedBefore.set = set);
 }
 
-// tool_use ids a hook or the user denied: they never ran, so they count neither as work done nor as a breach.
-function deniedIds(entries) {
-  const ids = new Set();
-  for (const r of entries) {
-    const c = r.type === 'user' && r.message && r.message.content;
-    if (!Array.isArray(c)) continue;
-    for (const x of c) {
-      if (x && x.type === 'tool_result' && x.is_error &&
-          /hook (error|blocked)|denied|permission|doesn'?t want to proceed|rejected|REQ: /i.test(textOf(x.content)))
-        ids.add(x.tool_use_id);
-    }
-  }
-  return ids;
-}
 
 // Actions whose success an answer may claim, with the words of the claim. Each attempt's result is read from the
 // transcript: denied by a hook or the user, or failed.
@@ -967,15 +954,6 @@ export const gitHolds = (paths = []) => sharedGitHolds(paths, GIT_IO);
 const namedPaths = s => sharedNamedPaths(s, GIT_IO);
 export const gitClaimContradicted = answer => sharedGitClaim(answer, GIT_IO);
 // (REQ: setup-gate (permissions), grant-decided: grantProblems in tools/hooks/grant.mjs, shared with engine v2)
-export function toolUses(entries) {
-  const skip = deniedIds(entries), out = [];
-  for (const r of entries) {
-    const c = r.type === 'assistant' && r.message && r.message.content;
-    if (!Array.isArray(c)) continue;
-    for (const x of c) if (x && x.type === 'tool_use' && !skip.has(x.id)) out.push({ name: x.name, input: x.input || {} });
-  }
-  return out;
-}
 
 // The results of reading outside material this turn: files outside the project's own rules and engine, web pages, and
 // commands other than the engine's own tools (the starter's docs quote attack phrases as examples).
@@ -1188,12 +1166,7 @@ function readsOf(uses) {
   return out;
 }
 
-// Each shell run with its output, in order: lets checks require that a validator PASSED, not just that it ran.
-// The run log: commands with their results, for agents whose tool history can't be read. The audit and the self-tests
-// record themselves; any other command is recorded by running it through "hooks.mjs run <command>". Checks then judge
-// real runs instead of running the validators themselves. Lesson: without a transcript, the Stop hook ran the whole
-// self-test and audit itself, and an agent waited minutes on every stop.
-const RUN_LOG = 'runs.jsonl';
+// (the run log, RUN_LOG in runs.mjs: a command and its result, written for agents whose tool history can't be read)
 export function logRun(cmd, out, error) {
   try {
     fs.mkdirSync(STATE, { recursive: true });
@@ -1201,10 +1174,6 @@ export function logRun(cmd, out, error) {
     let old = ''; try { old = fs.readFileSync(f, 'utf8'); } catch { }
     fs.writeFileSync(f, (old.length > 256 * 1024 ? old.split('\n').slice(-200).join('\n') : old) + line);
   } catch { }
-}
-export function loggedRuns(since) {
-  let rows = []; try { rows = fs.readFileSync(path.join(STATE, RUN_LOG), 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { }
-  return rows.filter(r => Date.parse(r.at) >= (since || 0)).map(r => ({ cmd: r.cmd, out: r.out, error: r.error }));
 }
 // A real run of a node script (node, then the script's path): a grep or an editor opening the file is not a run of it.
 // Lesson: "grep -n ... tools/hooks/selfcheck.mjs" was taken as the last self-test run, which "did not print ALL PASS".
@@ -1232,41 +1201,6 @@ export function carriedRuns(t, entries) {
 }
 // The commands the main session ran this turn (not its helpers'), with their results; none without tool history.
 const toolsKnownRuns = x => x.toolsKnown && Array.isArray(x.entries) ? carriedRuns(x, x.entries) : [];
-export function runsOf(entries) {
-  const byId = new Map(), out = [];
-  // the files edited before each run (editedBefore), so a check can tell a failure the turn found from one it caused
-  const edited = [];
-  for (const r of entries) {
-    const c = r.message && r.message.content;
-    if (!Array.isArray(c)) continue;
-    for (const x of c) {
-      if (r.type === 'assistant' && x && x.type === 'tool_use' && /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(x.name)) edited.push(rel(x.input?.file_path || x.input?.notebook_path || ''));
-      if (r.type === 'assistant' && x && x.type === 'tool_use' && typeof x.input?.command === 'string') {
-        const run = { cmd: x.input.command, out: '', error: false, editedBefore: edited.slice(), pending: true }; byId.set(x.id, run); out.push(run);
-      } else if (r.type === 'user' && x && x.type === 'tool_result' && byId.has(x.tool_use_id)) {
-        const run = byId.get(x.tool_use_id); run.out = textOf(x.content); run.error = !!x.is_error; run.pending = false;
-      }
-    }
-  }
-  // A command started in the background answers with a stub ("running in background with ID ... Output is being
-  // written to: <file>"): its result is that file, and its exit code is in the later task notification.
-  // Lesson: a passing background run never met its check, because the stub was read as the run's output.
-  // (the notice may come as a queued attachment instead of a user message. Lesson: a passing run_in_background gate was
-  // read as empty output, because its notice was a queued_command attachment)
-  const notes = entries.map(r => r.type === 'user' ? textOf(r.message?.content) : r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : '').join('\n');
-  for (const run of out) {
-    // (a foreground command past its timeout says "moved to the background (ID: x)": the same, once it ends)
-    const id = (/running in background with ID:?\s*([\w-]+)/i.exec(run.out) || MOVED_BG.exec(run.out))?.[1];
-    if (!id) continue;
-    const file = /written to:?\s*(\S+?\.output)\b/i.exec(run.out)?.[1];
-    const note = new RegExp(`<task-id>${esc(id)}</task-id>[\\s\\S]*?</task-notification>`).exec(notes)?.[0] || '';
-    if (!note) { run.out = ''; run.pending = true; continue; }
-    try { const t = fs.readFileSync(file, 'utf8'); run.out = t.length > 200000 ? t.slice(-200000) : t; } catch { run.out = ''; }
-    const code = /exit code (\d+)/i.exec(note)?.[1];
-    run.error = /<status>(failed|killed|error)/i.test(note) || (code != null && code !== '0');
-  }
-  return out;
-}
 
 
 // REQ: turn-notes. The lines the checks read but the user can't act on (Playbook:, Skill:, Worth it:, Proven:,
@@ -1285,14 +1219,6 @@ export function turnNotes(since) {
     if (since && st.mtimeMs < since - 1000) return ''; // an earlier turn's notes
     return read(abs(NOTES_FILE));
   } catch { return ''; }
-}
-// Rows of several transcripts in the order they happened (a row with no time keeps the time of the row before it).
-// Lesson (a field report): helpers' rows were put after the session's own, so a helper's early failing test run was
-// "the last run", and the session's later passing runs never met the check for 3 rounds.
-export function inTimeOrder(...lists) {
-  const rows = [];
-  for (const list of lists) { let at = ''; for (const r of list || []) { at = (typeof r?.timestamp === 'string' && r.timestamp) || at; rows.push({ r, at, i: rows.length }); } }
-  return rows.sort((a, b) => (a.at && b.at && a.at !== b.at ? (a.at < b.at ? -1 : 1) : a.i - b.i)).map(x => x.r);
 }
 export function context(t, cfg, answerOverride) {
   // (helper agents' tool calls count as this turn's work, REQ helper-work-counts; the answer stays the main session's)
