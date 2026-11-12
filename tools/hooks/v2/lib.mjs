@@ -9,7 +9,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { roots, resolver } from '../paths.mjs';
-import { withOwnTemp } from '../testtmp.mjs';
+import { withOwnTemp, recordRunTime } from '../testtmp.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
 import { writingProblems, plainWritingMsg } from '../writing.mjs';
@@ -1160,8 +1160,8 @@ const redirectedTo = cmd => [...String(cmd || '').matchAll(/(?:\d?>>?|\|\s*tee(?
 const selfRuns = new WeakMap();
 function selfRunOnce(acts, cmd) {
   const m = selfRuns.get(acts) || new Map(); selfRuns.set(acts, m);
-  // (its temp folder is one of its own, removed when it ends: a project's tests leave nothing in the real temp folder)
-  if (!m.has(cmd)) { const r = withOwnTemp(env => spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24, env: { ...process.env, ...env } }), ROOT); m.set(cmd, { out: `${r.stdout || ''}\n${r.stderr || ''}`, status: r.status }); }
+  // (its temp folder is one of its own, removed when it ends; its time is kept, so the upgrade's check skips slow ones)
+  if (!m.has(cmd)) { const t0 = Date.now(), r = withOwnTemp(env => spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24, env: { ...process.env, ...env } }), ROOT); recordRunTime(ROOT, cmd, Date.now() - t0); m.set(cmd, { out: `${r.stdout || ''}\n${r.stderr || ''}`, status: r.status }); }
   return m.get(cmd);
 }
 // The commands the user approved for the end check to run itself (tools/hooks/config.json "selfCommands": selfcmds.mjs).

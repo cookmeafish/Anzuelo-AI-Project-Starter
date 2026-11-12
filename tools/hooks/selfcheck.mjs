@@ -234,6 +234,9 @@ function buildBase(host) {
   // the starter's proof is a result, not test material: the test projects made from the base reuse nothing unless a
   // test writes one on purpose (engine-proof)
   fs.rmSync(path.join(BASE, PROOF_FILE), { force: true });
+  // (experiment, SELFCHECK_SLIM=<folders, comma-separated>: those folders left out of the base, to measure what each costs
+  // and which tests need it. Not used by default)
+  for (const d of String(process.env.SELFCHECK_SLIM || '').split(',').map(s => s.trim()).filter(s => s && !s.includes('..'))) fs.rmSync(path.join(BASE, d), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   const old = (Date.now() - 3600_000) / 1000;
   const age = d => { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); const s = fs.statSync(p); if (s.isDirectory()) age(p); else fs.utimesSync(p, old, old); } };
   age(BASE);

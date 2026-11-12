@@ -29,6 +29,7 @@ import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks
 import { wire } from './hooks/wire.mjs';
 import { dataLikeDirs } from './hooks/datadirs.mjs';
 import { carryRunEach, carryLine } from './hooks/selfcmds.mjs';
+import { startTempHint } from './hooks/testtmp.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').trim() || 'the newest starter';
@@ -825,6 +826,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // Lesson: every upgrade left "self-tests: ?" for the agent to run and record by hand.
   // (--no-selftest leaves it to the agent: the starter's own tests of the upgrade itself use it, to stay quick)
   if (!process.argv.includes('--no-selftest')) phase('the self-tests');
+  // (the project's own tests that leave temp folders: checked alongside the self-tests, in its own process, cheap commands
+  // only; collected after them and stopped if not done, so the upgrade never waits on it)
+  const hintRun = process.argv.includes('--no-selftest') ? { collect: () => '' } : startTempHint(dest);
   const st = process.argv.includes('--no-selftest') ? { status: 1, stdout: '' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000, env: { ...process.env, STARTER_NO_TIMING_WAIT: '1' } });
   const stLine = ((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0];
   const stPassed = st.status === 0 && /ALL PASS/.test(stLine);
@@ -834,6 +838,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const probed = probeEngine(dest), wiringErrs = probed.filter(e => e.startsWith('wiring: ')), engineErrs = probed.filter(e => !e.startsWith('wiring: '));
   if (wiringErrs.length) { items.push(`wiring: ${wiringErrs.map(e => e.slice(8)).join('; ')}. Fix each (a broken git hooks path means commits go unchecked)`); console.log(`\nWIRING BROKEN: ${wiringErrs.map(e => e.slice(8)).join('; ')}`); }
   if (engineErrs.length) { items.push(`engine: the hooks fail to run in this project (${engineErrs.join('; ')}). Fix it before relying on the engine: tell the starter session`); console.log(`\nENGINE DOES NOT RUN HERE: ${engineErrs.join('; ')}`); }
+  // (one plain line in this report when they do, nothing at session start)
+  const hint = hintRun.collect();
+  if (hint) console.log(`\n${hint}`);
   if (carried.length) items.push(`selfCommands: ${carried.length} runEach command(s) the project's checks ran on their own were carried onto the approved list (tools/hooks/config.json), so the hook keeps running them: ${carried.join(' | ')}. Take one off to have the agent run it instead||carried (${today}, by the upgrade; they count once tools/hooks/config.json is committed)`);
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });

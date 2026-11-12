@@ -3678,6 +3678,31 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const src = f => { try { return fs.readFileSync(path.join(repoT, f), 'utf8'); } catch { return ''; } };
     const wrapped = [/function selfRunOnce[\s\S]{0,300}withOwnTemp\(/.test(src('tools/hooks/v2/lib.mjs')), /spec\.cmd\.replaceAll\('\{file\}', f\), res = withOwnTemp\(/.test(src('tools/hooks/v2/lib.mjs')), /res = withOwnTemp\(env => spawnSync\(cmd, \{ shell: true, cwd: ROOT/.test(src('tools/hooks/hooks-main.mjs'))];
     const owRes = { saw: /anzuelo-tests[\\/]projects[\\/]garden-notes[\\/]run-/.test(ow.stdout), left: left(owD), wrapped };
+    // (the upgrade says once, in plain words, when the project's own approved test commands leave temp folders; nothing for
+    // a project whose tests leave nothing. Oversight, 2026-11-12: no session-start notice, one line in the upgrade report)
+    const hintD = caseDir('hint'), hp = path.join(fresh, 'hinted'); fs.mkdirSync(path.join(hp, 'tools/hooks'), { recursive: true });
+    const leakCmd = `node -e "require('fs').mkdtempSync(require('path').join(require('os').tmpdir(),'suite-'))"`, cleanCmd = 'node -e "1"';
+    const hintFor = cmds => { fs.writeFileSync(path.join(hp, 'tools/hooks/config.json'), JSON.stringify({ selfCommands: cmds })); return child(hintD, `const { tempHint } = await import(${tt}); console.log(JSON.stringify(tempHint(${JSON.stringify(hp)})));`); };
+    const h1 = hintFor([leakCmd, cleanCmd]), h2 = hintFor([cleanCmd]);
+    const hint = { leaky: (() => { try { return JSON.parse(h1.stdout.trim()); } catch { return h1.stderr.slice(0, 200); } })(), clean: (() => { try { return JSON.parse(h2.stdout.trim()); } catch { return h2.stderr.slice(0, 200); } })(), left: left(hintD),
+      printed: /startTempHint\(dest\)[\s\S]{0,3000}const hint = hintRun\.collect\(\);\s*if \(hint\) console\.log\(`\\n\$\{hint\}`\)/.test(src('tools/new-project.mjs')) };
+    report(/^Your tests leave temp folders \(node -e .*: 1 left\): run them with node tools\/starter\.mjs test-run/.test(hint.leaky) && !/node -e "1"/.test(hint.leaky) && hint.clean === '' && !hint.left.length && hint.printed,
+      'temp: the upgrade tells a project once, in plain words, that its own test commands leave temp folders (only those that do), and says nothing when they leave none', JSON.stringify(hint));
+    // (cheap only, and never waited on: a command recorded as slow is skipped; one still running when the upgrade's
+    // self-tests end is stopped, with nothing said and nothing left; a quick one that finished is reported)
+    const slowCmd = `node -e "require('fs').mkdtempSync(require('path').join(require('os').tmpdir(),'slow-'));setTimeout(()=>{},20000)"`;
+    fs.writeFileSync(path.join(hp, 'tools/hooks/config.json'), JSON.stringify({ selfCommands: [slowCmd] }));
+    fs.mkdirSync(path.join(hp, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(hp, 'tools/hooks/state/selfcmd-times.json'), JSON.stringify({ [slowCmd]: 120000 }));
+    const slowD = caseDir('slow'), skipped = child(slowD, `const { tempHint } = await import(${tt}); const t0 = Date.now(); const h = tempHint(${JSON.stringify(hp)}); console.log(JSON.stringify([h, Date.now() - t0]));`);
+    fs.rmSync(path.join(hp, 'tools/hooks/state/selfcmd-times.json'));
+    const early = child(slowD, `const { startTempHint } = await import(${tt}); const run = startTempHint(${JSON.stringify(hp)}); await new Promise(r => setTimeout(r, 1500)); const t0 = Date.now(); const h = run.collect(); console.log(JSON.stringify([h, Date.now() - t0]));`);
+    fs.writeFileSync(path.join(hp, 'tools/hooks/config.json'), JSON.stringify({ selfCommands: [leakCmd] }));
+    const done = child(slowD, `const { startTempHint } = await import(${tt}); const run = startTempHint(${JSON.stringify(hp)}); await new Promise(r => setTimeout(r, 6000)); console.log(JSON.stringify([run.collect(), 0]));`);
+    await new Promise(r => setTimeout(r, 1000)); // (a stopped tree's files go a moment after the stop)
+    const parse = r => { try { return JSON.parse(r.stdout.trim().split('\n').pop()); } catch { return [r.stderr.slice(0, 150), -1]; } };
+    const capped = { skipped: parse(skipped), early: parse(early), done: parse(done), left: left(slowD) };
+    report(capped.skipped[0] === '' && capped.skipped[1] < 5000 && capped.early[0] === '' && capped.early[1] < 5000 && /^Your tests leave temp folders/.test(capped.done[0]) && !capped.left.length,
+      'temp: the upgrade\'s check of the project\'s tests never delays it: a command recorded as taking over a minute is skipped, one still running when collected is stopped (nothing said, nothing left), a quick one is reported', JSON.stringify(capped));
     report(owRes.saw && !owRes.left.length && wrapped.every(Boolean), 'temp: the commands the engine runs for a project (declared self-tests, check commands, in both engines) get a temp folder of their own, removed when they end', JSON.stringify({ ...owRes, err: (ow.stderr || '').slice(0, 200) }));
   } finally { fs.rmSync(fresh, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }

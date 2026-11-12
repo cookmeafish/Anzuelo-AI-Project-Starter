@@ -65,7 +65,12 @@ About 15,000 folders in the temp folder came from projects' own suites and the b
       of their own (`withOwnTemp`).
 - [x] Released (7bc9bc7); the notice asks each project session to run its suite through test-run --strict until it
       leaves nothing, make that the way its tests run, and report. The existing folders stay (the user decides).
-- [ ] Each project's report: its test command and test-run line.
+- [x] Each linked project's report: its test command and test-run line. Both on 7bc9bc7: one project's Python hook
+      tests, and another's verify suites and browser checks, through test-run --strict: each left nothing, and each
+      project now documents running them that way.
+- [x] The upgrade says once, in plain words, when a project's approved test commands leave temp folders (cheap
+      commands only, alongside the self-tests, never waited on). Tests: only leaky commands named; slow ones skipped;
+      an unfinished check stopped with nothing said or left.
 
 ## Task 6: a smaller fixture base
 Done when: two chains back to back leave the paged pool within about 300 MB of where it started.
