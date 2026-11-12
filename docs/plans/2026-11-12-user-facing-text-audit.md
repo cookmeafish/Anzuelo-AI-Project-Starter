@@ -3,16 +3,19 @@ status: open
 ---
 # Plan: every line Anzuelo shows the user is true, readable and worth showing
 
-**Goal:** everything the engine puts on the user's screen appears only when the thing really happened, and is whole,
-plain, short and useful.
-**Approach:** oversight collects every shown line from the real transcripts and judges each one. The coding session
-fixes each failing group at its source with a test built from real examples, replays the engine over the same turns,
-and releases.
-**Spec:** the user, 2026-11-12: "analyze all text from anzuelo to make sure that user facing text is working properly
-and effectively and as it should", and "everything should only come up if it was an actual thing that happened. False
-alarms should not reach me until proven an actual issue. Otherwise just drop it and don't show the user."
+**Goal:** each item the engine shows the user is true, whole, plain, short and useful.
+
+**Approach:**
+- Oversight collects every shown line from the real transcripts and judges each one.
+- The coding session fixes each failing group at its source, with a test built from real examples.
+- It replays the engine over the same turns, then releases.
+
+**Spec (user, 2026-11-12):**
+- Check all user-facing engine text for correctness and usefulness.
+- Show an item only when what it names really happened. An unproven item is dropped, not shown.
+
 **Confidence:** 7/10. Main risk: judging "proven" needs the turn's evidence, and a transcript may not hold all of it.
-Such items are marked unknown and are not counted as passes.
+Such items are marked unknown, not counted as passes.
 
 **How to resume:** run `node skills/plan/scripts/plan-tasks.mjs next docs/plans/2026-11-12-user-facing-text-audit.md`,
 or find the first unticked box. Ticked boxes are done; never redo them.
