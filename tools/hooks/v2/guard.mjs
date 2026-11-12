@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { ENGINE, split, kind } from '../paths.mjs';
 import { commitIds, cutIds } from '../claims.mjs';
 import { selfListGrows, selfCmdWrites } from '../selfcmds.mjs';
+import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config } from '../settings.mjs';
+import { stateFile, SNAPSHOT, rel, globRe, match, textOf, engineOf } from '../state.mjs';
 export { commitIds };
 // Shared helpers come from the loader (use(hooksModule)): an import cycle left the hook waiting forever.
 let H = null;
@@ -19,7 +21,7 @@ export const IN_WORK_GUARDS = /^REQ: (approval-gate|self-commands|browser-guard|
 export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
 // One denial names every rule the call breaks, numbered, at most PRETOOL_MAX (a retry was once denied rule by rule).
 const PRETOOL_MAX = 6;
-export function pretoolDecision(data, cfg = H.config()) {
+export function pretoolDecision(data, cfg = config()) {
   const hits = pretoolHits(data, cfg).filter(h => IN_WORK_GUARDS.test(h));
   if (hits.length < 2) return hits[0] || null;
   const shown = hits.slice(0, PRETOOL_MAX), more = hits.length - shown.length;
@@ -30,7 +32,6 @@ export { pretoolDecision as guard };
 
 // Every path a delete names in originals folder d is new this turn (not in the turn-start snapshot, not in git).
 export function deletesOnlyNewFiles(cmd, d) {
-  const { readJSON, stateFile, SNAPSHOT, esc, rel, exists, abs, ROOT } = H;
   const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   if (!snap?.files || !turnAt || Date.parse(snap.at) < turnAt - 5000) return false;
   const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
@@ -46,7 +47,6 @@ export function deletesOnlyNewFiles(cmd, d) {
 // The session's own uncited downloads in a protected folder are not evidence yet: it may remove or rename them.
 export function sessionOwnFiles(cmd, d, t) {
   if (!t?.sessionTools) return false;
-  const { esc, rel, exists, list, walkStat, abs, ROOT, read } = H;
   const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
   const there = paths.filter(p => exists(p));
   if (!there.length) return false;
@@ -65,9 +65,8 @@ export function sessionOwnFiles(cmd, d, t) {
   return true;
 }
 // A file this turn made (not in the snapshot and untracked, or written or copied this turn) is a draft, not an output.
-export function madeThisTurn(p, t, cfg = H.config()) {
+export function madeThisTurn(p, t, cfg = config()) {
   if (p.startsWith('..')) return false;
-  const { exists, ROOT, readJSON, stateFile, SNAPSHOT, globRe, rel, textOf } = H;
   const tracked = () => exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0;
   const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   const ign = (cfg.ignoreForChanges || []).map(globRe), parts = p.split('/');
@@ -86,7 +85,6 @@ export function madeThisTurn(p, t, cfg = H.config()) {
 }
 // The files a command deletes or moves away (rm/del/Remove-Item, sources of mv/Move-Item); with globs, matching ones only.
 export function removedPaths(cmd, globs = null) {
-  const { match, list, walkStat, rel, globRe, abs } = H;
   const segs = [[]], args = [];
   for (const m of String(cmd).matchAll(/"((?:\\.|[^"\\])*)"|'([^']*)'|(&&|\|\||[;|&\n])|([^\s;|&"']+)/g))
     if (m[3]) segs.push([]); else segs[segs.length - 1].push(m[1] ?? m[2] ?? m[4]);
@@ -144,8 +142,7 @@ export function patchFiles(patch) {
   return out.map(f => ({ ...f, added: f.added.join('\n') }));
 }
 // The parts of a command that run in the project (a cd elsewhere moves the rest out; the host's cwd is not trusted).
-export function inProjectParts(cmd, cwd = H.ROOT) {
-  const { ROOT } = H;
+export function inProjectParts(cmd, cwd = ROOT) {
   const unix = s => process.platform === 'win32' ? s.replace(/^\/([a-z])(?=\/|$)/i, '$1:') : s;
   const norm = s => s.replace(/\\/g, '/').toLowerCase();
   const roots = [norm(ROOT), norm(ROOT).replace(/^([a-z]):/, (_, d) => `/${d}`)];
@@ -164,7 +161,7 @@ const CHANGE_ASK = /\b(change|edit|fix|correct|polish|tighten|rewrite|revise|rew
 const NEW_COPY = /\b(new (version|file|copy)|another version|a copy|copy of|(?:as|a|into|como|una?)\s+v\d+\b|v\d+\s+(?:of|copy|file|de|copia)\b|nueva versi[oó]n|otra versi[oó]n|una copia|copia de)\b/i;
 const FOLDER_NOUN = { chapters: '(chapter|ch\\.?|cap[ií]tulo|cap\\.?)', capitulos: '(cap[ií]tulo|chapter|cap\\.?)' };
 export function asksToChange(p, prompt) {
-  const ask = String(prompt || ''), { esc } = H;
+  const ask = String(prompt || '');
   if (!CHANGE_ASK.test(ask) || NEW_COPY.test(ask)) return false;
   const file = p.split('/').pop(), base = file.replace(/\.[^.]+$/, ''), dir = p.split('/').slice(-2, -1)[0] || '';
   const said = s => new RegExp(`(?<![\\w\\u00C0-\\u024F])${esc(s)}(?![\\w\\u00C0-\\u024F])`, 'i').test(ask);
@@ -197,7 +194,7 @@ export function pretoolHits(data, cfg) {
     return out;
   }
   const name = data.tool_name || '', inp = data.tool_input || {};
-  if (H.engineOf() !== 'v2') add(H.upsetUnacknowledged(name, inp, data.transcript_path || '')); // TODO(1e): v1 only, goes with v1
+  if (engineOf() !== 'v2' && H) add(H.upsetUnacknowledged(name, inp, data.transcript_path || '')); // TODO(1e): v1 only, goes with v1
   // REQ: outward-gate (MCP tools): a service's tool that sends, posts, creates or deletes needs the user's OK.
   if (/^mcp__/.test(name) && OUTWARD_MCP.test(name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, '')) && !isSuspended('check:outward-gate')) {
     const prompt = (turn(data.transcript_path || '') || {}).prompt || '';

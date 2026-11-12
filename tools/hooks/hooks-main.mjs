@@ -21,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { withOwnTemp } from './testtmp.mjs';
+import { STATE, absw, rel, rulesText, envOf, SID, DRY_STATE, NO_TRANSCRIPT, setSession, transcriptState, PER_SESSION, stateName, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
+export { absw, rel, rulesText, envOf, transcriptState, stateFile, writeState, STATE_KEEP_DAYS, pruneState, globRe, match, textOf, SNAPSHOT, HASH_MAX, engineOf } from './state.mjs';
 import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
 import { WORD_KINDS, ignoredWords as ignoredWordsOf, withoutIgnored as withoutIgnoredOf, isPraise as isPraiseOf } from './praise.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
@@ -96,97 +98,15 @@ export { isWakeTool, WAKE_ASK, wakeupsPending };
 // ROOT is the project; engine files are found through abs() (paths.mjs decides the root per path, and in the starter
 // every root is this one folder).
 const HOOKS = path.join(ENGINE, 'tools', 'hooks');
-const STATE = where('tools/hooks/state');
 const CONFIG = () => where('tools/hooks/config.json'), REQS = () => where('tools/hooks/requirements.json');
 
 // ---------- small helpers ----------
-// absw: where a write goes (an engine-made runbook, skill or rule changed for this project is the project's local copy)
-export const absw = p => whereWrite(p);
-export const rel = p => relOf(p);
-// The rules: AGENTS.md is the shared file; CLAUDE.md is its local twin for Claude Code (a Codex-only machine has none).
-export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md'));
-// Environment switches use the neutral STARTER_ prefix. Lesson: names from the starter's old name (KS_) outlived the
-// rename; the old names are still read for one release so nothing breaks mid-upgrade.
-export const envOf = n => process.env[`STARTER_${n}`] ?? process.env[`KS_${n}`];
-// Each agent session keeps its own turn record and snapshot, so two sessions working in one folder at once don't read
-// each other's request or changes. Without a session id (a manual begin/check) the shared files are used.
-// Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it.
-let SID = '';
-// A self-check run inside a hook-wired session ("hooks.mjs check" from the agent's shell) reads that session's state
-// but writes none of it: its Stop round count, turn end and logs stay the real Stop's. Lesson: the prompt hook told
-// hook-wired agents to self-check, and a check run there would otherwise reset the session's own Stop record.
-let DRY_STATE = false;
-// A hook run with a session id but no transcript to read (no path, no file, an empty file, or not a readable file) is
-// a hand run or a broken host, not a session's turn: it writes no per-session state, no snapshot and no Stop log line,
-// since nothing could be checked against them. Session start is the exception for a path whose file does not exist
-// yet: a new session's transcript may be written after its start hook, and the first prompt must not repeat its notices.
-// Lesson: a dry run with made-up session ids and an empty transcript file left 27 state files behind (a snapshot, a
-// turn record and the notices shown, for each id); only "no path at all" had been covered, and only for the snapshot.
-let NO_TRANSCRIPT = false;
-export function transcriptState(tp) {
-  if (!tp) return 'none';
-  let st; try { st = fs.statSync(String(tp)); } catch { return 'missing'; }
-  if (!st.isFile()) return 'unreadable';
-  if (!st.size) return 'empty';
-  // (the first bytes only: a real transcript can be many megabytes, and the hooks have a speed budget)
-  let fd = null;
-  try { fd = fs.openSync(String(tp), 'r'); const b = Buffer.alloc(Math.min(st.size, 4096)); const n = fs.readSync(fd, b, 0, b.length, 0); return /\S/.test(b.toString('utf8', 0, n)) ? 'ok' : 'empty'; }
-  catch { return 'unreadable'; } finally { if (fd !== null) try { fs.closeSync(fd); } catch { } }
-}
-// (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
-// record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
-const PER_SESSION = new Set(['turn.json', 'checklist-shown.json', 'acknowledged.json', 'reminders-shown.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
-  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json', 'alive.json', 'late-told.json', 'images-told.json']);
-const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
-// a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
-export const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
-const BENCH_CACHES = new Set(['mirror-stamps.json', 'names.json', 'fit-check.json', 'fit-later.json']);
-export function writeState(name, obj) {
-  // hooks.mjs bench times the hooks without touching the session's state; the caches it rebuilt it keeps (they hold no
-  // session state), so the next timed run is not a cold one. Lesson (a field report): after an upgrade every timed run
-  // rebuilt them, and Stop read 80 ms and the prompt hook up to 2 s slower than the same engine once warm
-  if ((envOf('BENCH') && !BENCH_CACHES.has(name)) || DRY_STATE) return;
-  if (NO_TRANSCRIPT && (PER_SESSION.has(name) || name === 'setup.json')) return;
-  try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, stateName(name)), JSON.stringify(obj, null, 2)); } catch {}
-}
-// State hygiene: the per-session files (turn.<session>.json, snapshot.<session>.json, ...) and the shared ones written
-// before sessions were told apart go once they are 7 days old, at session start or with "hooks.mjs prune" (--dry lists
-// them). Lesson: one project had 33 state files and 336 KB after two days (a snapshot is about 80 KB per session), and
-// shared files from before per-session ones lingered; only some kinds were pruned, after 2 days.
-export const STATE_KEEP_DAYS = 7;
-const SESSION_STATE = new RegExp(`^(${[...PER_SESSION].map(n => esc(n.replace(/\.json$/, ''))).join('|')})(\\.[A-Za-z0-9_-]+)?\\.json$`);
-export function pruneState({ dry = false, days = STATE_KEEP_DAYS, now = Date.now() } = {}) {
-  const out = [];
-  let names = []; try { names = fs.readdirSync(STATE); } catch { return out; }
-  for (const n of names) {
-    if (!SESSION_STATE.test(n)) continue;
-    let s; try { s = fs.statSync(path.join(STATE, n)); } catch { continue; }
-    if (!s.isFile() || now - s.mtimeMs <= days * 86400_000) continue;
-    out.push({ name: n, bytes: s.size, days: Math.floor((now - s.mtimeMs) / 86400_000) });
-    if (!dry) try { fs.rmSync(path.join(STATE, n), { force: true }); } catch { }
-  }
-  return out;
-}
 // Stop timing, behind STARTER_TIMING=1: each phase and check is timed, and the Stop hook prints "STOP-TIMING {json}" on
 // stderr (the self-tests hold Stop to its budget with it). Off, it costs nothing.
 const TIMING = envOf('TIMING') ? [] : null;
 const timed = (label, fn) => { if (!TIMING) return fn(); const t = performance.now(); try { return fn(); } finally { TIMING.push([label, Math.round((performance.now() - t) * 10) / 10]); } };
 const lapper = prefix => { if (!TIMING) return () => { }; let t = performance.now(); return label => { const n = performance.now(); TIMING.push([`${prefix}${label}`, Math.round((n - t) * 10) / 10]); t = n; }; };
 
-export function globRe(g) {
-  let s = '';
-  for (let i = 0; i < g.length; i++) {
-    const c = g[i];
-    if (c === '*') {
-      // "**/" is any number of whole folders, so "**/schema.*" never matches "sales.schema.json" (Lesson: it did, and a
-      // pipeline's schema description was taken for a database migration)
-      if (g[i + 1] === '*') { i++; if (g[i + 1] === '/') { s += '(?:.*/)?'; i++; } else s += '.*'; } else s += '[^/]*';
-    } else if (c === '?') s += '[^/]';
-    else s += esc(c);
-  }
-  return new RegExp('^' + s + '$', 'i');
-}
-export const match = (p, globs) => [].concat(globs || []).some(g => globRe(g).test(p));
 // A .gitignore's rules as git reads them, for a folder that is not a git repository yet: "*.log", "/notes/*.md",
 // "private/", "**/cache/**", "!keep.md" (the last matching rule wins; a file in an ignored folder stays ignored).
 // Returns a test for a project-relative path with forward slashes. Lesson: without git, publish safety knew only plain
@@ -609,8 +529,6 @@ export const routeEnglish = text => ROUTE_ES_U().reduce((s, [r, v]) => s.replace
 const SKIP = ['Stop hook feedback', '<system-reminder>', '<task-notification>', 'Another Claude session', '<agent-message', '<cross-session-message',
   '[Cross-session idle notice]', '[Cross-session delivery notice]', '[SYSTEM NOTIFICATION', 'Caveat: The messages below', 'Almost done:', 'Project rules not met yet', 'Stop hook error', '<local-command-stdout>', '<local-command-stderr>', '[Request interrupted'];
 const COMPACT = 'This session is being continued from a previous conversation';
-export const textOf = c => typeof c === 'string' ? c
-  : Array.isArray(c) ? c.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
 const isToolResult = c => Array.isArray(c) && c.some(x => x && x.type === 'tool_result');
 const skipped = t => SKIP.some(s => String(t).trimStart().startsWith(s));
 // (the host's notice that a peer went idle, or held a message, also arrives on its own. Lesson, dogfood: an idle
@@ -1171,7 +1089,6 @@ export function flushEngineWrites(extra = []) {
 // the same, so only new or touched files are hashed) and keeps copies of the check files. At Stop, a file whose mtime
 // moved but whose content is the same as at the start did not change. Lesson: a build rewrote a generated page
 // byte for byte, and the unchanged page demanded a screenshot review.
-export const SNAPSHOT = 'snapshot.json', HASH_MAX = 2 * 1024 * 1024;
 const sha = p => { try { return createHash('sha1').update(fs.readFileSync(abs(p))).digest('hex'); } catch { return null; } };
 // a runbook or skill without its triggers line, so a change of routing words alone can be told apart (routingOnlyEdits)
 const ROUTED_DOC = /^docs\/playbooks\/[^/]+\.md$|(^|\/)SKILL\.md$/;
@@ -3492,7 +3409,6 @@ let V2_PRETOOL = false;
 let V2_TURN = null; // (under v2 a turn's end is in v2's own turn record: v2/lib.mjs loadTurn)
 let MIDTURN = null; // (v2/midturn.mjs, loaded for pretool)
 let WIRING = null; // (wire.mjs wiringProblems, loaded by the session hook)
-export const engineOf = () => envOf('ENGINE') || config().engine;
 // The engine runs in a project: its own prompt and Stop hooks, on a sample request, with the engine its config picks.
 // Returns the errors seen (none when it runs). The probe's session leaves no state behind. Lesson (two projects): an
 // upgrade reported success and a full self-test passed while the default engine could not load there.
@@ -5986,7 +5902,7 @@ function cmdBegin() {
   const envSid = String(process.env.CLAUDE_CODE_SESSION_ID || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   let tp = '';
   if (envSid) {
-    SID = envSid;
+    setSession({ sid: envSid });
     const root = path.join(os.homedir(), '.claude', 'projects');
     try { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${envSid}.jsonl`); if (fs.existsSync(f)) { tp = f; break; } } } catch { }
   }
@@ -6027,7 +5943,7 @@ function cmdCheck() {
   const sid = String(si > 0 ? process.argv[si + 1] || '' : hookedSession()).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   let tp = '';
   if (sid) {
-    SID = sid; DRY_STATE = true;
+    setSession({ sid, dry: true });
     const rec = readJSON(stateFile('turn.json'), {});
     if (rec.transcript && fs.existsSync(rec.transcript)) tp = rec.transcript;
   }
@@ -6104,7 +6020,7 @@ function cmdCost() {
   let tp = arg('--transcript');
   if (!tp) {
     const sid = String(arg('--session') || process.env.CLAUDE_CODE_SESSION_ID || hookedSession()).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
-    if (sid) { SID = sid; const root = path.join(os.homedir(), '.claude', 'projects'); try { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) { tp = f; break; } } } catch { } }
+    if (sid) { setSession({ sid }); const root = path.join(os.homedir(), '.claude', 'projects'); try { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) { tp = f; break; } } } catch { } }
     if (!tp) tp = readJSON(stateFile('turn.json'), {}).transcript || '';
   }
   if (!tp || !fs.existsSync(tp)) { console.log('cost: no transcript found. Pass --session <id> or --transcript <file>.'); process.exit(1); }
@@ -6345,7 +6261,7 @@ if (isMain) {
   if (cmd === 'shown') {
     const key = process.argv[3] || '', i = process.argv.indexOf('--session'), sid = String(i > 0 ? process.argv[i + 1] || '' : '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
     if (!key || key.startsWith('--') || !sid) { console.log('usage: node tools/hooks/hooks.mjs shown <key> --session <session id>   (exit 0: already shown in that session; exit 1: not yet, recorded now)'); process.exit(2); }
-    SID = sid;
+    setSession({ sid });
     const seen = readJSON(path.join(STATE, stateName('ext-shown.json')), {});
     if (seen[key]) { console.log(`shown: ${key} (${seen[key]})`); process.exit(0); }
     writeState('ext-shown.json', { ...seen, [key]: new Date().toISOString() });
@@ -6374,13 +6290,13 @@ if (isMain) {
   let data = {};
   try { data = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
   HOST = hookHost(data);
-  SID = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  setSession({ sid: String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) });
   // (see NO_TRANSCRIPT: at session start a path whose file is not written yet still counts as a transcript)
   // (the host's own transcript, named after the session, counts while it is still missing or empty: a headless run's
   // first prompt comes before it is written. Lesson: such a turn kept no turn record or snapshot, so Stop compared with an
   // older snapshot and held a project question to the project's sweeps for runbooks an earlier turn had changed)
   const hostNamed = !!SID && path.basename(String(data.transcript_path || '')).toLowerCase() === `${SID}.jsonl`.toLowerCase();
-  if (SID) { const ts = transcriptState(data.transcript_path); NO_TRANSCRIPT = ts !== 'ok' && !(cmd === 'session' && ts === 'missing') && !(hostNamed && (ts === 'missing' || ts === 'empty')); }
+  if (SID) { const ts = transcriptState(data.transcript_path); setSession({ noTranscript: ts !== 'ok' && !(cmd === 'session' && ts === 'missing') && !(hostNamed && (ts === 'missing' || ts === 'empty')) }); }
   // old sessions' state files go after 7 days (pruneState), the unsuffixed ones too: what agents without hooks and older
   // releases left. Lesson: an 80 KB snapshot.json from before per-session files stayed for good.
   if (cmd === 'session' && !envOf('BENCH')) pruneState();
