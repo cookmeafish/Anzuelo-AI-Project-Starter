@@ -523,9 +523,11 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
     const on = runEntry(''), broken = runEntry('', { NODE_COMPILE_CACHE: asFile, TEMP: asFile, TMP: asFile, TMPDIR: asFile }), old = runEntry('m.enableCompileCache = undefined;');
     const hasCache = typeof nodeModule.enableCompileCache === 'function';
     const inProject = d => !!d && d !== 'undefined' && path.resolve(d).toLowerCase().startsWith(path.resolve(c).toLowerCase());
-    report([on, broken, old].every(r => r.status === 0 && r.ev === 'UserPromptSubmit') && (hasCache ? !!on.cache && on.cache !== 'undefined' && !inProject(on.cache) : true) && old.cache === 'undefined'
+    // (this copy sits in the temp folder, so the cache stays off here: "leaks" below proves it is on for an installed
+    // engine. User rule, 2026-11-12: test copies filled the cache with millions of files)
+    report([on, broken, old].every(r => r.status === 0 && r.ev === 'UserPromptSubmit') && !inProject(on.cache) && (hasCache ? on.cache === 'undefined' : true) && old.cache === 'undefined'
       && !fs.existsSync(path.join(c, 'node-compile-cache')),
-      'speed: the hook entry turns on Node\'s compile cache outside the project, and still runs with a broken or unwritable cache folder or a Node without the cache', JSON.stringify({ on, broken, old, hasCache }));
+      'speed: the hook entry keeps the compile cache off in a temp copy and out of the project, and still runs with a broken or unwritable cache folder or a Node without the cache', JSON.stringify({ on, broken, old, hasCache }));
   }
   fs.rmSync(c, { recursive: true, force: true });
   report(!/outward-gate/.test(earlier) && /outward-gate|git-safety/.test(none), 'pretool: the outward-action guard lets a push OK\'d earlier in the session run, and still refuses one nobody OK\'d', JSON.stringify({ earlier: earlier.slice(0, 200), none: none.slice(0, 200) }));
@@ -3974,6 +3976,27 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const left = (() => { try { return fs.readdirSync(path.join(tmp, 'anzuelo-tests')).filter(n => n !== 'STOP'); } catch { return []; } })();
   report(/stop-tests: wrote/.test(cmd.stdout) && codes[0] === 3 && codes[1] === 3 && codes[2] === 0 && secs < 10 && !left.length,
     'temp: stop-tests ends the test runs going now within seconds, one busy in sync work too, and they leave no folders; a run started after it goes on', JSON.stringify({ codes, secs: Math.round(secs * 10) / 10, left, out: cmd.stdout.trim().slice(0, 120), err: cmd.stderr.slice(-200) }));
+}
+
+// (no leaks that slow the computer: the hooks' compile cache is on only for an installed engine, never in a temp copy,
+// in its own folder; the suites prune it; the leak check names each count that rose past its budget. User rule,
+// 2026-11-12: Node's default compile cache held about 2.65 million files from test copies, never pruned)
+{
+  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const probe = base => { const d = path.join(base, 'tools', 'hooks'); fs.mkdirSync(d, { recursive: true }); fs.copyFileSync(path.join(repoRoot, 'tools/hooks/hooks.mjs'), path.join(d, 'hooks.mjs'));
+    fs.writeFileSync(path.join(d, 'hooks-main.mjs'), "import m from 'node:module'; console.log(m.getCompileCacheDir?.() || 'none');");
+    const env = { ...process.env }; delete env.ANZUELO_NO_COMPILE_CACHE; return spawnSync(process.execPath, [path.join(d, 'hooks.mjs')], { encoding: 'utf8', env }).stdout.trim(); };
+  const inst = path.join(repoRoot, '.cache', `cc-gate-${process.pid}`), temp = testDir('ccgate-');
+  let installed, inTemp; try { installed = probe(inst); inTemp = probe(temp); } finally { fs.rmSync(inst, { recursive: true, force: true }); }
+  const { pruneCompileCache } = await import('../testtmp.mjs'), cc = testDir('ccprune-'), ver = `v${process.versions.node}-x64-test`;
+  for (const v of [ver, 'v1.0.0-x64-old']) { fs.mkdirSync(path.join(cc, v)); for (let i = 0; i < 5; i++) fs.writeFileSync(path.join(cc, v, `f${i}`), ''); }
+  const kept = pruneCompileCache(10, cc), oldGone = !fs.existsSync(path.join(cc, 'v1.0.0-x64-old')), emptied = pruneCompileCache(3, cc) === 0 && !fs.existsSync(cc);
+  const { compare, BUDGET } = await import('../../starter/leaks.mjs');
+  const base = { temp: 100, tests: 0, cache: 50, nodeCacheAt: { v: 1 }, transcripts: 714, frozen: 3, processes: 0, pagedMB: 500 };
+  const quiet = compare(base, { ...base, temp: 110, frozen: 4, pagedMB: 700 }).length;
+  const loud = compare(base, { ...base, tests: 5, nodeCacheAt: { v: 2 }, transcripts: 715, processes: 2, pagedMB: 900 });
+  report(/anzuelo-compile-cache/.test(installed) && inTemp === 'none' && kept === 5 && oldGone && emptied && quiet === 0 && loud.length === 5 && BUDGET.transcripts === 0,
+    'leaks: the compile cache is on only for an installed engine, in its own folder, pruned to a cap; the leak check flags each count past its budget and nothing within it', JSON.stringify({ installed, inTemp, kept, oldGone, emptied, quiet, loud }));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

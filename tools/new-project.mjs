@@ -77,6 +77,8 @@ for (const s of CORE_SKILLS) (function walk(d) {
   if (!fs.existsSync(at)) return;
   for (const n of fs.readdirSync(at)) { const p = `${d}/${n}`; fs.statSync(path.join(STARTER, p)).isDirectory() ? walk(p) : ENGINE.push(p); }
 })(`skills/${s}`);
+// (--engine-files: the list above as JSON, for the audit's "engine outside .anzuelo/" sweep: one list, kept here)
+if (process.argv.includes('--engine-files')) { console.log(JSON.stringify(ENGINE)); process.exit(0); }
 // Never copied into a project: the starter's own files, personal or machine state, and generated output.
 const NEVER = new Set(['.git', 'node_modules', '.cache', 'state', '.starter-template', '.starter-dev', 'trial.mjs', '.private-terms', 'New Project.bat', 'settings.local.json', '.codex', 'starter.local.json', '.starter', '.obsidian', 'feedback-inbox', 'starter-feedback.md', 'fit-checklist.md']);
 const TEXT = /\.(md|mjs|js|json|txt)$/;

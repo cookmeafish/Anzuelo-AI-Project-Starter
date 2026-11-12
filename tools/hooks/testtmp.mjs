@@ -33,19 +33,16 @@ export function testDir(prefix = 'tmp-', { keep = false } = {}) {
   if (!keep) { MADE.add(d); hook(); }
   return d;
 }
-// Leftovers of killed runs: entries under the root older than maxAgeMs (default 1 hour), and the runs under each
-// project's folder (projects/<name>/) at the same age. Returns how many were removed.
-export function cleanOld(maxAgeMs = 3600_000) {
-  let n = 0;
+// Leftovers older than maxAgeMs (1 hour) under the root and each projects/<name>/. Returns how many were removed.
+export function cleanOld(maxAgeMs = 3600_000) { let n = 0;
   const sweep = (dir, skip = '') => { try { for (const e of fs.readdirSync(dir)) { if (e === skip) continue; const p = path.join(dir, e); try { if (Date.now() - fs.statSync(p).mtimeMs > maxAgeMs) { rm(p); n++; } } catch { } } } catch { } };
   sweep(TEST_ROOT, 'projects');
   try { for (const p of fs.readdirSync(path.join(TEST_ROOT, 'projects'))) sweep(path.join(TEST_ROOT, 'projects', p)); } catch { }
   return n;
 }
 
-// What killed runs left (a timeout, a crash, a closed terminal): the folders under the root, and under each project's
-// folder, whose making process is gone, a minute old at least. Run first by every suite. Returns how many were removed.
-// Lesson (2026-11-12): four suite runs killed by a time limit left 432 fixture folders, and the kernel memory they held.
+// What killed runs left: folders whose making process is gone, a minute old at least; run first by every suite.
+// Lesson (2026-11-12): four suite runs killed by a time limit left 432 fixture folders.
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 export function cleanDead(minAgeMs = 60_000) {
   let n = 0;
@@ -54,8 +51,12 @@ export function cleanDead(minAgeMs = 60_000) {
     const p = path.join(dir, e); try { if (Date.now() - fs.statSync(p).mtimeMs >= minAgeMs) { rm(p); n++; } } catch { } } } catch { } };
   sweep(TEST_ROOT);
   try { for (const p of fs.readdirSync(path.join(TEST_ROOT, 'projects'))) sweep(path.join(TEST_ROOT, 'projects', p)); } catch { }
-  return n;
-}
+  pruneCompileCache(); return n; }
+// The hooks' compile cache (hooks.mjs) stays bounded: other Node versions' folders go, and past `cap` files it is
+// emptied (it refills on the next hooks). Returns the files kept. Lesson (2026-11-12): an unpruned cache grew to 22 GB.
+export function pruneCompileCache(cap = 4000, dir = path.join(os.tmpdir(), 'anzuelo-compile-cache')) { let n = 0;
+  try { for (const v of fs.readdirSync(dir)) { if (!v.startsWith(`v${process.versions.node}-`)) { rm(path.join(dir, v)); continue; } n += fs.readdirSync(path.join(dir, v)).length; } } catch { return 0; }
+  if (n > cap) { rm(dir); return 0; } return n; }
 // A project's own test runs: <temp>/anzuelo-tests/projects/<name>, the name from docs/names.json (PROJECT_NAME) or the
 // folder's name. Lesson (oversight, 2026-11-11): about 15,000 folders, nearly 2 million files, that projects' own test
 // suites (and the browsers they started) left in the temp folder; anything that walks the temp folder pays for each.

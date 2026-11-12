@@ -18,7 +18,7 @@ import {
   starterOnlyChars,
 } from './hooks/hooks-main.mjs';
 import { setupProblems } from './hooks/setup.mjs';
-import { listAll, split } from './hooks/paths.mjs';
+import { listAll, split, ENGINE as ENGINE_DIR, PROJECT as PROJECT_DIR, LOCAL as LOCAL_DIR, keepList } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
@@ -133,6 +133,20 @@ sweep('shared files name no private project or person', () => {
 // (with the engine in .anzuelo/engine there are no twins: CLAUDE.local.md imports the engine's rules, and the hooks sit
 // in .claude/settings.local.json, both made by wire.mjs and ignored by git. Plan: engine outside the project, Task 3)
 const SETTINGS = split ? '.claude/settings.local.json' : '.claude/settings.json', GITHOOKS = split ? '.anzuelo/engine/.githooks' : '.githooks';
+// Every project keeps all of the engine under its .anzuelo/ (the starter, where the engine is built, is the exception):
+// the engine files (new-project.mjs --engine-files) found in the project's own folders, except what keepInProject
+// keeps. The old layout, the engine in the project's folders, is listed to move; strays beside .anzuelo/engine fail.
+// User rule, 2026-11-12: two linked projects still had the engine spread through their own folders.
+sweep('the engine lives under .anzuelo/', () => {
+  if (isTemplate) return { note: 'the starter: the engine is built here' };
+  const r = spawnSync(process.execPath, [path.join(ENGINE_DIR, 'tools/new-project.mjs'), '--engine-files'], { encoding: 'utf8', timeout: 60000 });
+  let files; try { files = JSON.parse(r.stdout); } catch { return { warn: ['could not list the engine files (tools/new-project.mjs --engine-files)'] }; }
+  const keep = keepList(LOCAL_DIR), kept = f => keep.some(k => f === k || f.startsWith(`${k}/`));
+  const out = files.filter(f => !kept(f) && fs.existsSync(path.join(PROJECT_DIR, f)));
+  if (!out.length) return { note: `${files.length} engine files, all under .anzuelo/` };
+  const list = [`${out.length} engine files outside .anzuelo/, for example ${out.slice(0, 3).join(', ')}${split ? '' : ': move the engine to .anzuelo/engine (docs/playbooks/engine.md)'}`];
+  return split ? { fail: list } : { warn: list };
+});
 sweep('AGENTS.md and CLAUDE.md are identical twins', () => split ? (/^@\.anzuelo\/(engine|local)\/AGENTS\.md$/m.test(read(abs('CLAUDE.local.md'))) ? {} : { warn: ['CLAUDE.local.md is made on each machine: run node .anzuelo/engine/tools/hooks/wire.mjs'] }) : !exists('CLAUDE.md') ?{ warn: ['CLAUDE.md is made on each machine: run node tools/hooks/wire.mjs'] } :
   read(abs('CLAUDE.md')) && read(abs('CLAUDE.md')) === read(abs('AGENTS.md')) ? {} : { fail: ['AGENTS.md and CLAUDE.md differ or one is missing. Run node tools/hooks/hooks.mjs sync (both must say they "are twins").'] });
 
