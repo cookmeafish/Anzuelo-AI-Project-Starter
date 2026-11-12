@@ -821,6 +821,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   // (a repeat round reads only what was said after the last block, said; the whole request's text is saidAll)
   const later = waived({ answer: 'Root cause: the parser read the header twice.', said: 'Root cause: the parser read the header twice.\n', saidAll: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.\nRoot cause: the parser read the header twice.\n' }, gaps);
   report(later.length === 2 && !later.some(s => /item 1:/.test(s)), 'end: stop rounds: a runbook item said not to fit in an earlier round of the request stays cleared in the next round', later);
+  // (two blocks, each followed by a short note: the answer held before the third round is the full first answer with
+  // the second round's note, so its Finished section still counts. The old suite's "stop rounds", round 3)
+  { const { answerBeforeBlock } = await import('./end.mjs');
+    const as = t => ({ type: 'assistant', message: { content: [{ type: 'text', text: t }] } }), fb = { type: 'user', message: { content: 'Stop hook feedback:\n- Check: x' } };
+    const full = 'Skill: debug. Fixed it.\n\nFinished: the parser fix, in src/parser.js.';
+    const held = answerBeforeBlock([as(full), fb, as('Root cause: the parser read the header twice.'), fb]);
+    const fresh = answerBeforeBlock([as(full), fb, as('Finished: a whole new answer, sent again.'), fb]);
+    report(/Finished: the parser fix/.test(held) && /Root cause: the parser/.test(held) && !/the parser fix/.test(fresh) && /a whole new answer/.test(fresh),
+      'end: stop rounds: after two blocks, the answer held is the full first answer with the second round\'s note; a full answer sent again replaces it', JSON.stringify({ held, fresh })); }
   const byPath = waived({ answer: 'I left the files in `reports/` alone, since redoing them was not part of this request.' }, ['docs/playbooks/r.md item 2: The files in reports/ are updated', 'docs/playbooks/r.md item 3: The index is rebuilt']);
   report(byPath.length === 1 && /item 3/.test(byPath[0]), 'end: a not-fit line that names the item\'s path, with a plain reason, clears that item only', byPath);
   const clause = waived({ answer: 'Item 1 is done; item 2 does not apply here.' }, gaps);

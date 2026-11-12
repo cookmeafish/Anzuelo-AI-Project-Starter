@@ -623,15 +623,16 @@ function skillLearnGaps(turn, acts, list, sid, request) {
   const x = { said: `${acts.said || acts.answer || ''}\n${turnNotes(acts)}`, answer: String(acts.answer || ''), workTurn: worked(acts), changed: changedOf(acts), usedPb: books, usedSkills: skills, failedBefore, cmds: [], since: Date.parse(turn.at || '') || 0 };
   return SL.skillLearnCheck(x, projectConfig(), failingNow).map(g => g.msg);
 }
-// The last answer the agent sent before the latest block (the host shows the block as a "Stop hook feedback" message).
-function answerBeforeBlock(rows) {
-  let last = '', prev = '';
-  for (const r of rows) {
-    const c = r?.message?.content;
-    if (r?.type === 'assistant') { const t = Array.isArray(c) ? c.filter(x => x?.type === 'text').map(x => x.text).join('\n') : typeof c === 'string' ? c : ''; if (t.trim()) last = t; }
-    else if (r?.type === 'user' && /^\s*Stop hook feedback\b/.test(typeof c === 'string' ? c : Array.isArray(c) ? c.filter(x => x?.type === 'text').map(x => x.text).join('\n') : '')) prev = last;
-  }
-  return prev;
+// The answer the user holds before the latest block (the host shows a block as a "Stop hook feedback" message); when that
+// was itself a note (short with no Finished section, or "Added:"/"Corrected:"), the full answer before it with each note
+// after it. Lesson (the old suite's "stop rounds" under v2): a third round's note was judged beside the second's only.
+const textOf = r => { const c = r?.message?.content; return Array.isArray(c) ? c.filter(x => x?.type === 'text').map(x => x.text).join('\n') : typeof c === 'string' ? c : ''; };
+const noteOn = (prev, note) => prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note)));
+export function answerBeforeBlock(rows) {
+  let last = ''; const sent = [];
+  for (const r of rows) { const t = textOf(r);
+    if (r?.type === 'assistant') { if (t.trim()) last = t; } else if (r?.type === 'user' && /^\s*Stop hook feedback\b/.test(t) && last && last !== sent.at(-1)) sent.push(last); }
+  return sent.reduce((held, t) => noteOn(held, t) ? withNote(held, t) ?? `${held.trim()}\n\n${t}` : t, '');
 }
 function judge(data, { shadow = false } = {}) {
   // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
@@ -708,11 +709,10 @@ function judge(data, { shadow = false } = {}) {
   const prevAnswer = again ? answerBeforeBlock(rows) : '';
   // (any text the agent sent earlier in this turn that is not itself a note is an answer the note can stand beside, with
   // or without a block between them. Lesson (the gui port): an "Added:" after a passing answer was called answer-less)
-  const textOf = r => { const c = r?.message?.content; return Array.isArray(c) ? c.filter(x => x?.type === 'text').map(x => x.text).join('\n') : typeof c === 'string' ? c : ''; };
   const earlier = rows.filter(r => r?.type === 'assistant').map(textOf).map(t => t.trim()).filter(t => t && t !== sentNote && !/^\W{0,4}(added|añadido|corrected|correction|corregido|correcci[oó]n|answer unchanged|respuesta sin cambios)\b/i.test(t));
   if (isNote && !String(prevAnswer).trim() && !earlier.length) resent.push('The last message is only a note on an answer ("Added:", "Corrected:" or "Answer unchanged"), but no full answer was sent earlier in this turn. End with the whole answer to the request.');
   if (again) { const prev = prevAnswer, note = acts.answer || '';
-    if (prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note)))) {
+    if (noteOn(prev, note)) {
       // (its "Corrected:" lines are applied to the earlier answer, as the old engine does (correct.mjs): the withdrawn text
       // is no longer part of the answer. Lesson (the old suite under v2): a corrected-away figure was traced as made up)
       const applied = withNote(prev, note);
