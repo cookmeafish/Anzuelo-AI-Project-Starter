@@ -1,8 +1,6 @@
-// Test folders: every fixture the self-tests, the trial and the sweeps make lives under one root, <temp>/anzuelo-tests,
-// and is removed when the process that made it ends, passed or failed (a normal end, an error, Ctrl+C). What a killed run
-// leaves is removed by "node tools/starter.mjs clean-tests" (older than 1 hour, under this root only), and by each new
-// run of the self-tests. Lesson (oversight, 2026-11-11): about 11,000 fixture folders, nearly 2 million files, were left
-// in the temp folder; the kernel kept memory for each file until a restart, and the machine lagged.
+// Test folders: every fixture lives under one root, <temp>/anzuelo-tests, removed when its process ends; what a killed run
+// leaves goes with "starter.mjs clean-tests" and each new suite run. Lesson (2026-11-11): about 11,000 left folders, nearly
+// 2 million files, held kernel memory until a restart, and the machine lagged.
 import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import os from 'node:os';
@@ -20,9 +18,14 @@ const hook = () => {
   process.on('exit', cleanMade);
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) try { process.once(sig, () => { cleanMade(); process.exit(130); }); } catch { }
 };
+// Cooperative stop ("starter.mjs stop-tests" writes <root>/STOP): runs started before it exit within a second, folders
+// removed, nothing killed. Lesson (2026-11-12): killing a chain left running on a failed commit was refused.
+export const STOP_FILE = path.join(TEST_ROOT, 'STOP'), requestStop = () => { fs.mkdirSync(TEST_ROOT, { recursive: true }); fs.writeFileSync(STOP_FILE, `${new Date().toISOString()}\n`); return STOP_FILE; };
+const STARTED = Date.now(); let stopSeen = 0; export const watchStop = () => { const t = setInterval(stopIfAsked, 1000); t.unref?.(); return t; };
+export function stopIfAsked() { const t = Date.now(); if (t - stopSeen < 500) return; stopSeen = t; let m = 0; try { m = fs.statSync(STOP_FILE).mtimeMs; } catch { return; }
+  if (m >= STARTED - 1000) { try { process.stderr.write(`stopped: ${STOP_FILE}\n`); } catch { } cleanMade(); process.exit(3); } }
 // A new folder under the root, removed when this process ends (keep: true leaves it, for a folder another process uses)
-// (the folder's name carries the process that made it, <prefix><pid>-XXXXXX: a run that was killed never cleans up, and
-// the next run removes what a gone process left: cleanDead)
+// (its name carries the process that made it, <prefix><pid>-XXXXXX, so the next run removes what a killed one left: cleanDead)
 const owned = (dir, prefix) => fs.mkdtempSync(path.join(dir, `${String(prefix).replace(/[\\/]/g, '-')}${process.pid}-`));
 export function testDir(prefix = 'tmp-', { keep = false } = {}) {
   fs.mkdirSync(TEST_ROOT, { recursive: true });
@@ -62,19 +65,16 @@ export function projectSlug(root = process.cwd()) {
   if (!n || /\{\{/.test(n)) n = path.basename(path.resolve(root));
   return String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'project';
 }
-// Calls fn(env) with TEMP, TMP and TMPDIR set to a new folder under the project's test folder, and removes that folder
-// when fn returns or throws: for the commands the engine runs for a project (its declared self-tests and check
-// commands), so what they leave never reaches the real temp folder.
+// Calls fn(env) with TEMP, TMP and TMPDIR in a new folder under the project's test folder, removed when fn ends: for the
+// commands the engine runs for a project, so what they leave never reaches the real temp folder.
 export function withOwnTemp(fn, root = process.cwd()) {
   let dir = null;
   try { const base = path.join(TEST_ROOT, 'projects', projectSlug(root)); fs.mkdirSync(base, { recursive: true }); dir = owned(base, 'run-'); MADE.add(dir); hook(); } catch { }
   try { return fn(dir ? { TEMP: dir, TMP: dir, TMPDIR: dir } : {}); }
   finally { if (dir) { rm(dir); MADE.delete(dir); const base = path.dirname(dir); for (const d of [base, path.dirname(base), TEST_ROOT]) try { fs.rmdirSync(d); } catch { break; } } }
 }
-// Runs a test command (any language) with its temp folder (TEMP, TMP, TMPDIR) pointed at a new folder under the
-// project's test folder, removes that folder when the command ends, passed or failed, and lists what the command still
-// added to the real temp folder (another program running at the same time may have added some of it).
-// Returns { status, dir, added }.
+// Runs a test command (any language) with TEMP, TMP and TMPDIR in a new folder under the project's test folder, removed
+// when it ends, and lists what it still added to the real temp folder. Returns { status, dir, added }.
 export function runIsolated(cmd, { root = process.cwd(), stdio = 'inherit', env = process.env, timeout, under } = {}) {
   const real = os.tmpdir(), ls = () => { try { return new Set(fs.readdirSync(real)); } catch { return new Set(); } };
   // (under: a folder to make the run's temp folder in, for a caller that removes it whole: startTempHint)

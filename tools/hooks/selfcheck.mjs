@@ -13,7 +13,7 @@
 // These scenarios test the old engine (v1), so they pin it; tools/hooks/v2/selftest.mjs tests v2, the default.
 process.env.STARTER_ENGINE ||= 'v1';
 import './hidewin.mjs'; // child processes start hidden (no console windows)
-import { testDir, TEST_ROOT, cleanOld, cleanDead } from './testtmp.mjs'; // fixtures under one temp root, removed at exit
+import { testDir, TEST_ROOT, cleanOld, cleanDead, stopIfAsked, watchStop } from './testtmp.mjs'; // fixtures under one temp root, removed at exit
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -116,6 +116,7 @@ function base(host = false) {
 try { for (const n of fs.readdirSync(os.tmpdir())) if (/^starter-(base|test|fake|dry|upg)-/.test(n)) { const p = path.join(os.tmpdir(), n); if (Date.now() - fs.statSync(p).mtimeMs > 6 * 3600_000) fs.rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } } catch { }
 // (and what killed runs left under the one test root, at the same age: tools/hooks/testtmp.mjs)
 cleanOld(6 * 3600_000); cleanDead(); // (and at once what a killed run left: its process is gone)
+watchStop(); // (a STOP file ends the run, its shards too: node tools/starter.mjs stop-tests)
 // The base: a copy of this project with every available pack installed and the generated files synced, so every
 // check can be exercised. Files are aged, so only what a scenario writes counts as changed this turn.
 function buildBase(host) {
@@ -2924,7 +2925,7 @@ const VERBOSE = process.argv.includes('--verbose') || process.argv.includes('--s
 // (self-tests this run starts, in fixtures, print every line: the tests read their PASS lines)
 process.env.SELFCHECK_VERBOSE = '1';
 const LOG_LINES = [];
-const report = (ok, name, why = '') => { if (ok) PASSED.push(name); else { FAILED.push(name); FAIL_LINES.push(`FAIL  ${name}  -> ${why}`); } ok ? pass++ : fail++; const line = `${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  -> ' + why}`; LOG_LINES.push(line); if (!ok || VERBOSE) console.log(line); };
+const report = (ok, name, why = '') => { stopIfAsked(); if (ok) PASSED.push(name); else { FAILED.push(name); FAIL_LINES.push(`FAIL  ${name}  -> ${why}`); } ok ? pass++ : fail++; const line = `${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  -> ' + why}`; LOG_LINES.push(line); if (!ok || VERBOSE) console.log(line); };
 function applyEdits(dir, edits, when = Date.now() - 3600_000) { for (const [p, fn] of Object.entries(edits || {})) { const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, fn(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '')); fs.utimesSync(f, when / 1000, when / 1000); } }
 // The fit checklist filled the way setup fills it: what is in the project is "add", the rest "skip", each with its own
 // reason that answers the survey's signals (node tools/fit.mjs --json). Extra decisions override single rows.

@@ -1,7 +1,7 @@
 ---
 status: open
 ---
-# Plan: every line Anzuelo shows the user is true, readable and worth showing
+# Plan: every line <!--name:STARTER_NAME-->Anzuelo<!--/name--> shows the user is true, readable and worth showing
 
 **Goal:** each item the engine shows the user is true, whole, plain, short and useful.
 
@@ -24,8 +24,8 @@ or find the first unticked box. Ticked boxes are done; never redo them.
 - Shown text comes from: the ⚓ systemMessage lines (tools/hooks/v2/lines.mjs and the hook entries), Stop feedback
   (tools/hooks/v2/end.mjs and its details file), guard refusals (tools/hooks/v2/guard.mjs), and the upgrade report and
   notices (tools/starter.mjs).
-- Transcripts: ~/.claude/projects/C--projects-Anzuelo-AI-Project-Starter, C--projects-MTG-Arena, C--projects-Destiny-2
-  and C--projects-Computer-automations. Shown lines are the `hook_system_message` attachments; Stop feedback is in
+- Transcripts: the session folders under ~/.claude/projects for the starter and each linked project (listed in
+  tools/starter/watch.local.json, which git ignores). Shown lines are the `hook_system_message` attachments; Stop feedback is in
   `stop_hook_summary.hookAdditionalContext`.
 - Known failures so far (oversight, 2026-11-12): "fixed" said for unfixed issues (lines.mjs:65); a lesson credited to
   files nobody touched (old notes read as new); lines cut mid-word; jargon ("Finished section", "open plans",

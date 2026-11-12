@@ -18,6 +18,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+// (a STOP file ends this run: node tools/starter.mjs stop-tests; loaded if there, as the sweep also runs alone in a copy)
+try { (await import('../hooks/testtmp.mjs')).watchStop(); } catch { }
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');

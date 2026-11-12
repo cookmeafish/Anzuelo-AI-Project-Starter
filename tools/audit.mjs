@@ -80,8 +80,11 @@ const walk = (d, pred, acc = [], skip = SKIPDIR) => {
 };
 const isTemplate = exists('.starter-template');
 const pbs = playbooks();
-// (every v2 module counts, not only the guard: a REQ the end check or the mid-task notes enforce is enforced)
-const hooksSrc = read(abs('tools/hooks/hooks-main.mjs')) + ['people', 'labels', 'base-checks', 'wakeups', 'injection', 'claims', 'grant', 'count', 'datadirs', 'names', 'rootfiles', 'menu', 'history', 'writing', 'excuse', 'extstop', 'decide', 'worth', 'gui', 'correct', 'praise', 'planreq', 'near', 'skilllearn', 'hooktests', 'donewhen', 'knowledge', 'proof', 'trace', 'launchers', 'gates'].map(n => read(abs(`tools/hooks/${n}.mjs`))).join('\n') + (() => { try { return fs.readdirSync(abs('tools/hooks/v2')).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => read(abs(`tools/hooks/v2/${f}`))).join('\n'); } catch { return ''; } })();
+// (every engine module counts, the v2 ones included, but not the test files: a REQ the end check or the mid-task notes
+// enforce is enforced. Read from the folders, not a list. Lesson (a release chain, 2026-11-12): code moved into new
+// modules (transcript, setupinfo) was missing from the fixed list, and three tags read as enforced nowhere)
+const TEST_FILES = new Set(['selfcheck.mjs', 'selftest.mjs', 'selftest-cache.mjs', 'project-scenarios.mjs', 'trigger-cases.mjs']);
+const hooksSrc = ['tools/hooks', 'tools/hooks/v2'].flatMap(d => { try { return fs.readdirSync(abs(d)).filter(f => f.endsWith('.mjs') && !TEST_FILES.has(f)).map(f => read(abs(`${d}/${f}`))); } catch { return []; } }).join('\n');
 // the project's own scenarios count too, and while an upgrade's move is pending, the ones kept from the old test file
 const legacyScenarios = read(abs('tools/hooks/legacy-scenarios.txt'));
 // (and the v2 engine's own tests, which new checks get as the old scenarios move there: plan engine v2 only, 1d)

@@ -32,6 +32,8 @@
 //                                                 ones. A project's "status" then shows how many of its reports are fixed.
 //   node tools/starter.mjs clean-tests [--hours N]  remove what killed test runs left under <temp>/anzuelo-tests, older
 //                                                 than 1 hour (or N); nothing else in the temp folder is touched
+//   node tools/starter.mjs stop-tests             stop every test run going now (self-tests, sweeps, trials, release
+//                                                 chains): each exits within about a second and removes its folders
 //   node tools/starter.mjs test-run [--strict] -- <test command>  run the project's own tests with their temp folder
 //                                                 under <temp>/anzuelo-tests/projects/<name>, removed when they end, and
 //                                                 list what they still left in the temp folder (--strict: that fails)
@@ -138,6 +140,12 @@ if (process.argv[2] === 'feedback-status') {
 // (install runs from the starter: it puts this engine into another folder)
 // clean-tests: what killed test runs left under the one test root (<temp>/anzuelo-tests), older than 1 hour (or
 // --hours N); nothing else in the temp folder is touched. In the starter and in projects alike.
+// stop-tests: every test run started before now stops within about a second and removes its folders (testtmp.mjs)
+if (process.argv[2] === 'stop-tests') {
+  const { requestStop } = await import('./hooks/testtmp.mjs');
+  console.log(`stop-tests: wrote ${requestStop()}; the self-tests, sweeps, trials and release chains running now stop within about a second`);
+  process.exit(0);
+}
 if (process.argv[2] === 'clean-tests') {
   const { cleanOld, cleanDead, TEST_ROOT } = await import('./hooks/testtmp.mjs');
   const h = process.argv.indexOf('--hours'), hours = h > 0 ? Number(process.argv[h + 1]) : 1;

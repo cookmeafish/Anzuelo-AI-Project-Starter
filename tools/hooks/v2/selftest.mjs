@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Engine v2 self-test: a scratch project with one runbook, and transcripts of real turn shapes. Runs in seconds.
 import '../hidewin.mjs'; // child processes start hidden (no console windows)
-import { testDir, TEST_ROOT, cleanOld, cleanDead } from '../testtmp.mjs'; // fixtures under one temp root, removed at exit
-cleanDead(); // (what a killed run left first: its process is gone)
+import { testDir, TEST_ROOT, cleanOld, cleanDead, stopIfAsked, watchStop } from '../testtmp.mjs'; // fixtures under one temp root, removed at exit
+cleanDead(); watchStop(); // (what a killed run left first: its process is gone; a STOP file ends this run)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -67,7 +67,7 @@ const { missing, onStop } = await import('./end.mjs');
 const { turnRows, turnActs, worked } = await import('./lib.mjs');
 
 let pass = 0, fail = 0;
-const report = (ok, name, detail = '') => { if (ok) pass++; else { fail++; console.log(`FAIL  ${name}  -> ${detail}`); } };
+const report = (ok, name, detail = '') => { stopIfAsked(); if (ok) pass++; else { fail++; console.log(`FAIL  ${name}  -> ${detail}`); } };
 // (the runbook list is parsed once per run, but a runbook rewritten in that run, or a new one, is read fresh)
 {
   const { runbooks } = await import('./lib.mjs');
@@ -844,6 +844,18 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   // (a repeat round reads only what was said after the last block, said; the whole request's text is saidAll)
   const later = waived({ answer: 'Root cause: the parser read the header twice.', said: 'Root cause: the parser read the header twice.\n', saidAll: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.\nRoot cause: the parser read the header twice.\n' }, gaps);
   report(later.length === 2 && !later.some(s => /item 1:/.test(s)), 'end: stop rounds: a runbook item said not to fit in an earlier round of the request stays cleared in the next round', later);
+  // (the audit finds the engine's REQ tags in every module of tools/hooks and v2, read from the folders: a module added
+  // later counts with no list to update. Lesson (a release chain, 2026-11-12): three tags in new modules read as unenforced)
+  { const au = fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', 'audit.mjs'), 'utf8'), m = /const hooksSrc = ([^\n]+)/.exec(au)?.[1] || '';
+    report(/readdirSync\(abs\(d\)\)/.test(m) && /'tools\/hooks', 'tools\/hooks\/v2'/.test(m) && !/'people', 'labels'/.test(m), 'audit: the REQ tags are read from every engine module in tools/hooks and tools/hooks/v2, not a fixed list', m.slice(0, 160)); }
+  // (the held message shows the way out in the words the check accepts, and those words clear the items: the whole
+  // runbook, or one item. Oversight, 2026-11-12: a project's "<runbook> was never followed" cleared nothing)
+  { const src = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), 'end.mjs'), 'utf8');
+    const shown = /doesn\\'t fit this task: <why>/.test(src) && /item N doesn\\'t fit: <why>/.test(src);
+    const whole = waived({ answer: 'export.md doesn\'t fit this task: the turn only changed the triggers of another runbook.' }, gaps);
+    const one = waived({ answer: 'item 2 doesn\'t fit: no changelog in this fixture project yet.' }, gaps);
+    report(shown && whole.length === 1 && whole[0] === 'Run the tests.' && one.length === 2 && !one.some(s => /item 2:/.test(s)),
+      'end: the held message shows the not-fit wording the check accepts, and that wording clears the runbook\'s items, or the one item', JSON.stringify({ shown, whole, one })); }
   // (two blocks, each followed by a short note: the answer held before the third round is the full first answer with
   // the second round's note, so its Finished section still counts. The old suite's "stop rounds", round 3)
   { const { answerBeforeBlock } = await import('./end.mjs');
@@ -3940,6 +3952,28 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     got = { alone, fine, waiting, shared, noted: /NOTE {2}probe: over its limit \(99 ms\) while 1 other/.test(said) };
   } finally { console.log = log; noted = notedBefore; process.env.STARTER_SELFTEST_RUNNING = was ?? ''; if (was === undefined) delete process.env.STARTER_SELFTEST_RUNNING; fs.rmSync(reg, { recursive: true, force: true }); }
   report(!got.alone && got.fine && !got.waiting && got.shared && got.noted, 'speed: a time over its limit fails when the run is alone (or beside a run that only waits), and is printed, not failed, beside another working self-test run', JSON.stringify(got));
+}
+
+// (stop-tests: test runs going now stop within about a second and leave nothing, one blocked in sync work too (it checks
+// at each test); a run started after the STOP goes on. In a temp folder of its own (TEMP), so this run is not stopped.
+// Oversight, 2026-11-12: a chain on a failed commit could only be ended by killing its processes, which was refused)
+{
+  const { spawn } = await import('node:child_process');
+  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const tmp = testDir('stoptest-'), env = { ...process.env, TEMP: tmp, TMP: tmp, TMPDIR: tmp };
+  const tt = JSON.stringify((await import('node:url')).pathToFileURL(path.join(repoRoot, 'tools/hooks/testtmp.mjs')).href);
+  const kid = code => spawn(process.execPath, ['--input-type=module', '-e', `const T = await import(${tt}); T.testDir('kid-'); T.watchStop(); ${code}`], { env, stdio: 'ignore' });
+  const ended = c => new Promise(r => { if (c.exitCode !== null) return r(c.exitCode); c.on('exit', code => r(code)); });
+  const waiting = kid('setTimeout(() => process.exit(0), 30000);');
+  const busy = kid('for (let i = 0; i < 600; i++) { T.stopIfAsked(); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); } process.exit(0);');
+  await new Promise(r => setTimeout(r, 1500));
+  const t0 = Date.now(), cmd = spawnSync(process.execPath, [path.join(repoRoot, 'tools/starter.mjs'), 'stop-tests'], { env, encoding: 'utf8' });
+  await new Promise(r => setTimeout(r, 1500)); // (a run that starts within a second of the STOP counts as before it)
+  const later = kid('setTimeout(() => process.exit(0), 2500);');
+  const codes = await Promise.all([ended(waiting), ended(busy), ended(later)]), secs = (Date.now() - t0) / 1000;
+  const left = (() => { try { return fs.readdirSync(path.join(tmp, 'anzuelo-tests')).filter(n => n !== 'STOP'); } catch { return []; } })();
+  report(/stop-tests: wrote/.test(cmd.stdout) && codes[0] === 3 && codes[1] === 3 && codes[2] === 0 && secs < 10 && !left.length,
+    'temp: stop-tests ends the test runs going now within seconds, one busy in sync work too, and they leave no folders; a run started after it goes on', JSON.stringify({ codes, secs: Math.round(secs * 10) / 10, left, out: cmd.stdout.trim().slice(0, 120), err: cmd.stderr.slice(-200) }));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });
