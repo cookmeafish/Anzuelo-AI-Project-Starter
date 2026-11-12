@@ -3163,6 +3163,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const bench = spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'bench'], { cwd: c, encoding: 'utf8', env, timeout: 120000 });
     const benchState = (fs.existsSync(stC) ? fs.readdirSync(stC) : []).filter(n => /^(v2-|stop-log|digest|checklist|turn|snapshot|triggers)/.test(n));
     report(/prompt \d+ ms/.test(bench.stdout || '') && !benchState.length, 'state-hygiene: a timing run (hooks.mjs bench) keeps no session state under v2', JSON.stringify({ benchState, out: (bench.stdout || bench.stderr || '').slice(0, 160) }));
+    // (REQ: stop-budget: STARTER_TIMING=1, the timing both engines answer, makes v2's Stop print its total and each
+    // check's time, so the self-test can time it and name the slowest. Lesson (the old suite under v2): v2 answered only
+    // its own ANZUELO_V2_TIMING, and the budget test saw no timing line)
+    wsave(); const timed = spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'wake1', transcript_path: wk }), env: { ...env, STARTER_TIMING: '1' } });
+    let tline = null; try { tline = JSON.parse(/V2-STOP-TIMING (.*)/.exec(timed.stderr || '')[1]); } catch { }
+    report(!!tline && tline.total >= 0 && (tline.parts || []).length >= 3 && tline.parts.every(([l, ms]) => typeof l === 'string' && typeof ms === 'number'), 'stop-budget: STARTER_TIMING=1 makes v2\'s Stop print its total and each check\'s time (for the budget test and its 3 slowest)', JSON.stringify(tline || (timed.stderr || '').slice(0, 200)));
     fs.rmSync(c, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     report(!!wFirst && wWake === wFirst && !!wTyped && wTyped !== wFirst, 'start: a wakeup the session scheduled, firing mid-turn, keeps the turn\'s start; a prompt the user types starts a new turn (self-sent-prompt)', JSON.stringify({ wFirst, wWake, wTyped }));
     report(Object.values(quiet).every(r => !r.files.length && !r.logged) && real.files.includes('v2-turn.realOne.json') && real.logged && headless.files.includes('v2-turn.headlessOne.json'),

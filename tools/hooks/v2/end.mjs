@@ -42,7 +42,7 @@ import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, l
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
 // (ANZUELO_V2_TIMING=1 prints each step's time to stderr, to find what a slower Stop spends; off, it costs nothing)
-const TIMES = process.env.ANZUELO_V2_TIMING ? [] : null;
+const TIMES = process.env.ANZUELO_V2_TIMING || process.env.STARTER_TIMING ? [] : null; // (STARTER_TIMING: the timing both engines answer)
 const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if (!TIMES) return; const n = performance.now(); TIMES.push([name, Math.round((n - t) * 10) / 10]); t = n; }; };
 const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
 const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts), ...rootTidyGaps(acts), ...fitStaleGaps({ root: ROOT, changed: changedOf(acts), since: Date.parse(acts.at || '') || 0 })];
