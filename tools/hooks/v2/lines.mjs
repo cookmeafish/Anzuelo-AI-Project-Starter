@@ -38,8 +38,8 @@ export const issueOf = notes => {
 };
 const LEARNED = /^[\s>*_-]*learned\s*\((?:one-off|lesson|rule|check|skill|engine)\)\s*:\s*.+?\s*(?:→|->)\s*`?([^`\s,;]+)/gim;
 
-// The line for a turn that passed the end check: the issue fixed (or only acknowledged, on a turn that changed
-// nothing), the checks passed, the runbook it pulled up followed, a lesson saved. A question with no issue shows
+// The line for a turn that passed the end check: the issue acknowledged (never "fixed" until the evidence model proves
+// it; a file change is no proof: docs/plans/2026-11-12-evidence-model.md), the checks passed, the runbook it pulled up followed, a lesson saved. A question with no issue shows
 // nothing. Lesson (the user): after a project moved to v2 these lines were gone, and the engine looked switched off.
 export const passLine = arg => visible(passText(arg));
 // The pass line's text, before the user's settings hide any part of it.
@@ -60,5 +60,5 @@ export function passText({ acts = {}, turn = {}, rounds = 0 } = {}) {
   const learned = [...new Set([...`${acts.said || ''}\n${notes}`.matchAll(LEARNED)].map(m => m[1]))];
   const passed = [`${A} ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`,
     ...(book ? [`📖 the ${book} runbook it pulled up was followed`] : []), ...made.slice(0, 2).map(f => `🌱 new runbook made: ${f}`), ...(learned.length ? [`🧠 lesson saved in ${learned.slice(0, 2).join(', ')}`] : [])];
-  return [issue ? `${A} 🚨 ${work ? 'fixed' : 'acknowledged'}: ${issue}` : '', work ? passed.join(' · ') : ''].filter(Boolean).join('\n');
+  return [issue ? `${A} 🚨 acknowledged: ${issue}` : '', work ? passed.join(' · ') : ''].filter(Boolean).join('\n');
 }

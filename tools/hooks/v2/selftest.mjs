@@ -3413,8 +3413,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     report(hist.length === 1 && /the notes have a typo/i.test(hist[0].prompt || '') && (hist[0].changed || []).includes('notes.md'),
       'end: a passing work turn leaves one line in tools/hooks/state/history.jsonl (its request, what it changed); a question leaves none', JSON.stringify(hist).slice(0, 400));
     const shownW = (() => { try { return JSON.parse(w).systemMessage || ''; } catch { return ''; } })();
-    report(/⚓ Anzuelo 🚨 fixed: the notes file had a typo/.test(shownW) && /⚓ Anzuelo ✅ checks passed/.test(shownW) && q === '',
-      'visible: under v2 a work turn that passes shows the issue fixed and the checks passed; a question shows nothing', [w.slice(0, 300), q.slice(0, 200)]);
+    // (a file change is no proof the issue is fixed: "acknowledged" until the evidence model proves it. Oversight,
+    // 2026-11-12: the line said "fixed" on a leak a soak had not yet proven)
+    report(/⚓ Anzuelo 🚨 acknowledged: the notes file had a typo/.test(shownW) && !/🚨 fixed/.test(shownW) && /⚓ Anzuelo ✅ checks passed/.test(shownW) && q === '',
+      'visible: under v2 a work turn that passes shows the issue acknowledged, never "fixed" unproven, and the checks passed; a question shows nothing', [w.slice(0, 300), q.slice(0, 200)]);
     // (an upgrade proves the engine runs in the project with its own hooks; the probe leaves no state behind)
     const { probeEngine } = await import('../hooks-main.mjs');
     const c3 = testDir('anzuelo-v2-probe-');
