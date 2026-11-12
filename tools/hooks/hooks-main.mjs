@@ -6807,7 +6807,7 @@ if (isMain) {
       // reaches no post-tool hook. Only then, to keep the Stop fast. Lesson (the old suite under v2): a new runbook got no
       // skill or DIRECTORY row)
       if (cmd === 'stop') try { syncIfStale(config(), Date.parse((await import('./v2/lib.mjs')).loadTurn(data.session_id).at || '') || 0); } catch { }
-      const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code' });
+      const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data, { fitDue: fitDueByRequest }) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code', helpers: { fitProblems: () => fitProblems(config()) } });
       if (cmd === 'stop' && !v2) try { fs.rmSync(path.join(STATE, detailsFile(data.session_id)), { force: true }); } catch { }
       if (v2) process.stdout.write(JSON.stringify(cmd === 'stop' ? v2StopForm(v2, config(), HOST, STATE, data.session_id) : v2));
     } catch (e) {

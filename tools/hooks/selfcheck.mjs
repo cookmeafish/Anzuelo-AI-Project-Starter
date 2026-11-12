@@ -5369,6 +5369,7 @@ const V2_ASKS = {
   'grant-decided': /^- docs\/foundation\.md "Who may do what" gives a destructive or sensitive action to someone other than the owner/m,
   // (the health check run at the end failed: v2's own step for it, which names each failure and its detail)
   'audit-run': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: /m,
+  'fit-checklist': /^- Files added this turn change what docs\/fit-checklist\.md was decided on: /m,
   // (a new runbook or skill that is not well-formed: named by the health check, by the audit sweep that failed)
   'runbook-complete': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,
   'playbook-format': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,

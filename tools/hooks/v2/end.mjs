@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
-import '../hidewin.mjs'; // child processes start hidden (no console windows)
+import '../hidewin.mjs'; import { fitStaleGaps } from '../fitstale.mjs'; // child processes start hidden (no console windows)
 import { withNote, correctionsOf } from '../correct.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,7 +45,7 @@ import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, l
 const TIMES = process.env.ANZUELO_V2_TIMING ? [] : null;
 const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if (!TIMES) return; const n = performance.now(); TIMES.push([name, Math.round((n - t) * 10) / 10]); t = n; }; };
 const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
-const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts), ...rootTidyGaps(acts)];
+const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts), ...rootTidyGaps(acts), ...fitStaleGaps({ root: ROOT, changed: changedOf(acts), since: Date.parse(acts.at || '') || 0, fitProblems: HELP.fitProblems })];
 // REQ: plan-required, under v2: the shared tools/hooks/planreq.mjs. A file is new this turn when git's last commit and
 // the turn-start snapshot do not have it and it was made after the turn began. The git lookup runs only when the cheap
 // conditions already hold (enough changed files, open work said, no plan or status recorded).
@@ -307,9 +307,9 @@ export function toVerify(turn, acts, books = runbooks()) {
 // A Stop that passes ends the turn: the next request starts a new one, and a message before then joins this one.
 // (while a helper started this turn still works, the turn is not over: no check yet, and the turn stays open, so the
 // Stop after the helper reports back judges the whole of it)
-let waiting = false, passed = null, decided = {};
+let waiting = false, passed = null, decided = {}, HELP = {}; // (HELP: the old engine's helpers hooks-main passes in: fitProblems)
 export function onStop(data, opts = {}) {
-  waiting = false; passed = null; decided = {};
+  waiting = false; passed = null; decided = {}; HELP = opts.helpers || {};
   const t0 = TIMES ? (TIMES.length = 0, performance.now()) : 0;
   const out = judge(data, opts);
   if (TIMES) process.stderr.write(`V2-STOP-TIMING ${JSON.stringify({ total: Math.round(performance.now() - t0), parts: TIMES.filter(([, ms]) => ms >= 0.5) })}\n`);

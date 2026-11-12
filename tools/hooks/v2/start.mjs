@@ -286,7 +286,7 @@ function remind(prompt) {
 
 const DIGEST = '[rules] route→open runbook · no runbook→create one · always/never→enforced rule · facts labeled+sourced+dated · ' +
   'questions get answers, not edits · originals/outputs protected · GUI change→screenshot loop · end with Finished + paths';
-export function onPrompt(data) {
+export function onPrompt(data, helpers = {}) {
   // (a host notice, like a background job ending, is not a request: the turn keeps its runbook and gets no reminder.
   // Lesson (live): a job's notice mid-turn cleared the routed runbook, and the end check held the turn to another one)
   // (so is a helper's report back: the words of its report route nowhere. Lesson (live): a review helper's report
@@ -334,7 +334,13 @@ export function onPrompt(data) {
     const f = at('tools/hooks/state/triggers.jsonl'), rows = (() => { try { return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean); } catch { return []; } })();
     rows.push(JSON.stringify({ at: new Date().toISOString(), kinds, text: String(userWords(data.prompt || '')).replace(/\s+/g, ' ').slice(0, 500), ...(sid ? { sid } : {}) }));
     fs.mkdirSync(at('tools/hooks/state'), { recursive: true }); fs.writeFileSync(f, rows.slice(-500).join('\n') + '\n'); } catch { }
+  // (REQ: fit-checklist, at the request: a library skill the checklist left for later or skipped, whose triggers this
+  // request matches, is decided again now: the request is the evidence the row waited for. Not for a relayed message.
+  // The matching is the old engine's (fitDueByRequest), passed in by hooks-main. Lesson (the old suite under v2): v2 said
+  // nothing, and a question a deferred skill was for was answered without it)
+  const fits = helpers.fitDue && !relayedRx.test(String(data.prompt || '')) ? (() => { try { return helpers.fitDue(String(userWords(data.prompt || ''))); } catch { return []; } })() : [];
+  const fit = fits.map(d => `FIT: this request is what the ${d.item} library skill is for (matched: ${d.hits.join(', ')}), and docs/fit-checklist.md decided it "${d.decision}". Decide it again now: enable it (node tools/skills.mjs enable ${d.item}) and use it, or update its row with why it still does not help.`).join('\n');
   // (last: what the reminder leads with, a question to answer or the runbook to open, stays first)
-  const all = [text, digest].filter(Boolean).join('\n');
+  const all = [text, fit, digest].filter(Boolean).join('\n');
   return all ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: all } } : null;
 }
