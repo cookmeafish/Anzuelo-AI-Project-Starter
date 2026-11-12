@@ -1324,6 +1324,11 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         { const g = (await import('node:url')).pathToFileURL(path.join(v2dir, 'guard.mjs')).href;
           const r = spawnSync(process.execPath, ['--input-type=module', '-e', `const G = await import(${JSON.stringify(g)}); const out = [G.inProjectParts('ls').length >= 0, G.deletesOnlyNewFiles('rm old/a.txt', 'old') === false, typeof G.madeThisTurn('src/a.js', Date.now()) === 'boolean']; console.log(JSON.stringify(out));`], { encoding: 'utf8', cwd: path.join(v2dir, '..', '..', '..') });
           report(r.status === 0 && r.stdout.trim() === '[true,true,true]', 'guard: its path, state and glob helpers run with nothing handed in from the old engine (state.mjs)', `${r.status} ${r.stdout.trim()} ${String(r.stderr).split('\n').find(l => /Error/.test(l)) || ''}`); }
+        // (a ratchet: the helpers the guard still takes from the old engine through use(), only ever fewer; 0 ends it.
+        // 53 before the shared modules were imported directly, 2026-11-12)
+        { const gs = fs.readFileSync(path.join(v2dir, 'guard.mjs'), 'utf8');
+          const fromOld = [...gs.matchAll(/const \{([^}]*)\} = H;/g)].flatMap(m => m[1].split(',').map(s => s.trim()).filter(Boolean));
+          report(fromOld.length <= 27, `guard: at most 27 helpers come from the old engine through use() (${fromOld.length} now)`, fromOld.join(', ')); }
       }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)

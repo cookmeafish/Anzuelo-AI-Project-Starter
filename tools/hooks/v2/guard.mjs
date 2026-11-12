@@ -7,8 +7,12 @@ import { spawnSync } from 'node:child_process';
 import { ENGINE, split, kind } from '../paths.mjs';
 import { commitIds, cutIds } from '../claims.mjs';
 import { selfListGrows, selfCmdWrites } from '../selfcmds.mjs';
-import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config } from '../settings.mjs';
-import { stateFile, SNAPSHOT, rel, globRe, match, textOf, engineOf } from '../state.mjs';
+import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretHit, forbiddenRe, today } from '../settings.mjs';
+import { stateFile, writeState, SNAPSHOT, rel, globRe, match, textOf, engineOf } from '../state.mjs';
+import { people, peopleIn, peopleFor, personOf, pathsPeople } from '../people.mjs';
+import { isWakeTool, WAKE_ASK } from '../wakeups.mjs';
+import { gitignoreProblems, aiAttributedCommits } from '../repo.mjs';
+import { AUTONOMY_WORDS } from '../near.mjs';
 export { commitIds };
 // Shared helpers come from the loader (use(hooksModule)): an import cycle left the hook waiting forever.
 let H = null;
@@ -176,11 +180,10 @@ export function asksToChange(p, prompt) {
 
 // Every rule the call breaks, in the order the checks run (each message once).
 export function pretoolHits(data, cfg) {
-  const { ROOT, config, turn, re, readJSON, stateFile, writeState, isWakeTool, WAKE_STATE, WAKE_ASK, isSuspended, people, peopleIn,
-    peopleFor, personOf, settingUp, toolUses, loggedRuns, briefFileNamesRules, rel, abs, exists, read, list, match, esc,
-    secretHit, FORBID_EXEMPT, forbiddenRe, countRe, BROWSER_CODE, heldSidestep, runsOf, onPath, gitPush, askedPushEarlier,
-    gitignoreProblems, runText, today, aiAttributedCommits, outwardCommand, AUTONOMY_WORDS, setupCompleteness, setupProblems,
-    names, inTimeOrder, redirectedRun, pathsPeople, shellParts, inlineCodeOut, sedInPlaceFiles, cmdHead, gateResult } = H;
+  // (the helpers still in the old engine, handed in by use() until each moves to a shared module: plan step 1b)
+  const { turn, WAKE_STATE, isSuspended, settingUp, toolUses, loggedRuns, briefFileNamesRules, FORBID_EXEMPT, countRe,
+    BROWSER_CODE, heldSidestep, runsOf, onPath, gitPush, askedPushEarlier, runText, outwardCommand, setupCompleteness,
+    setupProblems, names, inTimeOrder, redirectedRun, shellParts, inlineCodeOut, sedInPlaceFiles, cmdHead, gateResult } = H;
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
   // REQ: self-commands. Only the user adds a command the end check may run itself (selfcmds.mjs).
   if (selfListGrows(data.tool_name, data.tool_input, ROOT) || (/^(Bash|PowerShell)$/.test(data.tool_name || '') && selfCmdWrites(data.tool_input?.command)))
