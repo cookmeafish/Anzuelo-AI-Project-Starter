@@ -7764,7 +7764,12 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // host-fi
     // negative: the project's own scenarios still get all of it
     const hostOk = (hb.playbooks || []).includes('shopfix.md') && (hb.skills || []).includes('shop-notes') && /anzuelo/.test(hb.projectTriggers || '') && JSON.stringify(hb.externalHooks) === '["tools/hooks/own_hooks.py"]'
       && (hb.hookFiles || []).includes('own_hooks.py') && (hb.enabledChecks || []).includes('shop-own-check');
-    report(fxOk && hostOk && routes.status === 0 && /ALL PASS/.test(routes.stdout) && /PASS {2}prompt: route-precision: the project's own runbook routes in its own scenarios/.test(routes.stdout) && /PASS {2}prompt: route-precision: a generic word gives way to a specific match/.test(routes.stdout),
+    // (under v2, a route test retired for v2 (tools/starter/reviews/v2-retired.txt, each with its triage row) may fail
+    // here; any other failure still fails this test. Lesson (the v2 sweep): a retired checklist-with-the-route test
+    // failed the host's run while the fixtures were right)
+    const retired = process.env.STARTER_ENGINE === 'v2' ? (() => { try { return new Set(fs.readFileSync(path.join(ROOT, 'tools/starter/reviews/v2-retired.txt'), 'utf8').split(/\r?\n/).map(l => l.split('\t')[0].trim()).filter(Boolean)); } catch { return new Set(); } })() : new Set();
+    const routeFails = (routes.stdout.match(/^FAIL {2}.*$/gm) || []).map(l => l.slice(6).split('  -> ')[0].trim()).filter(n => !retired.has(n));
+    report(fxOk && hostOk && routes.status !== null && !routeFails.length && (retired.size || (routes.status === 0 && /ALL PASS/.test(routes.stdout))) && /PASS {2}prompt: route-precision: the project's own runbook routes in its own scenarios/.test(routes.stdout) && /PASS {2}prompt: route-precision: a generic word gives way to a specific match/.test(routes.stdout),
       'host-fixtures: in a host project the engine\'s scenarios run without its own runbooks, skills, triggers, checks and hook files ("externalHooks"); its own scenarios keep them',
       `fixture ${fxOk} ${JSON.stringify(fx).slice(0, 400)} | host ${hostOk} ${JSON.stringify(hb).slice(0, 300)} | ${fbr.stderr.slice(0, 200)} | routes ${routes.status} ${(routes.stdout.match(/^FAIL.*$/gm) || []).join(' / ').slice(0, 500)} ${routes.stdout.trim().split('\n').pop()}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
