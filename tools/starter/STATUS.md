@@ -41,6 +41,14 @@ Every batch: the pre-chain quick runs; the next batch starts while a chain runs;
 oversight (commit, open count, next batch).
 
 ## Now
+- 2026-11-12 (afternoon): app-port at 26b902d, not released. Order set by oversight: (1) docs/plans/2026-11-12-no-leaks.md
+  (Tasks 2-6, then a 4-chain soak on a freshly restarted machine; nobody says fixed before it), (2) the release,
+  (3) docs/plans/2026-11-12-evidence-model.md (plus oversight's queued real-turn cases: per-session notes, a quiet
+  acknowledgement, whole short lines, the runbook pick, false Stop rounds, one routing path, the subagent-brief guard),
+  (4) the .anzuelo migration of the two old-layout projects, (5) the rest of 1b. Done today: stop-tests, the audit
+  reads every module, the compile cache gated and pruned, tools/starter/leaks.mjs in both chain scripts, the audit's
+  "engine lives under .anzuelo/" sweep. Left for the user to decide: Node's old compile cache (about 22.6 GB), about
+  3,800 old bgmoved-*.output files in TEMP, 714 test transcript folders.
 - 2026-11-11 (evening, paused for a restart): main and GitHub at 2c59015 (15 open). app-port ahead (37efbf1): other-
   session security review, session ports, the routing-only Stop speed fix (two projects measured Stop +17 to +20 ms),
   audit-run mapping, the no-hooks follow-on guard; its chain (9ca792b) passed the timed steps and was stopped for the
