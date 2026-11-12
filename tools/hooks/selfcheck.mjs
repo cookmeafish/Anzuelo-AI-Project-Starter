@@ -13,7 +13,7 @@
 // These scenarios test the old engine (v1), so they pin it; tools/hooks/v2/selftest.mjs tests v2, the default.
 process.env.STARTER_ENGINE ||= 'v1';
 import './hidewin.mjs'; // child processes start hidden (no console windows)
-import { testDir, TEST_ROOT, cleanOld } from './testtmp.mjs'; // fixtures under one temp root, removed at exit
+import { testDir, TEST_ROOT, cleanOld, cleanDead } from './testtmp.mjs'; // fixtures under one temp root, removed at exit
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -115,7 +115,7 @@ function base(host = false) {
 // still going in another session keeps its own. Lesson: 136 stale copies piled up in the temp folder.
 try { for (const n of fs.readdirSync(os.tmpdir())) if (/^starter-(base|test|fake|dry|upg)-/.test(n)) { const p = path.join(os.tmpdir(), n); if (Date.now() - fs.statSync(p).mtimeMs > 6 * 3600_000) fs.rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } } catch { }
 // (and what killed runs left under the one test root, at the same age: tools/hooks/testtmp.mjs)
-cleanOld(6 * 3600_000);
+cleanOld(6 * 3600_000); cleanDead(); // (and at once what a killed run left: its process is gone)
 // The base: a copy of this project with every available pack installed and the generated files synced, so every
 // check can be exercised. Files are aged, so only what a scenario writes counts as changed this turn.
 function buildBase(host) {

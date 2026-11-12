@@ -139,10 +139,10 @@ if (process.argv[2] === 'feedback-status') {
 // clean-tests: what killed test runs left under the one test root (<temp>/anzuelo-tests), older than 1 hour (or
 // --hours N); nothing else in the temp folder is touched. In the starter and in projects alike.
 if (process.argv[2] === 'clean-tests') {
-  const { cleanOld, TEST_ROOT } = await import('./hooks/testtmp.mjs');
+  const { cleanOld, cleanDead, TEST_ROOT } = await import('./hooks/testtmp.mjs');
   const h = process.argv.indexOf('--hours'), hours = h > 0 ? Number(process.argv[h + 1]) : 1;
   if (!(hours >= 0)) { console.error('usage: node tools/starter.mjs clean-tests [--hours N]'); process.exit(2); }
-  const n = cleanOld(hours * 3600_000);
+  const n = cleanDead() + cleanOld(hours * 3600_000); // (what killed runs left at once, then anything that old)
   console.log(`clean-tests: removed ${n} leftover test folder${n === 1 ? '' : 's'} older than ${hours} hour${hours === 1 ? '' : 's'} under ${TEST_ROOT}`);
   process.exit(0);
 }

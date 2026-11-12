@@ -10,7 +10,8 @@
 // (its hook promises were written for the old engine, v1, so it pins v1; the default engine, v2, has its own self-test)
 process.env.STARTER_ENGINE ||= 'v1';
 import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
-import { testDir, TEST_ROOT, cleanOld } from './hooks/testtmp.mjs'; // fixtures under one temp root, removed at exit
+import { testDir, TEST_ROOT, cleanOld, cleanDead } from './hooks/testtmp.mjs'; // fixtures under one temp root, removed at exit
+cleanDead(); // (what a killed run left first: its process is gone)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

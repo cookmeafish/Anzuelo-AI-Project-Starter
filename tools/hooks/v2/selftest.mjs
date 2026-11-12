@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Engine v2 self-test: a scratch project with one runbook, and transcripts of real turn shapes. Runs in seconds.
 import '../hidewin.mjs'; // child processes start hidden (no console windows)
-import { testDir, TEST_ROOT, cleanOld } from '../testtmp.mjs'; // fixtures under one temp root, removed at exit
+import { testDir, TEST_ROOT, cleanOld, cleanDead } from '../testtmp.mjs'; // fixtures under one temp root, removed at exit
+cleanDead(); // (what a killed run left first: its process is gone)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -3687,6 +3688,16 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const trRes = { leak: [leak.status, /TMP=.*anzuelo-tests[\\/]projects[\\/]garden-notes[\\/]run-/.test(leak.stdout), /left nothing/.test(leak.stdout)], stray: [stray.status, /left 1 new entry.*stray/.test(stray.stdout)], left: left(trD) };
     report(JSON.stringify(trRes.leak) === '[3,true,true]' && JSON.stringify(trRes.stray) === '[1,true]' && JSON.stringify(trRes.left) === '["stray"]',
       'temp: starter.mjs test-run gives a project\'s tests a temp folder of their own under anzuelo-tests/projects/<name>, removes it when they end, keeps their exit code, and lists (--strict: fails on) what they left in the real temp folder', JSON.stringify({ ...trRes, out: (leak.stdout + leak.stderr + stray.stdout).slice(0, 300) }));
+    // (a run killed midway never cleans up; the next run removes what that gone process left, at once, and nothing of a
+    // live one. Lesson (2026-11-12): four suite runs killed by a time limit left 432 fixture folders)
+    const deadD = caseDir('dead');
+    const killed = child(deadD, "const d = testDir('killed-'); fs.writeFileSync(d + '/f.txt', 'x'); process.kill(process.pid, 'SIGKILL');");
+    const deadLeft = left(deadD);
+    fs.mkdirSync(path.join(deadD, 'anzuelo-tests', `live-${process.pid}-AbCdEf`), { recursive: true });
+    const next = child(deadD, "const mine = testDir('next-'); const { cleanDead } = await import(" + tt + "); console.log(cleanDead(0), fs.existsSync(mine));");
+    const dead = { killedLeft: deadLeft, next: next.stdout.trim(), after: left(deadD), runsFirst: /cleanOld\(6 \* 3600_000\); cleanDead\(\);/.test(fs.readFileSync(path.join(repoT, 'tools/hooks/selfcheck.mjs'), 'utf8')) };
+    report(dead.killedLeft.length === 1 && /^anzuelo-tests\/killed-\d+-/.test(dead.killedLeft[0]) && dead.next === '1 true' && JSON.stringify(dead.after) === JSON.stringify([`anzuelo-tests/live-${process.pid}-AbCdEf`]) && dead.runsFirst,
+      'temp: a run killed midway leaves its folder (named with its process), and the next run removes it at once; a live process\'s folder stays', JSON.stringify({ ...dead, err: (killed.stderr + next.stderr).slice(0, 200) }));
     // (the commands the engine runs for a project, its declared self-tests and check commands, run the same way)
     const owD = caseDir('owntemp');
     const ow = child(owD, `const { withOwnTemp } = await import(${tt}); const { spawnSync } = await import('node:child_process'); const r = withOwnTemp(env => spawnSync(process.execPath, ['-e', "const fs=require('fs'),os=require('os'),p=require('path');fs.mkdtempSync(p.join(os.tmpdir(),'leak-'));console.log(os.tmpdir())"], { encoding: 'utf8', env: { ...process.env, ...env } }), ${JSON.stringify(proj)}); console.log(r.stdout.trim());`);

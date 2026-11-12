@@ -21,9 +21,12 @@ const hook = () => {
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) try { process.once(sig, () => { cleanMade(); process.exit(130); }); } catch { }
 };
 // A new folder under the root, removed when this process ends (keep: true leaves it, for a folder another process uses)
+// (the folder's name carries the process that made it, <prefix><pid>-XXXXXX: a run that was killed never cleans up, and
+// the next run removes what a gone process left: cleanDead)
+const owned = (dir, prefix) => fs.mkdtempSync(path.join(dir, `${String(prefix).replace(/[\\/]/g, '-')}${process.pid}-`));
 export function testDir(prefix = 'tmp-', { keep = false } = {}) {
   fs.mkdirSync(TEST_ROOT, { recursive: true });
-  const d = fs.mkdtempSync(path.join(TEST_ROOT, String(prefix).replace(/[\\/]/g, '-')));
+  const d = owned(TEST_ROOT, prefix);
   if (!keep) { MADE.add(d); hook(); }
   return d;
 }
@@ -37,6 +40,19 @@ export function cleanOld(maxAgeMs = 3600_000) {
   return n;
 }
 
+// What killed runs left (a timeout, a crash, a closed terminal): the folders under the root, and under each project's
+// folder, whose making process is gone, a minute old at least. Run first by every suite. Returns how many were removed.
+// Lesson (2026-11-12): four suite runs killed by a time limit left 432 fixture folders, and the kernel memory they held.
+const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+export function cleanDead(minAgeMs = 60_000) {
+  let n = 0;
+  const sweep = dir => { try { for (const e of fs.readdirSync(dir)) {
+    const pid = Number(/-(\d+)-[A-Za-z0-9]{6}$/.exec(e)?.[1]); if (!pid || pid === process.pid || alive(pid)) continue;
+    const p = path.join(dir, e); try { if (Date.now() - fs.statSync(p).mtimeMs >= minAgeMs) { rm(p); n++; } } catch { } } } catch { } };
+  sweep(TEST_ROOT);
+  try { for (const p of fs.readdirSync(path.join(TEST_ROOT, 'projects'))) sweep(path.join(TEST_ROOT, 'projects', p)); } catch { }
+  return n;
+}
 // A project's own test runs: <temp>/anzuelo-tests/projects/<name>, the name from docs/names.json (PROJECT_NAME) or the
 // folder's name. Lesson (oversight, 2026-11-11): about 15,000 folders, nearly 2 million files, that projects' own test
 // suites (and the browsers they started) left in the temp folder; anything that walks the temp folder pays for each.
@@ -51,7 +67,7 @@ export function projectSlug(root = process.cwd()) {
 // commands), so what they leave never reaches the real temp folder.
 export function withOwnTemp(fn, root = process.cwd()) {
   let dir = null;
-  try { const base = path.join(TEST_ROOT, 'projects', projectSlug(root)); fs.mkdirSync(base, { recursive: true }); dir = fs.mkdtempSync(path.join(base, 'run-')); MADE.add(dir); hook(); } catch { }
+  try { const base = path.join(TEST_ROOT, 'projects', projectSlug(root)); fs.mkdirSync(base, { recursive: true }); dir = owned(base, 'run-'); MADE.add(dir); hook(); } catch { }
   try { return fn(dir ? { TEMP: dir, TMP: dir, TMPDIR: dir } : {}); }
   finally { if (dir) { rm(dir); MADE.delete(dir); const base = path.dirname(dir); for (const d of [base, path.dirname(base), TEST_ROOT]) try { fs.rmdirSync(d); } catch { break; } } }
 }
@@ -64,7 +80,7 @@ export function runIsolated(cmd, { root = process.cwd(), stdio = 'inherit', env 
   // (under: a folder to make the run's temp folder in, for a caller that removes it whole: startTempHint)
   const before = ls(), base = under || path.join(TEST_ROOT, 'projects', projectSlug(root));
   fs.mkdirSync(base, { recursive: true });
-  const dir = fs.mkdtempSync(path.join(base, 'run-'));
+  const dir = owned(base, 'run-');
   MADE.add(dir); hook();
   // (one string runs in the shell, as typed; separate words run without one, so paths with spaces stay whole; on Windows a
   // bare name such as npm is tried as npm.cmd too)
@@ -105,7 +121,7 @@ export function tempHint(root, { timeout = HINT_LIMIT_MS, under } = {}) {
 // no event of this process is seen until then; one still running is stopped with its whole process tree)
 export function startTempHint(root, { timeout = HINT_LIMIT_MS } = {}) {
   let res = null;
-  try { const base = path.join(TEST_ROOT, 'projects', projectSlug(root)); fs.mkdirSync(base, { recursive: true }); res = path.join(fs.mkdtempSync(path.join(base, 'hint-')), 'result.json'); } catch { return { collect: () => '' }; }
+  try { const base = path.join(TEST_ROOT, 'projects', projectSlug(root)); fs.mkdirSync(base, { recursive: true }); res = path.join(owned(base, 'hint-'), 'result.json'); } catch { return { collect: () => '' }; }
   const me = JSON.stringify(pathToFileURL(fileURLToPath(import.meta.url)).href);
   const kid = spawn(process.execPath, ['--input-type=module', '-e', `import fs from 'node:fs'; const { tempHint } = await import(${me}); const h = tempHint(${JSON.stringify(root)}, { timeout: ${Number(timeout)}, under: ${JSON.stringify(path.dirname(res))} }); fs.writeFileSync(${JSON.stringify(res)}, JSON.stringify(h));`], { stdio: 'ignore', windowsHide: true });
   const stop = () => { try { if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(kid.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }); else kid.kill('SIGKILL'); } catch { } };
