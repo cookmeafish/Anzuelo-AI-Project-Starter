@@ -813,18 +813,22 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   report(!noHooks('manual') && noHooks('abc123'), 'end: without hooks, the answer naming the runbook it followed stands for opening it; with hooks the runbook is still opened', JSON.stringify({ manual: noHooks('manual'), hooked: noHooks('abc123') }));
   // (the turn's notes are only what it added to .cache/turn-notes.md: the old Issue lines above stay an earlier turn's.
   // Lesson (a project's report, 2026-11-12): one line added to a weeks-old notes file made its old Issue lines this turn's)
-  { const { notesOf } = await import('./lib.mjs'), nf = path.join(dir, '.cache/turn-notes.md'), keep = fs.existsSync(nf) ? fs.readFileSync(nf) : null;
-    fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, 'Issue: an old complaint | runbook: export | fixed when: the old thing works again\n');
-    const start = new Date(Date.now() - 60_000).toISOString(), notesAt = fs.statSync(nf).size;
+  { const { notesOf, notesMark } = await import('./lib.mjs'), nf = path.join(dir, '.cache/turn-notes.md'), keep = fs.existsSync(nf) ? fs.readFileSync(nf) : null;
+    const old = 'Issue: an old complaint | runbook: export | fixed when: the old thing works again\n';
+    fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, old);
+    const start = new Date(Date.now() - 60_000).toISOString(), mark = notesMark(), notesAt = mark.notesAt;
     fs.appendFileSync(nf, 'Skill lesson: none - nothing new\n');
-    const mine = notesOf({ at: start, notesAt }), whole = notesOf({ at: start, notesAt: notesAt + 999 });
+    const mine = notesOf({ at: start, ...mark }), whole = notesOf({ at: start, notesAt: notesAt + 999 });
+    // (a line put above the old ones: the start no longer matches, so the whole file is read, as before)
+    fs.writeFileSync(nf, `Done 1-3: a new record\n${old}`); const above = notesOf({ at: start, ...mark });
+    fs.appendFileSync(nf, 'Skill lesson: none - nothing new\n');
     fs.utimesSync(nf, new Date(Date.now() - 3600_000), new Date(Date.now() - 3600_000)); const stale = notesOf({ at: start, notesAt: 0 });
     // (and a new turn records the notes file's size when it begins)
     const { onPrompt } = await import('./start.mjs'), { loadTurn } = await import('./lib.mjs'), size = fs.statSync(nf).size;
     onPrompt({ session_id: 'notesatprobe', prompt: 'fix the label' }); const saved = loadTurn('notesatprobe').notesAt;
     try { fs.rmSync(path.join(dir, 'tools/hooks/state/v2-turn.notesatprobe.json'), { force: true }); } catch { }
     if (keep) fs.writeFileSync(nf, keep); else fs.rmSync(nf, { force: true });
-    report(/Skill lesson/.test(mine) && !/old complaint/.test(mine) && /old complaint/.test(whole) && stale === '' && saved === size, 'end: the turn\'s notes are only what it added to the notes file (its size recorded when the turn begins); a file that shrank is read whole, an untouched one not at all', JSON.stringify({ mine, whole: whole.length, stale, saved, size })); }
+    report(/Skill lesson/.test(mine) && !/old complaint/.test(mine) && /old complaint/.test(whole) && /Done 1-3/.test(above) && stale === '' && saved === size, 'end: the turn\'s notes are only what it added to the notes file (its size and hash recorded when the turn begins); a file that shrank or was rewritten is read whole, an untouched one not at all', JSON.stringify({ mine, whole: whole.length, above: above.length, stale, saved, size })); }
   // (a turn with no routed runbook that greps another runbook's triggers is not following it; printing it whole is.
   // Lesson (a project's report, 2026-11-12): a grep of a runbook's triggers line held a routing fix to its 7 items)
   { const by = command => missing({ runbook: null }, acts([user('make the field guide route to the gui runbook'), call('Bash', { command }), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done.')])).filter(s => /export\.md item/.test(s)).length;

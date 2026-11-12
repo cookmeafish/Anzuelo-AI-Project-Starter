@@ -44,7 +44,7 @@ const LEARNED = /^[\s>*_-]*learned\s*\((?:one-off|lesson|rule|check|skill|engine
 export const passLine = arg => visible(passText(arg));
 // The pass line's text, before the user's settings hide any part of it.
 export function passText({ acts = {}, turn = {}, rounds = 0 } = {}) {
-  const A = brand(), calls = acts.calls || [], notes = notesOf({ at: turn.at, notesAt: turn.notesAt });
+  const A = brand(), calls = acts.calls || [], notes = notesOf({ at: turn.at, notesAt: turn.notesAt, notesSha: turn.notesSha });
   const work = calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)
     || (/^(Bash|PowerShell)$/.test(c.name) && /\b(git\s+commit|writeFileSync|Set-Content|Out-File)\b|>\s*[\w./"'-]+\.\w+/.test(String(c.input?.command || ''))));
   // (REQ: upset-acknowledged: an Issue line the agent wrote in its own text, with none in the notes, is acknowledged too,

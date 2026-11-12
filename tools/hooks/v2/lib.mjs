@@ -1082,9 +1082,11 @@ const waivedByCommand = (tag, acts) => { const rx = new RegExp(`^waived for this
   const since = Date.parse(acts.at || '') || 0;
   if (!since || !acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && /\bhooks\.mjs["']?\s+waive\b/.test(String(c.input?.command || '')))) return false;
   return read('tools/hooks/state/runs.jsonl').split('\n').some(l => { let r; try { r = JSON.parse(l); } catch { return false; } return Date.parse(r?.at || '') >= since && !r.error && rx.test(String(r.out || '')); }); };
-// The turn's own notes: what .cache/turn-notes.md gained since the turn began. Lesson: old Issue lines read as this turn's.
-export const notesOf = acts => { try { const f = at('.cache/turn-notes.md'), since = Date.parse(acts.at || '') || 0; if (since && fs.statSync(f).mtimeMs < since - 2000) return '';
-  const b = fs.readFileSync(f), off = acts.notesAt; return Number.isInteger(off) && off <= b.length ? b.subarray(off).toString('utf8') : b.toString('utf8'); } catch { return ''; } };
+// The turn's own notes: what .cache/turn-notes.md gained since the turn began (its size and hash then, notesMark; one
+// rewritten since is read whole). Lesson: one line added to a weeks-old notes file made its old Issue lines this turn's.
+const nsha = b => createHash('sha1').update(b).digest('hex').slice(0, 16), notesMark = () => { try { const b = fs.readFileSync(at('.cache/turn-notes.md')); return { notesAt: b.length, notesSha: nsha(b) }; } catch { return { notesAt: 0 }; } };
+export { notesMark }; export const notesOf = acts => { try { const f = at('.cache/turn-notes.md'), since = Date.parse(acts.at || '') || 0; if (since && fs.statSync(f).mtimeMs < since - 2000) return '';
+  const b = fs.readFileSync(f), off = acts.notesAt; return Number.isInteger(off) && off <= b.length && (!acts.notesSha || nsha(b.subarray(0, off)) === acts.notesSha) ? b.subarray(off).toString('utf8') : b.toString('utf8'); } catch { return ''; } };
 export const waivedTag = (tag, acts) => { if (waivedByCommand(tag, acts)) return true;
   return !!acts.at && notesOf(acts).split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };
 const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };

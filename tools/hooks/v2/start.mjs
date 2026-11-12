@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS, SMALL_SKIP, scopeLine } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, notesMark, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS, SMALL_SKIP, scopeLine } from './lib.mjs';
 import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, ownEnds, EXAMPLE_CLASS, multiPart } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
@@ -311,10 +311,9 @@ export function onPrompt(data) {
   // touched from one it changed)
   // (and the plans open when it began: REQ plan-open, planreq.mjs; and the notes file's size then, so only what the turn
   // adds to it is its own: notesOf)
-  else { const at0 = new Date().toISOString(); let openPlans = [], notesAt = 0;
+  else { const at0 = new Date().toISOString(); let openPlans = [];
     try { openPlans = openPlansOf(fs.readdirSync(at('docs/plans')), p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } }).map(x => x.p); } catch { }
-    try { notesAt = fs.statSync(at('.cache/turn-notes.md')).size; } catch { }
-    saveTurn(data.session_id, { at: at0, runbook: book?.file || null, notesAt, ...sore, ...tx, ...(openPlans.length ? { openPlans } : {}) }); snapshotLater(data.session_id, at0); }
+    saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...notesMark(), ...sore, ...tx, ...(openPlans.length ? { openPlans } : {}) }); snapshotLater(data.session_id, at0); }
   // (REQ: prompt-digest: a session whose start did not give the rules (no session-start record for it) hears a one-line
   // digest once, with its first reminder. Lesson (the old suite under v2): the old engine said it; v2 never did)
   const sid = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);

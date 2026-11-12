@@ -400,8 +400,7 @@ const excuseV2 = (acts, rows) => {
 // (REQ: friction-reported, tools/hooks/v2/friction.mjs: the turn's Issue lines, in its notes or its own text, against the
 // checks this project runs)
 const frictionV2 = acts => {
-  const notes = acts.at ? notesOf(acts) : '';
-  return frictionGaps(ROOT, acts.at || '', `${notes}\n${acts.said || ''}`, engineChecks().map(r => r && r.tag).filter(Boolean));
+  return frictionGaps(ROOT, acts.at || '', `${acts.at ? notesOf(acts) : ''}\n${acts.said || ''}`, engineChecks().map(r => r && r.tag).filter(Boolean));
 };
 // A message the user typed this turn (the request, or one typed mid-turn) asks to pause, stop or restart.
 export const pausedTurn = acts => (acts.parts || []).some(p => PAUSE_ASK.test(p));
@@ -443,8 +442,7 @@ export function noticeAnswerGaps(rows, final, again = false) {
   if (lines.length ? lines.filter(l => r.includes(l)).length / lines.length >= 0.5 : r.includes(p.slice(0, 60))) return [];
   return ['This run is headless (claude -p or the SDK): its caller gets only the last message, and this reply to a background notice is now that message, so the answer given before is lost. End with that whole answer again, then any news from the notice.'];
 }
-// The agent's notes file, when this turn wrote it.
-const turnNotes = notesOf;
+const turnNotes = notesOf; // (the agent's notes this turn)
 // REQ: rule-request. A standing rule the agent took on is written where every later turn reads it and enforced, not only
 // promised: the principle in AGENTS.md (CLAUDE.md), its dated row in docs/checks/user-requirements.md, how it is
 // enforced (a check, a test a check runs, a "Done when" line, a guard, or "hook: N/A <reason>"), and with
@@ -719,7 +717,7 @@ function judge(data, { shadow = false } = {}) {
         resent.push(`The correction quotes text the earlier answer does not hold word for word (${lost.map(f => `"${f.old.slice(0, 60)}"`).join(', ')}). Quote it exactly, or end with the whole answer again, corrected.`); }
       acts.answer = applied ?? `${prev.trim()}\n\n${note}`; } }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
-  acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.notesAt = turn.notesAt; acts.transcriptPath = data.transcript_path || '';
+  acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.notesAt = turn.notesAt; acts.notesSha = turn.notesSha; acts.transcriptPath = data.transcript_path || '';
   acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
   lap('session transcript (tail, history, earlier)');
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
