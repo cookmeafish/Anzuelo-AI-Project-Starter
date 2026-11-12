@@ -22,6 +22,10 @@ import { fileURLToPath } from 'node:url';
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { withOwnTemp } from './testtmp.mjs';
 import { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
+import { suspendedItems, isSuspended } from './settings.mjs';
+export { suspendedItems, isSuspended } from './settings.mjs';
+import { briefFileNamesRules } from './state.mjs';
+export { briefFileNamesRules } from './state.mjs';
 import { MOVED_BG, deniedIds, toolUses, RUN_LOG, loggedRuns, runsOf, inTimeOrder } from './runs.mjs';
 export { toolUses, loggedRuns, runsOf, inTimeOrder } from './runs.mjs';
 export { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
@@ -277,35 +281,6 @@ const WEAK = new Set(['improve', 'improvement', 'better', 'upgrade', 'report', '
   'feedback', 'issue', 'problem', 'mejorar', 'mejora', 'informe', 'reporte', 'revisar', 'arreglar'].map(stem));
 // A runbook whose result is a file for the user in outputs/ (the deliverable runbook)
 const makesFile = pb => /\boutputs\//.test(String(pb.fm?.summary || ''));
-// A push to a protected branch the user OK'd earlier in this session, in their own typed words (a message, or one typed
-// mid-turn; never pasted or relayed text): "push" and the branch in one message ("main" and "master" name the same
-// default branch). The OK holds for the session. Lesson (the user, upset): a push queued with the work was refused at
-// the end and the user had to confirm it a second time.
-export function askedPushEarlier(transcriptPath, target) {
-  // (the whole session, read line by line at any size: a standing OK given early in a long session still holds. It
-  // runs only for a push the request does not name. Lesson: a 64 MB tail missed what came before it)
-  let raw; try { fs.accessSync(transcriptPath); raw = jsonlLines(transcriptPath); } catch { return false; }
-  const names = /^(main|master)$/i.test(target) ? 'main|master' : esc(target);
-  const ok = new RegExp(`\\bpush\\b[\\s\\S]{0,80}\\b(${names})\\b|\\b(${names})\\b[\\s\\S]{0,40}\\bpush`, 'i');
-  // (a standing OK for any push this session, "you have permission to git push whenever you can"; and a plain "yes" to
-  // the agent's own question about this push. Lesson (the user, 2026-11-08): an approved push took four rounds; the
-  // standing OK named no branch, and a "yes" to "push it to main?" was asked again)
-  const standing = /\b(permission|allowed|free|ok|okay)\b[^.\n]{0,40}\b(git\s+)?push\b|\bpush\b[^.\n]{0,40}\b(whenever|any ?time|every time|each time)\b/i;
-  const yes = /^\W*(yes|yep|yeah|y|ok|okay|sure|go|go ahead|do it|please do|push it)\b[\s.!]*$/i;
-  const asked = new RegExp(`\\bpush\\b[^?]{0,120}\\?|\\b(${names})\\b[^?]{0,80}\\?`, 'i');
-  const clean = s => String(s).replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?<\/\1\b[^>]*>/g, ' ');
-  let lastSaid = '';
-  for (const line of raw) {
-    if (line.includes('"type":"assistant"')) { try { const a = JSON.parse(line).message?.content; const t = Array.isArray(a) ? a.filter(x => x.type === 'text').map(x => x.text).join('\n') : ''; if (t.trim()) lastSaid = t; } catch { } continue; }
-    if (!line.includes('"type":"user"')) continue;
-    let r; try { r = JSON.parse(line); } catch { continue; }
-    const said = typeof r.message?.content === 'string' ? clean(r.message.content) : '';
-    if (said && (standing.test(said) || (yes.test(said.trim()) && asked.test(lastSaid) && /\bpush\b/i.test(lastSaid)))) return true;
-    const c = r.message?.content, texts = typeof c === 'string' ? [c] : Array.isArray(c) ? c.filter(x => x.type === 'text').map(x => (/The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || '') || [])[1] || '') : [];
-    if (texts.some(t => ok.test(clean(t)))) return true;
-  }
-  return false;
-}
 export const deadTriggers = triggers => triggers.filter(t => !/\s/.test(String(t).trim()) && !keyWords(t).some(w => !GENERIC.has(w)));
 // Quoted material is what the request is about, not the request: code fences, "> " quote lines and long quoted
 // passages don't route. Lesson: "reply to this customer: 'the app keeps crashing when I log in'" routed to bugfix.
@@ -2282,8 +2257,6 @@ const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'chec
   'check:setup-interview', 'check:setup-complete', 'check:setup-gate', 'check:answer-traced', 'check:research-verified', 'check:research-ledger',
   'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command', 'check:instructions-run',
   'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project', 'check:upset-learned', 'skill:learn-from-upset']);
-export const suspendedItems = () => (readJSON(CONFIG(), {}).suspended || []).filter(s => s && s.item);
-export const isSuspended = item => suspendedItems().some(s => s.item === item);
 // Stop: what this turn used and which checks blocked it, merged across the turn's stops.
 function noteFriction(key, x, missing) {
   const prev = readJSON(stateFile('friction-turn.json'), {});
@@ -3192,17 +3165,6 @@ function deny(reason) {
     ...(line ? { systemMessage: line } : {}) }));
 }
 
-// A sub-agent prompt that points at a brief file ("Your brief: .cache/briefs/export.md") passes on the rules when that
-// file tells the sub-agent to read AGENTS.md. Lesson: a short prompt naming a full brief that began "Read AGENTS.md
-// first" was denied, so the brief had to be pasted into the prompt.
-export function briefFileNamesRules(prompt) {
-  const paths = [...String(prompt).matchAll(/(?:[A-Za-z]:)?[\w.~\\/-]*[\w-]\.(?:md|txt)\b/g)].map(m => m[0]).filter(s => !/^(AGENTS|CLAUDE)\.md$/.test(s)).slice(0, 8);
-  for (const s of paths) {
-    const full = path.isAbsolute(s) ? s : abs(s);
-    try { const st = fs.statSync(full); if (st.isFile() && st.size < 1024 * 1024 && /\bAGENTS\.md\b|\bCLAUDE\.md\b/.test(fs.readFileSync(full, 'utf8'))) return true; } catch { }
-  }
-  return false;
-}
 
 // A session in the middle of a long turn says it is alive (at most once a minute), so another session's Stop knows
 // its edits may be this one's (otherSessionActive).

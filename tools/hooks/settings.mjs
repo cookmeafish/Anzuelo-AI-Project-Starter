@@ -106,3 +106,6 @@ export function forbiddenRe(cfg = config()) {
   const t = forbiddenTerms(cfg);
   return t.length ? new RegExp(`(?<![\\p{L}\\p{N}_-])(${t.map(esc).join('|')})(?![\\p{L}\\p{N}_-])`, 'giu') : null;
 }
+// (checks the user switched off, in config.json "suspended")
+export const suspendedItems = () => (readJSON(where('tools/hooks/config.json'), {}).suspended || []).filter(s => s && s.item);
+export const isSuspended = item => suspendedItems().some(s => s.item === item);

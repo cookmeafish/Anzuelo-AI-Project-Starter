@@ -456,7 +456,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   && !upset('thanks, you let me know in time') && !upset('can you let the staff export orders?'),
   'start: an upset message (capitals, frustration words, "you made X without Y", or "you keep doing X") goes to the learn-from-upset skill; plain questions and codes do not');
 { // a push to main the user OK'd earlier in the session runs without a second confirmation; pasted text never counts
-  const { askedPushEarlier } = await import('../hooks-main.mjs');
+  const { askedPushEarlier } = await import('./guard.mjs');
   const tp = rows => transcript(rows);
   const said = askedPushEarlier(tp([user('fix the export'), say('Done.'), user('after all that commit all changes and git push to main okay?'), say('Will do.'), user('also fix the footer')]), 'main');
   const alias = askedPushEarlier(tp([user('when done, git push to master please')]), 'main');
@@ -1328,7 +1328,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         // 53 before the shared modules were imported directly, 2026-11-12)
         { const gs = fs.readFileSync(path.join(v2dir, 'guard.mjs'), 'utf8');
           const fromOld = [...gs.matchAll(/const \{([^}]*)\} = H;/g)].flatMap(m => m[1].split(',').map(s => s.trim()).filter(Boolean));
-          report(fromOld.length <= 11, `guard: at most 11 helpers come from the old engine through use() (${fromOld.length} now)`, fromOld.join(', ')); }
+          report(fromOld.length <= 8, `guard: at most 8 helpers come from the old engine through use() (${fromOld.length} now)`, fromOld.join(', ')); }
       }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
@@ -3613,7 +3613,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // 1b slices, same machine, fastest of 15: 75.4 ms before, 65.9 ms after)
   // (base: 4,150 from 2026-11-12: runs.mjs, the transcript's tool calls and runs the guard reads, moved whole from
   // hooks-main.mjs (81 lines there, 79 after its comments were cut); base went from 4,066 to 4,146)
-  const cap = { guard: 800, reminder: 400, end: 3200, base: 4150 }, ALL = 6000;
+  // (base: 4,200 from 2026-11-12: briefFileNamesRules and isSuspended moved from hooks-main.mjs (14 lines), and
+  // jsonl.mjs (33 lines, unchanged) counts as base now that the guard reads the session through it; 4,146 to 4,194)
+  const cap = { guard: 800, reminder: 400, end: 3200, base: 4200 }, ALL = 6000;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
   const lines = got.guard + got.reminder + got.end;
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;

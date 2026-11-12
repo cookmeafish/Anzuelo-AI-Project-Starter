@@ -72,3 +72,14 @@ export const match = (p, globs) => [].concat(globs || []).some(g => globRe(g).te
 export const textOf = c => typeof c === 'string' ? c : Array.isArray(c) ? c.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
 export const SNAPSHOT = 'snapshot.json', HASH_MAX = 2 * 1024 * 1024;
 export const engineOf = () => envOf('ENGINE') || config().engine;
+// A sub-agent prompt that points at a brief file ("Your brief: .cache/briefs/export.md") passes on the rules when that
+// file tells the sub-agent to read AGENTS.md. Lesson: a short prompt naming a full brief that began "Read AGENTS.md
+// first" was denied, so the brief had to be pasted into the prompt.
+export function briefFileNamesRules(prompt) {
+  const paths = [...String(prompt).matchAll(/(?:[A-Za-z]:)?[\w.~\\/-]*[\w-]\.(?:md|txt)\b/g)].map(m => m[0]).filter(s => !/^(AGENTS|CLAUDE)\.md$/.test(s)).slice(0, 8);
+  for (const s of paths) {
+    const full = path.isAbsolute(s) ? s : abs(s);
+    try { const st = fs.statSync(full); if (st.isFile() && st.size < 1024 * 1024 && /\bAGENTS\.md\b|\bCLAUDE\.md\b/.test(fs.readFileSync(full, 'utf8'))) return true; } catch { }
+  }
+  return false;
+}

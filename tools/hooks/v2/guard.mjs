@@ -7,8 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { ENGINE, split, kind } from '../paths.mjs';
 import { commitIds, cutIds } from '../claims.mjs';
 import { selfListGrows, selfCmdWrites } from '../selfcmds.mjs';
-import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretHit, forbiddenRe, today, FORBID_EXEMPT, countRe, settingUp } from '../settings.mjs';
-import { stateFile, writeState, SNAPSHOT, rel, globRe, match, textOf, engineOf } from '../state.mjs';
+import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretHit, forbiddenRe, today, FORBID_EXEMPT, countRe, settingUp, isSuspended } from '../settings.mjs';
+import { stateFile, writeState, SNAPSHOT, rel, globRe, match, textOf, engineOf, briefFileNamesRules } from '../state.mjs';
 import { people, peopleIn, peopleFor, personOf, pathsPeople } from '../people.mjs';
 import { isWakeTool, WAKE_ASK, WAKE_STATE } from '../wakeups.mjs';
 import { namesIn } from '../names.mjs';
@@ -16,6 +16,7 @@ import { gitignoreProblems, aiAttributedCommits } from '../repo.mjs';
 import { AUTONOMY_WORDS } from '../near.mjs';
 import { cmdHead, shellParts, runText, gitPush, outwardCommand, sedInPlaceFiles } from '../shell.mjs';
 import { toolUses, loggedRuns, runsOf, inTimeOrder } from '../runs.mjs';
+import { lines as jsonlLines } from '../jsonl.mjs';
 export { commitIds };
 // Shared helpers come from the loader (use(hooksModule)): an import cycle left the hook waiting forever.
 let H = null;
@@ -187,8 +188,7 @@ export function asksToChange(p, prompt) {
 export function pretoolHits(data, cfg) {
   // (the helpers still in the old engine, handed in by use() until each moves to a shared module: plan step 1b)
   const names = () => namesIn(ROOT);
-  const { turn, isSuspended, briefFileNamesRules, heldSidestep, onPath, askedPushEarlier, setupCompleteness, setupProblems,
-    redirectedRun, inlineCodeOut, gateResult } = H;
+  const { turn, heldSidestep, onPath, setupCompleteness, setupProblems, redirectedRun, inlineCodeOut, gateResult } = H;
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
   // REQ: self-commands. Only the user adds a command the end check may run itself (selfcmds.mjs).
   if (selfListGrows(data.tool_name, data.tool_input, ROOT) || (/^(Bash|PowerShell)$/.test(data.tool_name || '') && selfCmdWrites(data.tool_input?.command)))
@@ -526,4 +526,33 @@ export function pretoolHits(data, cfg) {
     }
   }
   return out;
+}
+// A push to a protected branch the user OK'd earlier in this session, in their own typed words (a message, or one typed
+// mid-turn; never pasted or relayed text): "push" and the branch in one message ("main" and "master" name the same
+// default branch). The OK holds for the session. Lesson (the user, upset): a push queued with the work was refused at
+// the end and the user had to confirm it a second time.
+export function askedPushEarlier(transcriptPath, target) {
+  // (the whole session, read line by line at any size: a standing OK given early in a long session still holds. It
+  // runs only for a push the request does not name. Lesson: a 64 MB tail missed what came before it)
+  let raw; try { fs.accessSync(transcriptPath); raw = jsonlLines(transcriptPath); } catch { return false; }
+  const names = /^(main|master)$/i.test(target) ? 'main|master' : esc(target);
+  const ok = new RegExp(`\\bpush\\b[\\s\\S]{0,80}\\b(${names})\\b|\\b(${names})\\b[\\s\\S]{0,40}\\bpush`, 'i');
+  // (a standing OK for any push this session, "you have permission to git push whenever you can"; and a plain "yes" to
+  // the agent's own question about this push. Lesson (the user, 2026-11-08): an approved push took four rounds; the
+  // standing OK named no branch, and a "yes" to "push it to main?" was asked again)
+  const standing = /\b(permission|allowed|free|ok|okay)\b[^.\n]{0,40}\b(git\s+)?push\b|\bpush\b[^.\n]{0,40}\b(whenever|any ?time|every time|each time)\b/i;
+  const yes = /^\W*(yes|yep|yeah|y|ok|okay|sure|go|go ahead|do it|please do|push it)\b[\s.!]*$/i;
+  const asked = new RegExp(`\\bpush\\b[^?]{0,120}\\?|\\b(${names})\\b[^?]{0,80}\\?`, 'i');
+  const clean = s => String(s).replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?<\/\1\b[^>]*>/g, ' ');
+  let lastSaid = '';
+  for (const line of raw) {
+    if (line.includes('"type":"assistant"')) { try { const a = JSON.parse(line).message?.content; const t = Array.isArray(a) ? a.filter(x => x.type === 'text').map(x => x.text).join('\n') : ''; if (t.trim()) lastSaid = t; } catch { } continue; }
+    if (!line.includes('"type":"user"')) continue;
+    let r; try { r = JSON.parse(line); } catch { continue; }
+    const said = typeof r.message?.content === 'string' ? clean(r.message.content) : '';
+    if (said && (standing.test(said) || (yes.test(said.trim()) && asked.test(lastSaid) && /\bpush\b/i.test(lastSaid)))) return true;
+    const c = r.message?.content, texts = typeof c === 'string' ? [c] : Array.isArray(c) ? c.filter(x => x.type === 'text').map(x => (/The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || '') || [])[1] || '') : [];
+    if (texts.some(t => ok.test(clean(t)))) return true;
+  }
+  return false;
 }
