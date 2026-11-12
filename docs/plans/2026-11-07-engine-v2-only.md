@@ -94,8 +94,11 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
       (2026-11-12, oversight: finish 1b module by module, each committed with its test. Done: the fit checklist
       (fit.mjs, fitstale.mjs); paths, session state and globs (state.mjs, 480275f: STATE, stateFile, writeState,
       pruneState, setSession for SID, DRY_STATE and NO_TRANSCRIPT, globRe, match, textOf, engineOf), which the guard's
-      helpers now import directly. Next: the guard rules (pretoolHits still takes about 50 helpers through use()),
-      config and names, the user lines, the CLI.)
+      helpers now import directly. Then the guard rules: shell.mjs (command readers), runs.mjs (tool calls and runs),
+      transcript.mjs (the turn), setupinfo.mjs (the interview, setupCompleteness) and setup.mjs (setupProblems, its
+      typical requests routed through v2, loaded only by the setup gate and audit --setup; router diff list sent to
+      oversight), the gates built in the guard; the guard takes nothing through use() (ratchet test at 0), except
+      upsetUnacknowledged for v1 only, which goes in 1e. Next: the user lines, then the CLI.)
 - [ ] 1c One entry: hook settings and the no-hooks CLI call one v2 entry for session, prompt, pretool, posttool and
       stop. A test pipes every event through it as the claude-code host and checks the agent output and user line.
 - [ ] 1d Tests: port each scenario for behavior v2 keeps, unpinned; delete v1-only ones. Every user-requirements row
