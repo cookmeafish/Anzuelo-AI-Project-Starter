@@ -8283,7 +8283,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
     const box = testDir('anzuelo-self-');
     const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8' });
     const cloneAt = dir => { git(box, 'clone', '-q', ROOT, dir);
-      for (const f of ['tools/new-project.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/hidewin.mjs', 'tools/hooks/testtmp.mjs']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
+      for (const f of ['tools/new-project.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/hidewin.mjs', 'tools/hooks/testtmp.mjs', 'tools/hooks/fit.mjs', 'tools/hooks/near.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/paths.mjs']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
       git(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qam', 'under test');
       git(dir, 'remote', 'set-url', 'origin', 'https://example.com/x/Some-Starter.git'); };
     const install = (dir, ...a) => spawnSync(process.execPath, [path.join(dir, 'tools/new-project.mjs'), '--self-install', ...a], { cwd: dir, encoding: 'utf8', timeout: 300000 });
