@@ -6770,7 +6770,12 @@ if (mineB()) { // another session in the same project: its edits are not this tu
       if (other) write(dir, { [`tools/hooks/state/${process.env.STARTER_ENGINE === 'v2' ? 'v2-turn' : 'turn'}.other9.json`]: JSON.stringify({ at: new Date().toISOString() }) });
       const s = { prompt: 'build the tulip order', tools: [{ name: 'Write', input: { file_path: '.cache/tulips/build.py', content: 'print(1)\n' } }, { name: 'Bash', input: { command: 'python .cache/tulips/build.py' } }] };
       const tp = transcript(dir, s, since);
-      return run(dir, 'stop', { transcript_path: tp, last_assistant_message: 'The order is built.' + FIN, session_id: 'own1' }).out || '';
+      const out = run(dir, 'stop', { transcript_path: tp, last_assistant_message: 'The order is built.' + FIN, session_id: 'own1' }).out || '';
+      // (under v2 the user sees a short list; its full steps, the security review's wording among them, are in the
+      // session's details file)
+      if (process.env.STARTER_ENGINE !== 'v2') return out;
+      let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
+      return `${out}\n${v2Full(dir, d)}`;
     } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
   };
   const alone = once(false), shared = once(true);

@@ -1104,7 +1104,7 @@ export function securityGaps(acts) {
   if (since) {
     // (with another session open in the folder, only the files this turn's own calls wrote or named: the other session's
     // code is its own review's)
-    for (const f of touchedSince(acts, !othersOpen(acts)).map(x => x.f).filter(f => covered(f) && !viaTool.has(f))) {
+    const shared = othersOpen(acts); for (const f of touchedSince(acts, !shared).map(x => x.f).filter(f => covered(f) && !viaTool.has(f) && (!shared || acts.calls.some(c => namesFile(c.input?.command, f))))) {
       // (a file made this turn is read whole; one that was there is read by what git says it gained, or not at all)
       const made = (() => { try { return fs.statSync(at(f)).birthtimeMs > since; } catch { return false; } })();
       const d = made ? null : spawnSync('git', ['diff', '-U0', '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 });

@@ -1875,11 +1875,15 @@ report(securityGaps(acts([user('add sign-in'), login, say('Done.')])).length ===
   const run1 = sid => { put('src/zz-auth.js', 'const password = process.env.PW;\n'); const a = acts([ts(0, user('build the tulip order')), ts(1, call('Write', { file_path: path.join(dir, '.cache/tulips/build.py'), content: 'print(1)\n' })),
     ts(2, call('Bash', { command: 'python .cache/tulips/build.py' }, '1')), ts(3, say('The order is built.'))]); a.at = T(0); a.session = sid; return securityGaps(a).length; };
   const otherRec = path.join(dir, 'tools/hooks/state/v2-turn.other9.json');
-  const alone = run1('own1');
+  // (and with calls whose times the transcript does not give: then only files this turn's own calls name are its work.
+  // Lesson (the old suite under v2, 2026-11-12): untimed calls counted every changed file as the turn's own)
+  const runUntimed = sid => { put('src/zz-auth.js', 'const password = process.env.PW;\n'); const a = acts([user('build the tulip order'), call('Write', { file_path: path.join(dir, '.cache/tulips/build.py'), content: 'print(1)\n' }),
+    call('Bash', { command: 'python .cache/tulips/build.py' }, '1'), say('The order is built.')]); a.at = T(0); a.session = sid; return securityGaps(a).length; };
+  const alone = run1('own1'), aloneU = runUntimed('own1');
   fs.mkdirSync(path.dirname(otherRec), { recursive: true }); fs.writeFileSync(otherRec, JSON.stringify({ at: new Date().toISOString() }));
-  const shared = run1('own1');
+  const shared = run1('own1'), sharedU = runUntimed('own1');
   fs.rmSync(otherRec, { force: true }); fs.rmSync(path.join(dir, 'src/zz-auth.js'), { force: true });
-  report(alone === 1 && shared === 0, 'end: with another session\'s turn active in the folder, code changed outside this turn\'s own runs asks for no security review; alone, it does', JSON.stringify({ alone, shared }));
+  report(alone === 1 && shared === 0 && aloneU === 1 && sharedU === 0, 'end: with another session\'s turn active in the folder, code changed outside this turn\'s own runs asks for no security review (timed calls or not); alone, it does', JSON.stringify({ alone, shared, aloneU, sharedU }));
 }
 report(securityGaps(acts([user('add sign-in'), login, call('Skill', { skill: 'security-review' }), say('Done.')])).length === 0
   && securityGaps(acts([user('add sign-in'), login, call('Write', { file_path: path.join(dir, 'docs/reviews/security-2026-11-05.md'), content: 'PASS' }), say('Done.')])).length === 0,
