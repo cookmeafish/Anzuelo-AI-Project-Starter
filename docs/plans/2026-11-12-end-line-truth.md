@@ -85,4 +85,5 @@ to write its Issue line
 **Uses / provides:** uses Tasks 1-3.
 - [ ] Run the replay over the collected real lines. Expected: no pass line with an unproven part; the count of pass lines
       shown before and after is reported.
-- [ ] Release with the evidence-model work, through the usual release chain.
+- [ ] Run `node tools/audit.mjs`, then release with the evidence-model work through the usual release chain. Expected:
+      audit PASS and a chain with every step passing.
