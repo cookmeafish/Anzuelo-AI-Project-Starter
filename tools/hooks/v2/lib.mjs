@@ -751,7 +751,8 @@ function othersOpen(acts) {
 // turn of reads and messages wrote nothing to scan. Lesson (2026-11-10, the speed self-test): the forbidden-words scan
 // walked a 3,000-file project on every plain question, about 50 ms)
 export const scanned = acts => acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : changedOf(acts, true);
-const changedSince = (acts, rx) => touchedSince(acts).filter(({ f, t }) => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && ranAt(acts, t, f)).map(x => x.f);
+export const generatedCopy = f => [...[].concat(projectConfig().skillMirrors || ['.claude/skills', '.agents/skills']), '.anzuelo/engine'].some(m => f.startsWith(m.replace(/\\/g, '/').replace(/\/+$/, '') + '/')); // (skill copies and the engine's folder: the engine's writes, not the turn's work; rewritten copies held the GUI check)
+const changedSince = (acts, rx) => touchedSince(acts).filter(({ f, t }) => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && !generatedCopy(f) && ranAt(acts, t, f)).map(x => x.f);
 const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0; } };
 // REQ: scope-separate (rule 11). One person's data never mixes with another's: files of someone the request is not
 // about changed this turn, or an answer about one person brings in another's details. A follow-up that names nobody is
@@ -1412,7 +1413,7 @@ export function movedInto(acts) {
 // that only saved a memory note was held to six project steps)
 const outsideRoot = f => !f || /^\.\.(\/|$)/.test(f) || path.isAbsolute(f);
 export function changedOf(acts, any = false) {
-  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...movedInto(acts), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])].filter(f => !outsideRoot(f));
+  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...movedInto(acts), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f) && !generatedCopy(f))])].filter(f => !outsideRoot(f));
 }
 // REQ: forbidden-terms (files a command changed: the guard sees only the edit tools). A name the file already had at
 // git's last commit is no new slip; ignored files and the engine's own list and state don't count.
@@ -2091,8 +2092,7 @@ export function snapshotDirty(sid, at0) {
   const routed = git ? names.filter(f => ROUTED_DOC.test(f)) : (() => { try { return [...listAll('docs/playbooks').filter(n => n.endsWith('.md')).map(n => `docs/playbooks/${n}`), ...fs.readdirSync(at('skills')).map(n => `skills/${n}/SKILL.md`).filter(f => fs.existsSync(at(f)))]; } catch { return []; } })();
   // (and checked again after it is read: an edit landing between the check and the read would be taken as the start)
   const cand = routed.filter(before).slice(0, 400);
-  // (V2_SNAPSHOT_DELAY_MS: a pause between the check and the read, for the self-test of that window)
-  const pause = Number(process.env.V2_SNAPSHOT_DELAY_MS || 0); if (pause > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(pause, 10_000));
+  const pause = Number(process.env.V2_SNAPSHOT_DELAY_MS || 0); if (pause > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(pause, 10_000)); // (V2_SNAPSHOT_DELAY_MS: a pause between check and read, for its self-test)
   const bodies = Object.fromEntries(cand.map(f => { try { const b = bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8')); return before(f) ? [f, b] : null; } catch { return null; } }).filter(Boolean));
   const texts = Object.fromEntries(SNAP_TEXTS.filter(before).map(f => { try { const p = path.join(ROOT, f); const t = fs.statSync(p).size <= 256 << 10 ? fs.readFileSync(p, 'utf8') : null; return t !== null && before(f) ? [f, t] : null; } catch { return null; } }).filter(Boolean));
   const files = Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([f, h]) => /^[0-9a-f]{40,64}$/.test(h || '') && before(f)));

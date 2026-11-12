@@ -294,6 +294,16 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     const { changedOf } = await import('./lib.mjs');
     const away = acts([user('save that as a memory'), call('Write', { file_path: path.join(os.homedir(), '.claude', 'projects', 'p', 'memory', 'note.md'), content: 'x' }), call('Write', { file_path: path.join(os.tmpdir(), 'scratchpad', 'n.md'), content: 'x' }), say('Saved.')]);
     const inside = acts([user('add a note'), call('Write', { file_path: path.join(dir, 'docs/zz-note.md'), content: 'x' }), say('Added.')]);
+    // (skill copies the hooks or a command wrote again are not the turn's work; one the agent edited with a tool still is.
+    // Lesson (the old suite under v2, 2026-11-12): rewritten skill copies counted as changed screens and held the GUI check)
+    const cp = d => path.join(dir, d, 'zz-gen', 'page.html');
+    const synced = acts([user('tidy the notes'), call('Bash', { command: 'node tools/hooks/hooks.mjs sync' }, 'synced'), say('Tidied.')]);
+    synced.at = new Date(Date.now() - 5000).toISOString();
+    for (const d of ['.claude/skills', '.agents/skills']) { fs.mkdirSync(path.dirname(cp(d)), { recursive: true }); fs.writeFileSync(cp(d), '<p>x</p>'); }
+    const byTool = acts([user('fix that copy'), call('Write', { file_path: cp('.claude/skills'), content: '<p>y</p>' }), say('Fixed.')]);
+    const gen = { synced: changedOf(synced).filter(f => /zz-gen/.test(f)), byTool: changedOf(byTool).filter(f => /zz-gen/.test(f)) };
+    for (const d of ['.claude/skills', '.agents/skills']) fs.rmSync(path.join(dir, d, 'zz-gen'), { recursive: true, force: true });
+    report(!gen.synced.length && gen.byTool.length === 1, 'end: skill copies written again by the hooks or a command are not the turn\'s changes (no screen, changelog or other check counts them); one edited with a tool still is', JSON.stringify(gen));
     report(changedOf(away).length === 0 && changedOf(inside).includes('docs/zz-note.md'), 'end: a turn that wrote only outside the project (memory folder, scratchpad) changed nothing in it; a write inside still counts', JSON.stringify({ away: changedOf(away), inside: changedOf(inside) }));
   }
   { // (a test run made by one of the session's helpers this turn counts; one from before the turn does not)
