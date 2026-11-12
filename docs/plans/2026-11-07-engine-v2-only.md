@@ -91,6 +91,11 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
       moves to v2: base-checks, labels, knowledge, claims, repo, then proof.mjs, trace.mjs and launchers.mjs in this
       change, gates.mjs next. Size: base modules about 1,606 of 1,700, the whole engine within 4,800, both raised for
       the move by the 2026-11-09 oversight decision and to come down to the measured size when it ends.)
+      (2026-11-12, oversight: finish 1b module by module, each committed with its test. Done: the fit checklist
+      (fit.mjs, fitstale.mjs); paths, session state and globs (state.mjs, 480275f: STATE, stateFile, writeState,
+      pruneState, setSession for SID, DRY_STATE and NO_TRANSCRIPT, globRe, match, textOf, engineOf), which the guard's
+      helpers now import directly. Next: the guard rules (pretoolHits still takes about 50 helpers through use()),
+      config and names, the user lines, the CLI.)
 - [ ] 1c One entry: hook settings and the no-hooks CLI call one v2 entry for session, prompt, pretool, posttool and
       stop. A test pipes every event through it as the claude-code host and checks the agent output and user line.
 - [ ] 1d Tests: port each scenario for behavior v2 keeps, unpinned; delete v1-only ones. Every user-requirements row
