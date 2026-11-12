@@ -811,6 +811,11 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   // a session with hooks still opens it. The old suite's "stop-follow-on guard: without hooks")
   const noHooks = sid => { const a = acts([user('export the invoices'), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Playbook: export.md. Exported.')]); a.session = sid; return missing(turn, a).some(s => /^Open docs\/playbooks\/export\.md/.test(s)); };
   report(!noHooks('manual') && noHooks('abc123'), 'end: without hooks, the answer naming the runbook it followed stands for opening it; with hooks the runbook is still opened', JSON.stringify({ manual: noHooks('manual'), hooked: noHooks('abc123') }));
+  // (a turn with no routed runbook that greps another runbook's triggers is not following it; printing it whole is.
+  // Lesson (a project's report, 2026-11-12): a grep of a runbook's triggers line held a routing fix to its 7 items)
+  { const by = command => missing({ runbook: null }, acts([user('make the field guide route to the gui runbook'), call('Bash', { command }), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done.')])).filter(s => /export\.md item/.test(s)).length;
+    const grep = by('cd /p && node tools/hooks/hooks.mjs begin "x" | head -5; grep -n "^triggers" docs/playbooks/export.md | cut -c1-300'), cat = by('cat docs/playbooks/export.md');
+    report(grep === 0 && cat > 0, 'end: a shell grep of a runbook is not opening it; printing it whole is', JSON.stringify({ grep, cat })); }
   const { waived } = await import('./end.mjs');
   const gaps = ['docs/playbooks/export.md item 1: The tests pass', 'docs/playbooks/export.md item 2: The change is in the changelog', 'Run the tests.'];
   const kept = waived({ answer: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.' }, gaps);

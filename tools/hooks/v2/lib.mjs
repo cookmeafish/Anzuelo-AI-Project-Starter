@@ -9,6 +9,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { roots, resolver } from '../paths.mjs';
+import { shellParts } from '../shell.mjs';
 import { withOwnTemp, recordRunTime } from '../testtmp.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
@@ -2028,12 +2029,11 @@ export function traceGapsV2(acts, history = '') {
   return [...(web ? [web] : []), ...gaps];
 }
 
-// Whether the turn opened the runbook (read it, or ran its skill).
-// (reading a skill the runbook hands its steps to counts: its own skill, or one its text names. Lesson (trial v42): a
-// complaint followed through learn-from-upset and project-rule, where the project runbook sends it, was asked to open it)
+// Whether the turn opened the runbook: read it or a skill it names, ran its skill, or printed it whole (a grep only inspects).
+const wholeRead = (cmd, f) => shellParts(String(cmd || '').replace(/\\/g, '/')).parts.some(p => p.includes(f) && /^(?:\S*\/)?(cat|type|Get-Content|gc|more|less|bat)(\.exe)?\s/i.test(p) && !/\s-(TotalCount|Head|Tail|First|Last)\b/i.test(p));
 export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' && (relp(c.input.file_path || '') === book.file || (book.skills || []).includes(relp(c.input.file_path || ''))))
   || (c.name === 'Skill' && String(c.input.skill || '').replace(/^.*:/, '') === book.name)
-  || (/^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').includes(book.file)));
+  || (/^(Bash|PowerShell)$/.test(c.name) && wholeRead(c.input.command, book.file)));
 
 // Whether the turn did any work: a file changed, or a command that is not only a read.
 // (an edit counts as the project's work only inside the project folder. Lesson (live): a turn whose one edit was a
