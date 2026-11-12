@@ -3999,6 +3999,17 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const loud = compare(base, { ...base, tests: 5, nodeCacheAt: { v: 2 }, transcripts: 715, processes: 2, pagedMB: 900 });
   report(/anzuelo-compile-cache/.test(installed) && inTemp === 'none' && kept === 5 && oldGone && emptied && quiet === 0 && loud.length === 5 && BUDGET.transcripts === 0,
     'leaks: the compile cache is on only for an installed engine, in its own folder, pruned to a cap; the leak check flags each count past its budget and nothing within it', JSON.stringify({ installed, inTemp, kept, oldGone, emptied, quiet, loud }));
+  // (trial rounds: the newest ones keep their temp projects, transcript folders and frozen copy for judging; older
+  // rounds' are removed, and nothing else in those folders. Lesson (2026-11-12): 714 trial transcript folders piled up)
+  const { pruneRounds, slug } = await import('../../starter/trials/prune.mjs'), w = testDir('trialprune-');
+  const tmp = path.join(w, 'tmp'), home = path.join(w, 'home'), trials = path.join(w, 'trials'); fs.mkdirSync(trials, { recursive: true });
+  const mk = p => { fs.mkdirSync(p, { recursive: true }); fs.writeFileSync(path.join(p, 'x'), 'x'); return p; };
+  const proj = (id, r) => path.join(tmp, 'anzuelo-new', `${id}-${r}`), tr = (id, r) => path.join(home, '.claude', 'projects', slug(proj(id, r)));
+  ['v1', 'v2', 'v3'].forEach((r, i) => { fs.writeFileSync(path.join(trials, `round-${r}.json`), JSON.stringify({ round: r, ids: ['a'], starter: path.join(tmp, `anzuelo-frozen-c${i}`), started: `2026-11-1${i}T00:00:00Z` })); mk(proj('a', r)); mk(tr('a', r)); mk(path.join(tmp, `anzuelo-frozen-c${i}`)); });
+  const other = mk(path.join(home, '.claude', 'projects', 'C--projects-Real')), n = pruneRounds({ trials, keep: 2, tmp, home });
+  const left = { v1: [proj('a', 'v1'), tr('a', 'v1'), path.join(tmp, 'anzuelo-frozen-c0')].map(p => fs.existsSync(p)), v3: [proj('a', 'v3'), tr('a', 'v3'), path.join(tmp, 'anzuelo-frozen-c2')].map(p => fs.existsSync(p)) };
+  report(n.projects === 1 && n.transcripts === 1 && n.starters === 1 && left.v1.every(x => !x) && left.v3.every(Boolean) && fs.existsSync(other) && fs.existsSync(proj('a', 'v2')),
+    'leaks: a new trial round removes older rounds\' temp projects, transcript folders and frozen copies, keeps the newest rounds\' and touches nothing else', JSON.stringify({ n, left }));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

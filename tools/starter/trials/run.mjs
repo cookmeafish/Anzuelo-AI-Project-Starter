@@ -70,6 +70,8 @@ async function round() {
   if (given && !process.env.TRIAL_ANY_COMMIT) { console.error(`run.mjs: TRIAL_STARTER ${given}: give a copy of an "Engine proof" commit, or set TRIAL_ANY_COMMIT=1`); process.exit(1); }
   const engine = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: starter, encoding: 'utf8' }).stdout.trim() || head;
   fs.mkdirSync(TRIALS, { recursive: true });
+  // (older rounds' temp projects, transcript folders and frozen copies go: only the newest 2 rounds are kept to judge)
+  try { const n = (await import('./prune.mjs')).pruneRounds({ trials: TRIALS, keep: 1, repo: STARTER_ROOT }); if (n.projects + n.transcripts + n.starters) console.log(`pruned older rounds: ${JSON.stringify(n)}`); } catch { }
   fs.writeFileSync(path.join(TRIALS, `round-${name}.json`), JSON.stringify({ round: name, engine, starter, ids: list, started: new Date().toISOString() }, null, 2));
   console.log(`round ${name}: engine ${engine}, ${list.length} trials, ${PARALLEL} at a time`);
   const env = { ...process.env, TRIAL_STARTER: starter, TRIAL_RUN: `-${name}` };
