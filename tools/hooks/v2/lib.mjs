@@ -2089,9 +2089,14 @@ export function snapshotDirty(sid, at0) {
   // (each changed runbook and skill without its triggers line, to tell a change of routing words alone: routingOnly)
   // (with no git, every runbook and skill: there is no last commit to compare with)
   const routed = git ? names.filter(f => ROUTED_DOC.test(f)) : (() => { try { return [...listAll('docs/playbooks').filter(n => n.endsWith('.md')).map(n => `docs/playbooks/${n}`), ...fs.readdirSync(at('skills')).map(n => `skills/${n}/SKILL.md`).filter(f => fs.existsSync(at(f)))]; } catch { return []; } })();
-  const bodies = Object.fromEntries(routed.filter(before).slice(0, 400).map(f => { try { return [f, bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8'))]; } catch { return null; } }).filter(Boolean));
-  const texts = Object.fromEntries(SNAP_TEXTS.filter(before).map(f => { try { const p = path.join(ROOT, f); return fs.statSync(p).size <= 256 << 10 ? [f, fs.readFileSync(p, 'utf8')] : null; } catch { return null; } }).filter(Boolean));
-  if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))), texts, bodies })); } catch { }
+  // (and checked again after it is read: an edit landing between the check and the read would be taken as the start)
+  const cand = routed.filter(before).slice(0, 400);
+  // (V2_SNAPSHOT_DELAY_MS: a pause between the check and the read, for the self-test of that window)
+  const pause = Number(process.env.V2_SNAPSHOT_DELAY_MS || 0); if (pause > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(pause, 10_000));
+  const bodies = Object.fromEntries(cand.map(f => { try { const b = bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8')); return before(f) ? [f, b] : null; } catch { return null; } }).filter(Boolean));
+  const texts = Object.fromEntries(SNAP_TEXTS.filter(before).map(f => { try { const p = path.join(ROOT, f); const t = fs.statSync(p).size <= 256 << 10 ? fs.readFileSync(p, 'utf8') : null; return t !== null && before(f) ? [f, t] : null; } catch { return null; } }).filter(Boolean));
+  const files = Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([f, h]) => /^[0-9a-f]{40,64}$/.test(h || '') && before(f)));
+  if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files, texts, bodies })); } catch { }
 }
 export const loadDirty = (sid, at0) => { try { const j = JSON.parse(fs.readFileSync(dirtyFile(sid), 'utf8')); return j.at === at0 ? j : null; } catch { return null; } };
 if (process.argv[2] === '--snapshot-dirty' && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) snapshotDirty(process.argv[3], process.argv[4]);

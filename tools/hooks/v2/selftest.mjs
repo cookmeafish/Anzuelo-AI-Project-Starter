@@ -2072,6 +2072,16 @@ const { questionGaps } = await import('./lib.mjs');
   const tx = answer => T.traceGaps({ answer, results: 'Desk A: rated 150 kg', sessionResults: '', prompt: 'is it true that standing desks hold 150 kg', allPrompts: [], uses: [], changed: [], reads: [], cmds: [], said: '', resultsList: ['Desk A: rated 150 kg'], toolsKnown: true, sessionWrites: '' }, {}, { ledgerRuns: [{ cmd: 'node skills/research/scripts/claims.mjs check .cache/research/desk.md' }], knowledge: false }).filter(g => g.tag === 'answer-traced').map(g => g.msg).join(' ');
   const dated = { years: /\b12 years\b|\b12\b/.test(tx('Yes: 150 kg, and they last 12 years.')), today: tx('Yes: 150 kg, checked on 2026-11-12.') };
   report(dated.years && !dated.today, 'end: answer-traced: today\'s date traces no number of its own (on the 12th, "12 years" is still untraced); an answer giving today\'s date passes', JSON.stringify(dated));
+  // (an edit landing between the snapshot's time check and its read, on a busy machine: the file is still left out.
+  // Lesson (release chains on a loaded machine, 2026-11-12): check-preview's runbook edit was missed in a few runs)
+  const mid = path.join(g, 'docs/playbooks/mid.md'); fs.writeFileSync(mid, '# mid\ntriggers: mid\n1. Step.\n'); fs.utimesSync(mid, minAgo, minAgo);
+  const at1 = new Date(Date.now() - 2000).toISOString();
+  const { spawn } = await import('node:child_process');
+  const kid = spawn(process.execPath, ['--input-type=module', '-e', `const L = await import(${lib}); L.snapshotDirty('mid', ${JSON.stringify(at1)});`], { cwd: g, env: { ...process.env, ANZUELO_ROOT: g, V2_SNAPSHOT_DELAY_MS: '1500' }, stdio: 'ignore' });
+  await new Promise(r => setTimeout(r, 700)); fs.writeFileSync(mid, '# mid\ntriggers: mid\n1. Step, changed while the snapshot ran.\n');
+  await new Promise(r => kid.on('exit', r));
+  let jm = {}; try { jm = JSON.parse(fs.readFileSync(path.join(g, 'tools/hooks/state/v2-dirty.mid.json'), 'utf8')); } catch { }
+  report(!!jm.at && !jm.bodies?.['docs/playbooks/mid.md'] && !!jm.bodies?.['docs/playbooks/early.md'], 'end: a runbook edited while the turn-start snapshot is reading (between its time check and its read) is left out of it', JSON.stringify({ at: !!jm.at, bodies: Object.keys(jm.bodies || {}) }));
   report(JSON.stringify(got) === '{"early":[true,true],"late":[false,false,false]}', 'end: the turn-start snapshot keeps a file changed before the turn and leaves out one already changed after the turn began (a late snapshot on a busy machine), so an early edit is still judged as this turn\'s', JSON.stringify(got));
 }
 
