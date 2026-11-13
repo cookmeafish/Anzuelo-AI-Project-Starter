@@ -35,7 +35,12 @@ without its run outputs when it has no commit), the current engine put on it, an
 - [ ] The release chain passes; the projects upgrade and run it for real.
 - [ ] An adopted project with the engine in `.anzuelo/engine` joins the trial's samples, so that layout is proven by
       every release too.
-- [ ] Open, not understood yet: `check --answer-file` after `begin`, in a copy of two sample projects (empty folder,
+- [x] Explained (no engine gap): in a fresh empty project the ask sits at character 598 of the check's output, past
+      the test's 300-character cut. The test now reads the whole output and runs in projects again. Was:
+      Open, not understood yet: `check --answer-file` after `begin`, in a copy of two sample projects (empty folder,
       notes and data), did not ask for the self-tests after an engine hook file changed; in a copy of the python sample
       it did. The test is starter-only now (in a project the engine-readonly guard refuses that edit), but an agent
       without hooks in such a project may get no hooks-tested ask for its own hook changes. Find why before closing.
+      Likely cause (to confirm with the full output): the test kept only the first 300 characters of the check's
+      output, and the reproduction 600; in the sample projects a long upgrade-review item comes first, so the ask
+      may have been there, past the cut. If so, the test reads the whole output and runs in projects again.

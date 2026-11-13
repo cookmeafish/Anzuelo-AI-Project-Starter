@@ -4082,10 +4082,11 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const c1 = hk('check', '--answer-file', '.cache/answer.md');
     fs.appendFileSync(path.join(m, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/hooks/selfcheck.mjs', out: 'selfcheck: ALL PASS (430 passed, 0 failed)', error: false }) + '\n');
     const c2 = hk('check', '--answer-file', '.cache/answer.md');
-    got = { c1: c1.stdout.slice(0, 300), c1s: c1.status, c2: c2.stdout.slice(0, 300) };
+    // (the whole output: in a project an upgrade-review item comes first, and the ask sat past a 300-character cut.
+    // Lesson (2026-11-13): the cut made this test fail in two sample projects, read as an engine gap that was not one)
+    got = { c1: c1.stdout, c1s: c1.status, c2: c2.stdout };
   } finally { fs.rmSync(m, { recursive: true, force: true }); }
-  // (starter work: in a project the engine-readonly guard refuses an edit of the engine's hook files)
-  if (STARTER_REPO) report(got.c1s === 1 && /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/.test(got.c1 || '') && !/The hook logic changed/.test(got.c2 || ''),
+  report(got.c1s === 1 && /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/.test(got.c1 || '') && !/The hook logic changed/.test(got.c2 || ''),
     'check: with no transcript, "check --answer-file" judges the files changed since "begin" and the run log: an edited hook file asks for the self-tests until the log holds a passing run', JSON.stringify(got));
 }
 
