@@ -3085,7 +3085,7 @@ export function acknowledgedLine(p, data = {}) {
   // (the line must be this session's own: its call wrote it (this one, or one in its transcript), not a peer's in the
   // shared notes file; the summary its first clause, whole. Lesson (2026-11-12): a peer's Issue line showed, cut mid-word)
   const it = issueParts(lastIssue(turnNotes(Date.parse(turn) || 0))), issue = clip(it.problem);
-  const own = s => !!s && (JSON.stringify(data.tool_input || {}).includes(s) || (() => { try { return transcriptRows(data.transcript_path || '').some(r => r.type === 'assistant' && JSON.stringify(r.message?.content || '').includes(s)); } catch { return false; } })());
+  const own = s => !!s && (JSON.stringify(data.tool_input || {}).includes(s) || (() => { try { return transcriptRows(data.transcript_path || '').some(r => r.type === 'assistant' && (r.message?.content || []).some(b => b?.type === 'tool_use' && /turn-notes/.test(JSON.stringify(b.input || {})) && JSON.stringify(b.input || {}).includes(s))); } catch { return false;} })());
   if (!issue || it.none || !it.ok || (v2at !== null && !own(it.problem.slice(0, 40))) || was.issue === issue || (was.past || []).includes(issue)) return '';
   writeState(ACKED, { turn, issue, past: [...(was.past || []), ...(was.issue && was.turn !== turn ? [was.issue] : [])].slice(-20) });
   return `${brand()} 🚨 acknowledged: ${issue}`;

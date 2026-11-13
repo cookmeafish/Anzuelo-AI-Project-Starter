@@ -4,7 +4,11 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Queue (oversight, for the user, 2026-11-12; in order, tick as done)
-- [ ] 1. The work log (now).
+- [x] 1. The work log (released in c2f1528, 2026-11-12; follow-up fixes from its first live day in the next release).
+- [ ] 1b. No-leaks Task 3, right after the three upgrades: the paged pool stayed +507 MB after the two chains of
+  4680b8a (2573 -> 3080 MB); top tag Key (registry key blocks, 317 MB, 1.22M live), then MmSt, FMfn, Ntff, Toke. Find
+  what opens a registry path per test copy or process by a tag diff around one shard; save a tag baseline
+  (pooltags.ps1, into tools/starter/) right before the next chain. Fixed only after the multi-chain soak.
 - [ ] 2. A release with rewrite part 1 + routing + the log, then upgrade all 3 projects the same day.
 - [ ] 2a. (oversight, 2026-11-12, for a fourth project, a large established app) The .anzuelo layout from day one: a
   fresh install of an established project puts everything under .anzuelo/ (the engine-outside plan's remaining steps,

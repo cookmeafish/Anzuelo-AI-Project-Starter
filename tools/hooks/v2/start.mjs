@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, notesMark, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS, SMALL_SKIP, scopeLine } from './lib.mjs';
+import { tail, route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, notesMark, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS, SMALL_SKIP, scopeLine } from './lib.mjs';
 import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, ownEnds, EXAMPLE_CLASS, multiPart } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
@@ -340,8 +340,12 @@ export function onPrompt(data) {
   const fits = !relayedRx.test(String(data.prompt || '')) ? (() => { try { return fitDueByRequest(String(userWords(data.prompt || ''))); } catch { return []; } })() : [];
   const fit = fits.map(d => `FIT: this request is what the ${d.item} library skill is for (matched: ${d.hits.join(', ')}), and docs/fit-checklist.md decided it "${d.decision}". Decide it again now: enable it (node tools/skills.mjs enable ${d.item}) and use it, or update its row with why it still does not help.`).join('\n');
   // (the work log: this message's asks join it; what earlier messages asked and is still open is shown, only when any)
+  // (a prompt a schedule this session set fires (CronCreate, ScheduleWakeup, /loop) is a standing instruction, not a new
+  // ask each round. Oversight, 2026-11-12: each round of a recurring manager prompt became an open ask)
+  const p0 = String(data.prompt || '').trim(), scheduled = !!real && !!p0 && tail(String(data.transcript_path), 8 << 20).split('\n').some(l => /"name":"(CronCreate|ScheduleWakeup)"/.test(l)
+    && (() => { try { return JSON.parse(l).message.content.some(b => b?.type === 'tool_use' && String(b.input?.prompt || '').trim() === p0); } catch { return false; } })());
   let stillOpen = ''; if (sid && (real || process.env.V2_LOG_TEST)) try { const now = new Date().toISOString(), W = LOG();
-    const left = W.update(sid, { msgs: [{ text: data.prompt || '', at: now }] }).filter(i => i.at < now);
+    const left = W.update(sid, { msgs: scheduled ? [] : [{ text: data.prompt || '', at: now }] }).filter(i => i.at < now);
     if (left.length) stillOpen = `Still open from earlier in this session (do these too, or say they are declined or wait on the user):\n${W.openLines(left)}`;
     // (and on a new turn, the project's queue: its next open item, one line)
     const q = !open ? W.queueOpen(f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } })[0] : null;

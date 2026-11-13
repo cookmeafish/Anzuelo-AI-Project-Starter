@@ -1,10 +1,6 @@
-// Engine v2: the work log, one per session: each ask the user typed (the request and every message typed while the agent
-// worked) and each promise the agent made ("I'll ..."). The engine fills it; nothing is asked of the agent. An item
-// closes on evidence: a later text of the agent's that names it (shares its key words), or `hooks.mjs log done|wait
-// "<item>"`. The end check lists what is still open; the reminder shows it only when there is any. User rule
-// (2026-11-12): nothing the user asks or the agent promises is dropped without being done, declined with a reason, or
-// handed back. Lesson (a live case): of four messages typed in a minute, the agent worked on the last, and the first
-// three were never mentioned again. Plan: docs/plans/2026-11-12-nothing-forgotten.md
+// Engine v2: the work log, one per session: the user's asks (every typed message) and the agent's promises ("I'll ..."),
+// filled by the engine, closed on evidence (a later text naming it, or `hooks.mjs log done|wait`). User rule, 2026-11-12:
+// nothing asked or promised is dropped. Lesson: of four messages typed in a minute, three were never mentioned again.
 import fs from 'node:fs';
 import path from 'node:path';
 import { at } from './lib.mjs';
@@ -37,14 +33,19 @@ export function update(sid, { msgs = [], texts = [] } = {}) {
   const items = loadLog(sid), have = new Set(items.map(i => i.text));
   const add = (text, from, when) => { if (!have.has(text)) { items.push({ text, from, at: when, status: 'open' }); have.add(text); } };
   for (const m of msgs) for (const a of asksIn(m.text)) add(a, 'user', m.at || new Date().toISOString());
-  for (const x of texts) for (const p of String(x.t).matchAll(PROMISE)) add(`${p[1].trim()} (your promise)`, 'promise', x.at);
+  // (not inside quotes or code: a quoted example is no promise. Oversight, 2026-11-12)
+  for (const x of texts) for (const p of String(x.t).replace(/```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|“[^”\n]*”/g, ' ').matchAll(PROMISE)) add(`${p[1].trim()} (your promise)`, 'promise', x.at);
   for (const it of items) if (it.status === 'open' && texts.some(x => x.at > it.at && named(it.text.replace(/ \(your promise\)$/, ''), x.t))) it.status = 'done';
   saveLog(sid, items);
   return items.filter(i => i.status === 'open');
 }
 // `hooks.mjs log add|done|wait "<item>"`: the agent adds an item, or closes or parks the open one its words name.
 export function logCommand(sid, verb, text) {
-  const items = loadLog(sid), hit = items.find(i => i.status === 'open' && (i.text === text || named(i.text, text)));
+  // (forgiving: the item's text without its " (your promise)" tag, a prefix of it, or half its words, never the
+  // "will" filter, which is for answers. Oversight, 2026-11-12: its own exact text found no match)
+  const base = i => i.text.replace(/ \(your promise\)$/, '').toLowerCase(), t = String(text).replace(/ \(your promise\)$/, '').trim().toLowerCase();
+  const share = i => { const w = keys(base(i)), k = new Set(keys(t)); return w.length > 0 && w.filter(x => k.has(x)).length >= Math.max(1, Math.round(w.length / 2)); };
+  const items = loadLog(sid), hit = items.find(i => i.status === 'open' && (base(i) === t || (t.length >= 12 && base(i).startsWith(t)) || share(i)));
   if (verb === 'add') items.push({ text: String(text).slice(0, 300), from: 'agent', at: new Date().toISOString(), status: 'open' });
   else if (hit && /^(done|wait)$/.test(verb)) hit.status = verb === 'done' ? 'done' : 'wait';
   else return `log: no open item matches "${text}"`;

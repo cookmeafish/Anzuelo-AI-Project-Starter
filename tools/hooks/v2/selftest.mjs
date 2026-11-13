@@ -3237,6 +3237,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // Lesson (2026-11-12): a peer's Issue line in the shared notes file showed as this session's "acknowledged")
     const peerLine = 'Issue: the cache grew without bound | runbook: learn-from-upset | fixed when: the cache stays under its cap';
     fs.appendFileSync(notes, `${peerLine}\n`);
+    // (this session quoting the peer's line in its own text is no writing of it. Oversight, 2026-11-12: a peer's old line
+    // showed in this session after it had been named in a message)
+    fs.appendFileSync(path.join(c, 't.jsonl'), JSON.stringify({ type: 'assistant', timestamp: new Date().toISOString(), message: { role: 'assistant', content: [{ type: 'text', text: `The peer wrote "${peerLine}".` }] } }) + '\n');
     const peer = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
     const line = 'Issue: the summary named a file that does not exist | runbook: learn-from-upset | fixed when: every file named in the answer exists';
     fs.appendFileSync(path.join(c, 't.jsonl'), JSON.stringify({ type: 'assistant', timestamp: new Date().toISOString(), message: { role: 'assistant', content: [{ type: 'tool_use', id: 'w1', name: 'Bash', input: { command: `echo "${line}" >> .cache/turn-notes.md` } }] } }) + '\n');
@@ -4064,7 +4067,17 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // held while the turn's own Monitor was armed for it)
   const watched = onStop({ session_id: 'wlogw', transcript_path: transcript([stampAt(0, user('tell me when the chain ends')), stampAt(5, say('I\'ll read the memory pool ten minutes after the chain ends.')),
     stampAt(10, call('Monitor', { description: 'pool reading after the chain', command: 'sleep 600; read-pool' }, 'Monitor started (task id: bmon4821), watching.')), stampAt(15, say('The watcher reads it then.'))]) })?.reason || '';
-  for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+  // (oversight's first live day, 2026-11-12: a quoted example is no promise; "log done" finds a promise by its own text,
+  // with "next" in it and the tag left off; a prompt a schedule of this session fires is no new ask)
+  const W2 = await import('./worklog.mjs');
+  W2.update('wlogq', { texts: [{ t: 'Rule: words like "I\'ll do it later" can no longer close a request. I\'ll check the export and the import the same way in the next round.', at: ts(5) }] });
+  const qItems = W2.loadLog('wlogq').map(i => i.text), doneMsg = W2.logCommand('wlogq', 'done', 'check the export and the import the same way in the next round');
+  const P = 'Manager round: keep the coding session working.', stp = transcript([stampAt(0, user('watch the coding session')), stampAt(5, call('ScheduleWakeup', { delaySeconds: 1200, prompt: P, reason: 'round' }, 'scheduled'))]);
+  const { onPrompt: op } = await import('./start.mjs'); op({ session_id: 'wlogs', prompt: P, transcript_path: stp }); op({ session_id: 'wlogs', prompt: 'and fix the csv export too', transcript_path: stp });
+  const sItems = W2.loadLog('wlogs').map(i => i.text);
+  report(!qItems.some(t => /do it later/.test(t)) && qItems.some(t => /same way in the next round/.test(t)) && /^log: done/.test(doneMsg) && !sItems.some(t => /Manager round/.test(t)) && sItems.some(t => /csv export/.test(t)),
+    'worklog: a quoted example is no promise; "log done" finds a promise by its own text; a prompt a schedule fires is no new ask', { qItems, doneMsg, sItems });
+  for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw', 'wlogq', 'wlogs']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
   report(!/Still open/.test(watched), 'worklog: a promise the turn armed a watcher or wakeup for is waiting, not held', watched.slice(0, 300));
   report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
