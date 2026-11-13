@@ -416,6 +416,19 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     JSON.stringify({ permissions: local.permissions, env: local.env, hooks: Object.keys(local.hooks || {}) }));
 }
 
+// (a repository with worktrees, or its own git LFS set up, keeps git's hooks path as it is after the install)
+{
+  const name = 'adopted project with worktrees or git LFS, engine in .anzuelo/engine';
+  const genv = { ...env, ANZUELO_SESSION_GATE: 'off' }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
+  const make = (sub, setup) => { const d = path.join(WORK, sub); write(d, { 'README.md': '# Shapes\n' }); gitRepo(d); setup(d);
+    const r = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', d], { cwd: STARTER, encoding: 'utf8', env: genv, timeout: 300000 });
+    return { inst: r.status, hp: git(['config', '--get', 'core.hooksPath'], d).stdout.trim() }; };
+  const wt = make('engine-in-anzuelo-worktree', d => git(['worktree', 'add', '-q', path.join(WORK, 'engine-in-anzuelo-worktree-wt')], d));
+  const lfs = make('engine-in-anzuelo-lfs', d => { git(['config', '--local', 'filter.lfs.clean', 'git-lfs clean -- %f'], d); write(d, { '.gitattributes': '*.psd filter=lfs diff=lfs merge=lfs -text\n' }); });
+  check(name, 'a repository with worktrees, or its own git LFS, keeps git\'s hooks path as it was (unset); the install still succeeds',
+    wt.inst === 0 && lfs.inst === 0 && wt.hp === '' && lfs.hp === '', JSON.stringify({ wt, lfs }));
+}
+
 if (deep) {
   const dir = fs.readdirSync(WORK).map(n => path.join(WORK, n)).find(d => fs.existsSync(path.join(d, 'package.json')));
   // mid-setup, like a real project: SETUP-PROMPT.md still there, the fit checklist decided, autonomy on, a plan open.

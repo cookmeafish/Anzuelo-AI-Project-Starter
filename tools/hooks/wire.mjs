@@ -166,6 +166,15 @@ export function wire(dir, { dry = false } = {}) {
   if (hooksPath !== null && hooksPath !== GITHOOKS) {
     if ((hooksPath && hooksPath !== '.githooks') || ownHooks) log.push(`kept     your git hooks (${hooksPath || '.git/hooks'}). To add the starter's checks (AI attribution, secrets, .gitignore), call .githooks/pre-commit, commit-msg and pre-push from yours.`);
     else if (!hasHooks(at(GITHOOKS))) log.push(`not set  git's hooks path: ${GITHOOKS} holds no hook scripts here`);
+    // (a repository with git LFS set up, or with worktrees, keeps git's hooks path as it is: a relative path leaves the
+    // worktrees unchecked, and LFS would put its hooks into the engine's folder, which then refuses upgrades. The agent's
+    // commits are still checked by the in-session guard. Lesson (a review of a large app, 2026-11-13))
+    // (the repository's own LFS: its local config, its lfs folder or a filter=lfs line; Git for Windows turns LFS
+    // filters on for the whole system, which says nothing about this repository)
+    else if (split && (/filter\.lfs\./.test(spawnSync('git', ['config', '--local', '--get-regexp', '^filter\\.lfs\\.'], { cwd: dir, encoding: 'utf8' }).stdout || '')
+      || fs.existsSync(path.join(dir, '.git', 'lfs')) || /filter=lfs/.test((() => { try { return fs.readFileSync(at('.gitattributes'), 'utf8'); } catch { return ''; } })())
+      || (spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, encoding: 'utf8' }).stdout || '').split(/\n(?=worktree )/).length > 1))
+      log.push('not set  git\'s hooks path: this repository uses git LFS or worktrees, so it stays as it is; the agent\'s commits are checked by the in-session guard');
     else {
       if (!dry) spawnSync('git', ['config', 'core.hooksPath', GITHOOKS], { cwd: dir });
       log.push(`git      core.hooksPath = ${GITHOOKS} (commits and pushes are checked for AI attribution, secrets and .gitignore)`);
