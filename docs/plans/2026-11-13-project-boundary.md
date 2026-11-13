@@ -131,6 +131,24 @@ tools/hooks/v2/lib.mjs (walks), tools/starter/trials/adopt-large.mjs (the sample
 - [ ] The engine ships its own `.gitattributes` inside `.anzuelo/` (LF for its shell and hook files), so a machine with
       `core.autocrlf=true` keeps them runnable.
 - [ ] Never touched: `.claude/scheduled_tasks.lock`, `.claude/worktrees/`, the app's runtime data folders and backups.
+- [ ] No `.html` file under `.anzuelo/` (a dev server's dependency scan globs `**/*.html` and serves the root).
+- [ ] A setup path that runs `git clean -fd` would delete the untracked engine: the engine's notes name it as a known
+      way to lose local engine state, and `.anzuelo/local` is backed up outside the project.
+- [ ] The engine never writes, syncs or regenerates the project's `CLAUDE.md` or `AGENTS.md` (an app test may parse a
+      marked section of it); rules come in only through `CLAUDE.local.md`.
+- [ ] Light mode for a project whose own rules are large (over a size threshold): no status or open-plan dump at
+      session start, the reminder at most 3 lines, format and record items off.
+- [ ] The project's own gates are declared at adoption (its test runner, its build, its own screen-review script) and
+      the engine's screen and test items accept them; the gui pack stays off when the app has its own review loop.
+- [ ] Records follow the app's own practice: where its version bump and commit message are its changelog, no
+      CHANGELOG, STATUS or DECISIONS asks; new rules go into the app's own rules sections (a project-rule override).
+- [ ] The AI-credit guard blocks only trailers, author identity and "generated with" lines, never a bare AI provider name
+      in an app's code or commit text (an AI app names its providers).
+- [ ] Plain capitals alone aren't upset in a project whose owner writes that way (trigger-words), while the project's
+      own complaint words are.
+- [ ] Generated and data folders the adoption names are never "changed files" for engine checks.
+- [ ] The work log only tracks in an adopted project until tuned: it never holds a turn on keyword-matched gaps in a
+      long session (capped, or off by default).
 - [ ] Found by the trial (2026-11-13): the agent's answer draft for `check --answer-file` went to the project's own
       `.cache/answer.md`. The documented draft path, and every engine scratch file, goes under the engine's state.
 - [ ] Run `node tools/starter/trials/adopt-large.mjs <clone>` on a sample with every shape above. Expected: ADOPT-LARGE:
