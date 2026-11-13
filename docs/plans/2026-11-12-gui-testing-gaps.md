@@ -119,3 +119,5 @@ project's local helper server, started for the user, stopped answering partway t
       (`Start-Process explorer.exe -ArgumentList '"<launcher>.cmd"'`) or a start fully outside the tool's job, never as
       a child of the agent's shell. Servers that tests start and stop themselves keep their current start.
 - [ ] Test: a server launched this way still answers after the call that started it has ended.
+- [ ] From a project's own copy of the gui runbook (2026-11-12): add the trigger "ui" (route-test it does not
+      over-match) and point to the frontend-design skill's feedback, accessibility and spec sections for those asks.
