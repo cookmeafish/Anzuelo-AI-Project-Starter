@@ -358,8 +358,10 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const ownSkill = '---\nname: release-notes\ndescription: Write the release notes\n---\n# Release notes\nRun `node .claude/skills/release-notes/make.js`.\n';
   const ownDebug = '---\nname: debug\ndescription: The project\'s own debugging steps\n---\n# Debug\nOpen the "logs" panel first.\n';
   const ownLocal = { permissions: { allow: ['Bash(yarn test:*)'], deny: ['Bash(rm -rf:*)'] }, env: { APP_MODE: 'dev' }, hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'node scripts/own-lint.js' }] }] } };
+  // (a tracked app doc that happens to hold a name marker: the engine never rewrites it)
+  const guideText = '# Guide\nWelcome to <!--name:PROJECT_NAME-->Garden App<!--/name-->, version 2.\n';
   // (no .gitignore of its own, and its own app data tracked in .cache/: neither is the engine's business)
-  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug, '.cache/app-data.json': '{"items":3}\n' }); gitRepo(dir);
+  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug, '.cache/app-data.json': '{"items":3}\n', 'docs/guide.md': guideText }); gitRepo(dir);
   const ownLocalRules = '# My notes for this machine\nAnswer in short paragraphs; the "staging" server is down on Fridays.\n';
   write(dir, { '.claude/settings.local.json': JSON.stringify(ownLocal, null, 2) + '\n', 'CLAUDE.local.md': ownLocalRules });
   const genv = { ...env, ANZUELO_SESSION_GATE: 'off' }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
@@ -407,6 +409,7 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     check(name, 'the acknowledgement works with the engine in .anzuelo/: the session note sends the engine\'s scratch to .anzuelo/local/.cache/, no hook text names the app\'s own .cache/turn-notes.md, and a quoted Issue line written there shows "acknowledged"',
       /\.anzuelo\/local\/\.cache\//.test(session) && !/(?<![\w./-])\.cache\/turn-notes\.md/.test(session + hint) && /acknowledged: the export dropped the \\?"notes\\?" column/.test(ack) && !fs.existsSync(path.join(dir, '.cache/turn-notes.md')),
       JSON.stringify({ session: session.slice(-300), hint: hint.slice(0, 300), ack: ack.slice(0, 300) }));
+    check(name, 'a tracked app doc holding a name marker is never rewritten by the engine\'s name sync (install and a session start)', rd('docs/guide.md') === guideText, JSON.stringify(rd('docs/guide.md')));
   }
   // (its own .claude/settings.local.json merged: every key of the user's kept, the engine's hooks added)
   let local = {}; try { local = JSON.parse(rd('.claude/settings.local.json') || '{}'); } catch { }

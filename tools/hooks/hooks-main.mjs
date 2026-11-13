@@ -1371,7 +1371,10 @@ export function syncNames(cfg = config(), { force = false } = {}) {
   // (an engine file read from .anzuelo/engine keeps its markers as shipped: refilling one would copy it into local, and
   // the local copy would no longer get the engine's updates)
   const engines = p => split && !path.relative(ENGINE, abs(p)).startsWith('..');
-  for (const p of nameFiles(cfg)) { if (engines(p)) continue; const t = read(abs(p)); if (NAME_DOCS.test(p) && t.includes('<!--name:') && writeIfChanged(p, stampNames(t, nm))) changed.push(p); }
+  // (nor any file of the project itself: in that layout only the engine's own local copies are refilled. Lesson (a
+  // review of a large app, 2026-11-13): an app's own tracked docs and pages holding a marker would have been rewritten)
+  const projects = p => split && path.relative(LOCAL, abs(p)).startsWith('..');
+  for (const p of nameFiles(cfg)) { if (engines(p) || projects(p)) continue; const t = read(abs(p)); if (NAME_DOCS.test(p) && t.includes('<!--name:') && writeIfChanged(p, stampNames(t, nm))) changed.push(p); }
   writeState('names.json', { names: key });
   return changed;
 }
