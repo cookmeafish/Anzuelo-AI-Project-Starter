@@ -3953,7 +3953,8 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const sc = (() => { try { return fs.readFileSync(path.join(repoT, 'tools/hooks/selfcheck.mjs'), 'utf8'); } catch { return ''; } })();
     const slimOk = /const SLIM_DEFAULT = \['\.claude\/skills', '\.agents\/skills'\]/.test(sc) && /const slim = process\.env\.SELFCHECK_FULL_BASE \? \[\] : [^\n]*SLIM_DEFAULT/.test(sc) && /fs\.renameSync\(path\.join\(BASE, d\), path\.join\(extra, d\)\)/.test(sc);
     report(slimOk, 'temp: the old suite\'s fixture base leaves out the generated skill copies by default (kept beside it for the tests that need them)', String(slimOk));
-    report(copies >= 1 && ran >= 20 && copies * 3 <= ran, 'temp: the old suite\'s scenarios share a few fixture copies (rested between uses), not a whole copy each', JSON.stringify({ copies, ran }));
+    // (the starter's suite only: in a project the release's results are reused and a few scenarios run. Trial, 2026-11-13)
+    if (STARTER_REPO) report(copies >= 1 && ran >= 20 && copies * 3 <= ran, 'temp: the old suite\'s scenarios share a few fixture copies (rested between uses), not a whole copy each', JSON.stringify({ copies, ran }));
     // (a project's own tests, any language, run through "starter.mjs test-run": their temp folder is one of their own
     // under anzuelo-tests/projects/<name>, removed when they end; the exit code is kept; what they still put in the real
     // temp folder is listed, and --strict fails on it. Lesson (oversight, 2026-11-11): projects' own suites left about
