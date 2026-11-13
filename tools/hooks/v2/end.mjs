@@ -10,9 +10,7 @@ import { planRequired, OPEN_WORK, planOpen } from '../planreq.mjs';
 import { keyWords, closestRunbook, coreRunbook, userWords as userWordsOf } from '../near.mjs';
 import { appendHistory } from '../history.mjs';
 import { relayedBody } from '../relay.mjs';
-// REQ: plan-open, under v2: the shared planreq.mjs rule, on the plans the prompt hook found open when the turn began;
-// asked once (round 1), as the old engine. Lesson (the old suite under v2): a work turn that continued an open plan
-// and never touched it passed, and plans were left half done
+// REQ: plan-open (planreq.mjs), on the plans open when the turn began; asked once. Lesson: plans were left half done
 function planOpenGaps(turn, acts, again) {
   if (again || checkOff('plan-open')) return [];
   const startPlans = (turn.openPlans || []).filter(p => fs.existsSync(at(p)));
@@ -46,9 +44,8 @@ const TIMES = process.env.ANZUELO_V2_TIMING || process.env.STARTER_TIMING ? [] :
 const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if (!TIMES) return; const n = performance.now(); TIMES.push([name, Math.round((n - t) * 10) / 10]); t = n; }; };
 const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
 const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts), ...rootTidyGaps(acts), ...fitStaleGaps({ root: ROOT, changed: changedOf(acts), since: Date.parse(acts.at || '') || 0 })];
-// REQ: plan-required, under v2: the shared tools/hooks/planreq.mjs. A file is new this turn when git's last commit and
-// the turn-start snapshot do not have it and it was made after the turn began. The git lookup runs only when the cheap
-// conditions already hold (enough changed files, open work said, no plan or status recorded).
+// REQ: plan-required (planreq.mjs). A file is new when neither git's last commit nor the turn-start snapshot has it and
+// it was made after the turn began; git is asked only once the cheap conditions hold.
 function planGaps(acts) {
   const cfg = projectConfig(), changed = changedOf(acts), n = Number(cfg.planNewFiles) || 5, said = String(acts.said || acts.answer || '');
   if (checkOff('plan-required') || changed.length < n || !OPEN_WORK.test(said) || changed.some(p => /^docs\/plans\/.+\.md$/.test(p) || p === 'docs/STATUS.md')) return [];
@@ -62,11 +59,8 @@ function planGaps(acts) {
   return msg ? [msg] : [];
 }
 
-// REQ: note-linked, under v2, as the old engine judged it. A new note links to what it relates to (a markdown link to a
-// .md file, a [[wiki link]], or a "## Related" section that says why it stands alone), so Obsidian's graph and the agent
-// see how the project's knowledge connects. Notes: docs/knowledge, docs/notes, free-standing docs/*.md and the vault's
-// own folders (knowledgeDirs), not their templates or attachments, nor the starter's own documents. New: not in git's
-// last commit or the turn-start snapshot, and made after the turn began (a saved edit resets no note into a new one).
+// REQ: note-linked. A new note (docs/knowledge, docs/notes, docs/*.md, knowledgeDirs; not templates or the starter's
+// documents) links to related notes (a .md link, a [[wiki link]] or "## Related" saying why it stands alone).
 const NOT_A_NOTE = /(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation|fit-checklist|lessons|recommended-tools|user-requirements|starter-feedback|glossary)\.md$/i;
 export function noteLinkedGaps(acts) {
   if (checkOff('note-linked')) return [];
@@ -128,11 +122,15 @@ const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.te
   || (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').replace(/\\/g, '/').includes(b.file)
     && /WriteAllText|Set-Content|Out-File|Add-Content|writeFileSync|\bsed\s+-i|\btee\b|>>?\s*["']?[\w./-]*\.md\b|\.Replace\(|\.replace\(/.test(String(c.input.command || '')))
     && (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(at(b.file)).mtimeMs > since; } catch { return false; } })());
-// (a routed runbook never opened gives way to the one the agent opened: the router guessed, the agent chose)
-const picked = (acts, books) => books.find(b => opened({ ...b, skills: [] }, acts) && !authored(b, acts));
-// (the routed one too: a turn that edited its own routed runbook was changing the procedure, not following it. Lesson
-// (a project's report): adding a marker to the routed runbook held the turn to that runbook's items)
-const chosen = (turn, acts, books) => { const routed = turn.runbook && books.find(b => b.file === turn.runbook && !authored(b, acts)); return routed && !opened(routed, acts) ? picked(acts, books.filter(b => b !== routed)) || routed : routed || picked(acts, books); };
+// The runbook the turn is held to, from evidence only: the one the answer says it followed ("Runbook: x.md", "followed
+// the x runbook") and opened, else the one routed from the user's own prompt. A runbook only read, grepped or named in a
+// test is no choice. Not one the turn edited: that was changing the procedure, not following it. Lesson (2026-11-12):
+// runbooks read for reference, or probed by routing tests, held turns to 2 to 14 items each
+const FOLLOWED = /\b(?:runbook|playbook)s?\s*:\s*`?(?:[\w./-]*\/)?([\w-]+)(?:\.md)?`?|\bfollowed (?:the )?`?([\w-]+)`? (?:runbook|playbook)\b/gi;
+const chosen = (turn, acts, books) => {
+  const said = [...String(acts.answer || '').matchAll(FOLLOWED)].map(m => m[1] || m[2]);
+  return books.find(b => said.includes(b.name) && opened(b, acts) && !authored(b, acts)) || (turn.runbook && books.find(b => b.file === turn.runbook && !authored(b, acts)));
+};
 // A runbook item the answer says, in one line, does not fit this work is cleared: the line names it ("item 3") and
 // says why. Lesson (a project's report): the block offered that way out, and the line that took it was held again.
 // (or names a path the item names, and says why in plain words: agents rarely write "item 3")
@@ -215,15 +213,9 @@ export function missing(turn, acts, books = runbooks()) {
   return out;
 }
 
-// REQ: runbook-exists, under v2 (rule 2, Step 0.3: "no runbook fits a real task: follow _fallback.md, then leave a
-// runbook and a check behind"; the approved engine-v2-only plan, Task 3: "if a work turn opened none, it asks once: open
-// the closest runbook (listed) or say in one line why none fits"). Three cases, each asked once (round 1):
-// (a) the notes or the answer name a runbook as followed ("Playbook: x.md") that the turn never opened: open it;
-// (b) the turn followed _fallback.md and left no new runbook: leave one, or say why none is needed;
-// (c) work past the small-fix size that opened no runbook or skill and made none: open the closest (the top 3 named),
-//     leave a new one, or say in one line why none fits. Not a question, a relayed message or the setup turn.
-// Oversight 2026-11-10, triage rows 144 and 147. Lesson (the old suite under v2): unrouted work and _fallback work left
-// nothing behind, and a runbook the notes named was never opened.
+// REQ: runbook-exists (rule 2, Step 0.3), each asked once: (a) a runbook the answer names as followed was never opened;
+// (b) _fallback.md was followed and no runbook left behind; (c) work past the small-fix size opened and made none: open
+// the closest (top 3 named), leave one, or say why none fits. Not a question, a relayed message or the setup turn.
 const NONE_FITS = /\b(no|none of the|not an?)\s+(existing\s+)?runbooks?\b[^.\n]{0,60}\b(fits?|applies|apply|needed|covers?)\b|\bone-?off\b|\bno runbook (is )?needed\b/i;
 export function unroutedGaps(turn, acts, again, books = runbooks()) {
   if (again || checkOff('runbook-exists') || !worked(acts) || /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') || fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) return [];
@@ -231,14 +223,10 @@ export function unroutedGaps(turn, acts, again, books = runbooks()) {
   const made = acts.calls.some(c => c.name === 'Write' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));
   const fallback = acts.calls.some(c => c.name === 'Read' && /(^|\/)docs\/playbooks\/_fallback\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));
   const anyOpened = books.some(b => opened(b, acts)) || skillBooks({ parts: true }).some(b => opened(b, acts));
-  // (a) (from what the agent said this turn, never the turn notes: "Playbook:" lines there are the old engine's record
-  // lines, retired 2026-11-05 (user-requirements row 40). Lesson (the replay over real sessions): read from the notes,
-  // it asked in 29% and 48% of two projects' work turns, every one a runbook read earlier in the session)
+  // (a) (from what the agent said, never the notes: their old record lines made 29% and 48% of work turns ask (replay))
   const named = [...`${acts.said || ''}\n${acts.answer || ''}`.matchAll(/\bPlaybook:\s*(?:docs\/playbooks\/)?([\w-]+)\.md\b/gi)].map(m => m[1]).filter(n => n !== '_fallback');
-  // (a runbook opened earlier in the session counts only for the same request chain: a message that goes on with the
-  // work (an image alone, "again", "continue", an interrupted request resumed). A new request opens its runbook this turn
-  // (rule 1), even one read earlier. Lesson (oversight, 2026-11-10): "any earlier opening" turned the check off in long
-  // sessions, 0 asks in 245 turns; "or among the 3 closest" still hid a runbook that covered new work but was not opened)
+  // (a runbook opened earlier counts only for a message that goes on with the work ("again", "continue", an image alone,
+  // a resumed request). Lesson (2026-11-10): "any earlier opening" made 0 asks in 245 turns)
   const heard = String(acts.heard || ''), goesOn = /^\s*\[Request interrupted/.test(heard) || !heard.replace(/\[Image[^\]]*\]/g, '').trim()
     || /\b(again|continue|keep going|go on|carry on|resume|same as before|otra vez|de nuevo|sigue|contin[uú]a)\b/i.test(heard);
   const pool = books.map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), top = [];
@@ -598,7 +586,7 @@ function skillLearnGaps(turn, acts, list, sid, request) {
   const NONE = /^[\s>*_-]*learned\s*\((none|nothing|ninguno|ninguna|nada)\)\s*:\s*\S.{8,}/im;
   const P = makeProof({ LEARNED_NONE: NONE }), esc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const fmChecks = front => String((/^checks:\s*(.+)$/m.exec(front || '') || [])[1] || '').replace(/^core:?/i, '').replace(/^none.*$/i, '').split(',').map(t => t.trim()).filter(Boolean);
-  const books = runbooks().filter(b => opened(b, acts) && !authored(b, acts)).map(b => ({ name: b.name, file: b.file, front: b.front, items: b.items }));
+  const books = [chosen(turn, acts, runbooks())].filter(Boolean).map(b => ({ name: b.name, file: b.file, front: b.front, items: b.items }));
   const skills = skillBooks({ parts: true }).filter(s => opened({ ...s, skills: [] }, acts) && !authored(s, acts)).map(s => ({ name: s.name, skillName: s.name, file: s.file, front: s.front, items: s.items }));
   if (!books.length && !skills.length) return [];
   // (a round that asked to open a runbook had not followed it yet: its items failing then are no miss of the runbook.
@@ -746,7 +734,10 @@ function judge(data, { shadow = false } = {}) {
   const previewed = !shadow && (acts.calls || []).some(c => /^(Bash|PowerShell)$/.test(c.name) && /hooks\.mjs["']?\s+check\b[^\n]*--answer-file/.test(String(c.input?.command || '')));
   const check = again || previewed ? null : toVerify(turn, acts);
   decided.steps = [...list.map(s => s.replace(/\s+/g, ' ').slice(0, 80)), ...(check ? [`verify ${check.file}`] : [])];
-  if (!list.length && !check) { if (!shadow) passed = { acts, turn, rounds }; return null; }
+  // (what the pass line may say, from what this turn proved: the checks ran over real work, the runbook's checkable items
+  // all met, the files its own calls changed)
+  if (!list.length && !check) { if (!shadow) { const b = worked(acts) ? chosen(turn, acts, runbooks()) : null, its = b ? b.items.filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts)) : [];
+    passed = { acts, turn, rounds, evidence: { checked: worked(acts) || rounds > 0, book: its.length && its.every(it => met(it, acts) === true) ? b.file : '', written: changedOf(acts) } }; } return null; }
   const parts = [], last = rounds + 1 === MAX_BLOCKS;
   // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.
   // Lesson (2026-11-07): an agent resent the same answer to each repeat block, and the false item was never looked at)

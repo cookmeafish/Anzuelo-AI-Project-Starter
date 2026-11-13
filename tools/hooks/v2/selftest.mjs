@@ -236,8 +236,10 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const T = s => new Date(Date.now() - 60_000 + s * 1000).toISOString(), at = (s, r) => [r].flat().map(x => ({ ...x, timestamp: T(s) }));
   const late = transcript([at(0, user('upgrade the export tool')), at(1, call('Read', { file_path: path.join(dir, 'docs/playbooks/export.md') })),
     at(2, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })), at(3, call('Bash', { command: 'npm test' }, '3 passed')),
-    at(4, say('Done; how it was checked: npm test.'))]);
+    at(4, say('Done; how it was checked: npm test. Runbook: export.md'))]);
   put('docs/CHANGELOG.md', '- export: tidied\n');
+  // (written while the turn's own command ran: a file is the turn's only then. 2026-11-12: a peer's edits counted)
+  fs.utimesSync(path.join(dir, 'docs/CHANGELOG.md'), new Date(T(3)), new Date(T(3)));
   const old = new Date(Date.now() - 3_600_000); fs.utimesSync(path.join(dir, 'docs/playbooks/export.md'), old, old); // (the runbook predates the turn)
   const b1 = onStop({ session_id: 'latestart', transcript_path: late }), b2 = onStop({ session_id: 'latestart', transcript_path: late });
   report(!!b1 && !/item 2/.test(b1.reason) && b2 === null, 'end: a turn with no saved start begins at its request, so a file a script wrote counts, and it is blocked once', [b1?.reason?.slice(0, 160), b2?.reason?.slice(0, 80)]);
@@ -262,8 +264,9 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
       const none = passText({ acts: { said: 'Issue: none - the file was opened from an old folder', calls: [] }, turn: turnA });
       fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, 'Issue: the totals row is missing | runbook: debug | fixed when: the totals row is there\n');
       const both = passText({ acts: { said: 'Issue: something else | runbook: debug | fixed when: x', calls: [] }, turn: turnA });
-      report(/acknowledged: the export drops the last row again/.test(chat) && !/acknowledged/.test(none) && /acknowledged: the totals row is missing/.test(both) && !/something else/.test(both),
-        'lines: an Issue line in the agent\'s own text gives the user "acknowledged" when the notes hold none; the notes\' line wins; "Issue: none" shows nothing', JSON.stringify({ chat, none, both }));
+      // (the notes' line was acknowledged when written: the end line repeats nothing then. 2026-11-12: shown twice)
+      report(/acknowledged: the export drops the last row again/.test(chat) && !/acknowledged/.test(none) && !/acknowledged/.test(both),
+        'lines: an Issue line only in the agent\'s own text gives the user "acknowledged" at the end; one in the notes was shown when written, not again; "Issue: none" shows nothing', JSON.stringify({ chat, none, both }));
     } finally { keep === null ? fs.rmSync(nf, { force: true }) : fs.writeFileSync(nf, keep); }
   }
   { // (a Spanish request held at the end is told the Spanish labels of what it is held to; an English one is not. Lesson
@@ -580,6 +583,8 @@ report(missing(turn, acts(good)).length === 0, 'end: a turn that met every check
 {
   // the items no script can check: the agent goes over them once at the end of a work turn, in the one block
   const { toVerify } = await import('./end.mjs');
+  // (routed from the prompt: the runbook a turn is held to is the routed one, or the one the answer says it followed)
+  for (const s of ['verify1', 'verify2', 'verify3']) (await import('./start.mjs')).onPrompt({ session_id: s, prompt: 'add a csv export' });
   const v = toVerify(turn, acts(good)), stop = onStop({ transcript_path: transcript(good), session_id: 'verify1' });
   report(v?.file === 'docs/playbooks/export.md' && v.items.map(i => i.n).join() === '4' && /reads well for a person, which only a reader can judge$/.test(v.items[0].text)
     && /Check that these items of docs\/playbooks\/export\.md are really done[\s\S]*\n4\. The output reads well/.test(stop?.reason || '') && !/Not done yet/.test(stop?.reason || ''),
@@ -800,8 +805,11 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
   report(/^Open docs\/playbooks\/export\.md and follow its steps: 15 or more tool calls/.test(r.busy[0] || '') && r.busy.length === 1 && !r.few.length && !r.opened.length,
     'end: a routed turn of 15 or more tool calls with no file changed is asked to open its runbook; fewer calls, or the runbook opened, is not', JSON.stringify(r));
 }
-const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
-report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
+// (with none routed: the runbook the answer says it followed, and opened, holds the turn; one only read holds nothing.
+// Lesson (2026-11-12): runbooks read for reference held turns to their items)
+const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed. Runbook: export.md')]));
+const onlyRead = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
+report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)) && !onlyRead.length, 'end: with none routed, the runbook the answer says it followed is the one the turn is held to; one only read holds nothing', JSON.stringify({ chose, onlyRead }));
 // (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))
 const wrote = missing({ runbook: null }, acts([user('set up the project'), call('Write', { file_path: path.join(dir, 'docs/playbooks/export.md'), content: 'x' }), read, edit, say('Set up.')]));
 report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and then read is not the one the turn is held to', wrote);
@@ -833,7 +841,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     report(/Skill lesson/.test(mine) && !/old complaint/.test(mine) && /old complaint/.test(whole) && /Done 1-3/.test(above) && stale === '' && saved === size, 'end: the turn\'s notes are only what it added to the notes file (its size and hash recorded when the turn begins); a file that shrank or was rewritten is read whole, an untouched one not at all', JSON.stringify({ mine, whole: whole.length, above: above.length, stale, saved, size })); }
   // (a turn with no routed runbook that greps another runbook's triggers is not following it; printing it whole is.
   // Lesson (a project's report, 2026-11-12): a grep of a runbook's triggers line held a routing fix to its 7 items)
-  { const by = command => missing({ runbook: null }, acts([user('make the field guide route to the gui runbook'), call('Bash', { command }), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done.')])).filter(s => /export\.md item/.test(s)).length;
+  { const by = command => missing({ runbook: null }, acts([user('make the field guide route to the gui runbook'), call('Bash', { command }), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done. Runbook: export.md')])).filter(s => /export\.md item/.test(s)).length;
     const grep = by('cd /p && node tools/hooks/hooks.mjs begin "x" | head -5; grep -n "^triggers" docs/playbooks/export.md | cut -c1-300'), cat = by('cat docs/playbooks/export.md');
     report(grep === 0 && cat > 0, 'end: a shell grep of a runbook is not opening it; printing it whole is', JSON.stringify({ grep, cat })); }
   const { waived } = await import('./end.mjs');
@@ -1562,13 +1570,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const [paren] = doneWhen('## Done when\n1. The build is named (answer: build (one|two) ready)\n');
   report(paren.kind === 'answer' && paren.arg === 'build (one|two) ready' && paren.text === 'The build is named', 'runbook: a marker value may hold a bracketed group', paren);
 }
-{ // (a routed runbook never opened, while another was, gives way to the one opened. Lesson (trial v45))
+{ // (a routed runbook gives way only to one the answer says it followed and opened; another only read changes nothing.
+  // Lessons: trial v45 (the router guessed, the agent chose); 2026-11-12 (a runbook read for reference took over)
   put('docs/playbooks/recipes.md', '---\nname: recipes\ntriggers: recipe\n---\n## Done when\n1. The recipe card is filed\n');
-  const other = missing({ runbook: 'docs/playbooks/recipes.md' }, acts([user('add a page listing the recipes'), read, edit, say('Added.')]));
+  const other = missing({ runbook: 'docs/playbooks/recipes.md' }, acts([user('add a page listing the recipes'), read, edit, say('Added. Runbook: export.md')]));
+  const readOnly = missing({ runbook: 'docs/playbooks/recipes.md' }, acts([user('add a page listing the recipes'), read, edit, say('Added.')]));
   const none = missing({ runbook: 'docs/playbooks/recipes.md' }, acts([user('add a page listing the recipes'), edit, say('Added.')]));
   fs.rmSync(path.join(dir, 'docs/playbooks/recipes.md'));
-  report(other.some(s => /export\.md item 1/.test(s)) && !other.some(s => /recipes\.md/.test(s)) && none.some(s => /^Open docs\/playbooks\/recipes\.md/.test(s)),
-    'end: a routed runbook the agent never opened gives way to the runbook it opened; with none opened it is still asked for', JSON.stringify({ other, none }));
+  report(other.some(s => /export\.md item 1/.test(s)) && !other.some(s => /recipes\.md/.test(s)) && readOnly.some(s => /^Open docs\/playbooks\/recipes\.md/.test(s)) && !readOnly.some(s => /export\.md/.test(s)) && none.some(s => /^Open docs\/playbooks\/recipes\.md/.test(s)),
+    'end: a routed runbook gives way only to the one the answer says it followed; another only read changes nothing; with none opened it is still asked for', JSON.stringify({ other, readOnly, none }));
 }
 { // (a skill the runbook hands the case to counts as opening it; any other skill does not. Lesson (trial v42))
   // (the sample skill's path is built here, so the reference sweep does not read it as a real reference)
@@ -2127,7 +2137,8 @@ const { questionGaps } = await import('./lib.mjs');
   let turnAt = ''; try { turnAt = JSON.parse(fs.readFileSync(path.join(g, 'tools/hooks/state/v2-turn.snap1.json'), 'utf8')).at; } catch { }
   const sec = `@${Math.floor(Date.parse(turnAt) / 1000)} +0000`;
   git(['commit', '-q', '-m', 'during the turn', '--', 'committed.txt'], { GIT_AUTHOR_DATE: sec, GIT_COMMITTER_DATE: sec });
-  const probe = `const { met, loadTurn, loadDirty } = await import(${lib}); const at = loadTurn('snap1').at, a = { calls: [], at, startHashes: loadDirty('snap1', at) };
+  // (one command of the turn, untimed as in hand-made transcripts, so whatever changed in the turn is its own)
+  const probe = `const { met, loadTurn, loadDirty } = await import(${lib}); const at = loadTurn('snap1').at, a = { calls: [{ name: 'Bash', input: { command: 'node build.mjs' } }], at, startHashes: loadDirty('snap1', at) };
     // (a snapshot still running when the file was last written may hold that write: it says nothing about the file)
     const raced = met({ kind: 'file', arg: 'early-touched.txt' }, { ...a, startHashes: { ...a.startHashes, done: Date.now() + 3600000 } });
     console.log(JSON.stringify([...${JSON.stringify(FILES)}.map(f => met({ kind: 'file', arg: f }, a)), raced]));`;
@@ -2661,13 +2672,25 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   report(c.up === shouted.length && c.calm === eager.length && c.rule === 'project' && c.acro !== 'project',
     'start: caps-weight: capitals with a sign of trouble are upset, eager capitals and acronyms are not; a capital NEVER routes as a standing rule', c);
 }
-{ // (prompt-visible: a runbook the turn wrote new shows as made, not as "pulled up"; one opened and followed still shows
-  // as pulled up)
+{ // (prompt-visible, each part on this turn's own evidence only: a runbook written shows as made; 📖 only when the end
+  // check found its items met, never for one only read; 🧠 only for a file this turn changed; ✅ only when checks ran
+  // over real work; 🚨 at the end only for an Issue said in the answer and never written. Every false line of
+  // 2026-11-12 is a case here: "🧠 lesson saved in <files nobody touched>", "📖" for a runbook only read, "✅" on a
+  // turn of notes and memory only, a 🚨 repeated at the end)
   const { passText: passLine } = await import('./lines.mjs');
-  const made = passLine({ acts: acts([user('make a shopping list'), call('Write', { file_path: path.join(dir, 'docs/playbooks/shopping-list.md'), content: 'x' }), call('Write', { file_path: path.join(dir, 'lists/shopping-list.md'), content: 'x' }), say('Saved.')]), turn: { runbook: 'docs/playbooks/shopping-list.md' } });
-  const used = passLine({ acts: acts([user('make a plan'), call('Read', { file_path: path.join(dir, 'docs/playbooks/plan.md') }), call('Write', { file_path: path.join(dir, 'docs/plans/p.md'), content: 'x' }), say('Saved.')]), turn: { runbook: 'docs/playbooks/plan.md' } });
-  report(/🌱 new runbook made: docs\/playbooks\/shopping-list\.md/.test(made) && !/pulled up/.test(made) && /📖 the plan runbook it pulled up was followed/.test(used) && !/🌱/.test(used),
-    'visible: a runbook the turn wrote new shows as made, not as pulled up; one opened and followed shows as pulled up', JSON.stringify({ made, used }));
+  const made = passLine({ acts: acts([user('make a shopping list'), call('Write', { file_path: path.join(dir, 'docs/playbooks/shopping-list.md'), content: 'x' }), call('Write', { file_path: path.join(dir, 'lists/shopping-list.md'), content: 'x' }), say('Saved.')]), turn: { runbook: 'docs/playbooks/shopping-list.md' }, evidence: { checked: true, written: ['docs/playbooks/shopping-list.md', 'lists/shopping-list.md'] } });
+  const planActs = acts([user('make a plan'), call('Read', { file_path: path.join(dir, 'docs/playbooks/plan.md') }), call('Write', { file_path: path.join(dir, 'docs/plans/p.md'), content: 'x' }), say('Saved.\nlearned (lesson): plans tick boxes → docs/plans/p.md\nlearned (lesson): old line → tools/starter/STATUS.md')]);
+  const used = passLine({ acts: planActs, turn: { runbook: 'docs/playbooks/plan.md' }, evidence: { checked: true, book: 'docs/playbooks/plan.md', written: ['docs/plans/p.md'] } });
+  const onlyRead = passLine({ acts: planActs, turn: { runbook: 'docs/playbooks/plan.md' }, evidence: { checked: true, book: '', written: ['docs/plans/p.md'] } });
+  const notesOnly = passLine({ acts: acts([user('the totals are wrong'), call('Edit', { file_path: path.join(dir, '.cache/turn-notes.md'), old_string: 'a', new_string: 'b' }), say('Looking into it.')]), turn: {}, evidence: { checked: false, written: [] } });
+  const saidIssue = passLine({ acts: acts([user('the totals are wrong'), say('Issue: the totals skip refunds; refunds were added after the report was built | runbook: debug | fixed when: totals match the ledger')]), turn: {}, evidence: {} });
+  report(/🌱 new runbook made: docs\/playbooks\/shopping-list\.md/.test(made) && !/📖/.test(made) && /📖 the plan runbook was followed/.test(used) && !/🌱/.test(used)
+    && /🧠 lesson saved in docs\/plans\/p\.md$/.test(used) && !/STATUS/.test(used) && !/📖/.test(onlyRead) && notesOnly === '' && /🚨 acknowledged: the totals skip refunds$/.test(saidIssue) && !/fixed/.test(saidIssue),
+    'visible: each part of the end line only on this turn\'s evidence: made, followed (items met), a lesson file changed now, checks over real work; an Issue said, whole and short, never "fixed"', JSON.stringify({ made, used, onlyRead, notesOnly, saidIssue }));
+  // (the summary is the first clause, cut at a word: never mid-word, never an open bracket)
+  const { clip } = await import('../writing.mjs'), long = clip('the linked projects still have the engine spread through their own folders instead of all of it under .anzuelo/, and I answered late (git status shows no engine files');
+  report(/…$/.test(long) && long.length <= 92 && !/\(/.test(long) && /\b\w+…$/.test(long) && clip('the export drops the last row') === 'the export drops the last row',
+    'visible: a summary the user sees is the first clause, cut at a whole word with "…", never mid-word or inside a bracket', long);
 }
 { // (REQ: pause-stops: a request to pause, stop or restart, typed first or mid-turn, ends the turn with nothing more asked
   // and the reminder says to wrap up; a request about a restart feature or a question about restarting a server does not)
@@ -3187,11 +3210,18 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const run = (cmd, extra) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'freshack', transcript_path: path.join(c, 't.jsonl'), ...extra }), env }).stdout || '';
     run('prompt', { prompt: 'what does the setup runbook do' });
     const first = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
-    fs.appendFileSync(notes, 'Issue: the summary named a file that does not exist | runbook: learn-from-upset | fixed when: every file named in the answer exists\n');
+    // (a line a peer session appended, with no call of this session behind it, is not this session's: nothing shown.
+    // Lesson (2026-11-12): a peer's Issue line in the shared notes file showed as this session's "acknowledged")
+    const peerLine = 'Issue: the cache grew without bound | runbook: learn-from-upset | fixed when: the cache stays under its cap';
+    fs.appendFileSync(notes, `${peerLine}\n`);
+    const peer = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
+    const line = 'Issue: the summary named a file that does not exist | runbook: learn-from-upset | fixed when: every file named in the answer exists';
+    fs.appendFileSync(path.join(c, 't.jsonl'), JSON.stringify({ type: 'assistant', timestamp: new Date().toISOString(), message: { role: 'assistant', content: [{ type: 'tool_use', id: 'w1', name: 'Bash', input: { command: `echo "${line}" >> .cache/turn-notes.md` } }] } }) + '\n');
+    fs.appendFileSync(notes, `${line}\n`);
     const own = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
     fs.rmSync(c, { recursive: true, force: true });
-    report(!/acknowledged/.test(first) && /acknowledged: the summary named a file/.test(own),
-      'pretool: a new session shows no other session\'s old "acknowledged" line; its own new Issue line still shows', { first: first.slice(0, 200), own: own.slice(0, 200) });
+    report(!/acknowledged/.test(first) && !/acknowledged/.test(peer) && /acknowledged: the summary named a file that does not exist"/.test(own),
+      'pretool: a new session shows no other session\'s "acknowledged" line, old or new; its own new Issue line shows, whole', { first: first.slice(0, 200), peer: peer.slice(0, 200), own: own.slice(0, 200) });
   }
   // (state-hygiene under v2: a hand run with a made-up session id and no readable transcript (none, empty, blank, a
   // folder) keeps no turn record, snapshot or Stop log line; a real transcript does, and so does a host's own transcript
@@ -3413,10 +3443,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     report(hist.length === 1 && /the notes have a typo/i.test(hist[0].prompt || '') && (hist[0].changed || []).includes('notes.md'),
       'end: a passing work turn leaves one line in tools/hooks/state/history.jsonl (its request, what it changed); a question leaves none', JSON.stringify(hist).slice(0, 400));
     const shownW = (() => { try { return JSON.parse(w).systemMessage || ''; } catch { return ''; } })();
-    // (a file change is no proof the issue is fixed: "acknowledged" until the evidence model proves it. Oversight,
-    // 2026-11-12: the line said "fixed" on a leak a soak had not yet proven)
-    report(/⚓ Anzuelo 🚨 acknowledged: the notes file had a typo/.test(shownW) && !/🚨 fixed/.test(shownW) && /⚓ Anzuelo ✅ checks passed/.test(shownW) && q === '',
-      'visible: under v2 a work turn that passes shows the issue acknowledged, never "fixed" unproven, and the checks passed; a question shows nothing', [w.slice(0, 300), q.slice(0, 200)]);
+    // (the Issue line in the notes was shown as "acknowledged" when written: the end line does not repeat it, and never says
+    // "fixed" unproven. Oversight, 2026-11-12: the acknowledgement showed twice, and "fixed" on a leak not yet proven)
+    report(!/🚨/.test(shownW) && /⚓ Anzuelo ✅ checks passed/.test(shownW) && q === '',
+      'visible: under v2 a work turn that passes shows the checks passed, without repeating the acknowledgement or saying "fixed"; a question shows nothing', [w.slice(0, 300), q.slice(0, 200)]);
     // (an upgrade proves the engine runs in the project with its own hooks; the probe leaves no state behind)
     const { probeEngine } = await import('../hooks-main.mjs');
     const c3 = testDir('anzuelo-v2-probe-');

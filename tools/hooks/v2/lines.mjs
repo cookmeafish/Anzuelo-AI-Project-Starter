@@ -2,6 +2,7 @@
 // default), false (none) or {"hide": ["praise", ...]} (the status-lines runbook). Plan: engine v2 only, 1b user lines.
 import fs from 'node:fs';
 import { at, notesOf } from './lib.mjs';
+import { clip } from '../writing.mjs';
 
 const json = f => { try { return JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { return {}; } };
 export const LINE_KINDS = { upset: '🚨', question: '💬', rule: '📜', runbook: '📖', skill: '⚡', checklist: '✅', passed: '✅', praise: '🌟',
@@ -34,31 +35,26 @@ export function visible(text, set = json('tools/hooks/config.json').userLines ??
 // The problem of the turn's last "Issue: <problem> | runbook: ... | fixed when: ..." line ("Issue: none" is no issue).
 export const issueOf = notes => {
   const t = ([...String(notes).matchAll(/^[\s>*_-]*issue\s*:\s*(.+)$/gim)].pop()?.[1] || '').replace(/\s+/g, ' ').trim();
-  return /^none\b/i.test(t) ? '' : t.split('|')[0].trim().slice(0, 110);
+  return /^none\b/i.test(t) ? '' : clip(t.split('|')[0]);
 };
 const LEARNED = /^[\s>*_-]*learned\s*\((?:one-off|lesson|rule|check|skill|engine)\)\s*:\s*.+?\s*(?:→|->)\s*`?([^`\s,;]+)/gim;
 
-// The line for a turn that passed the end check: the issue acknowledged (never "fixed" until the evidence model proves
-// it; a file change is no proof: docs/plans/2026-11-12-evidence-model.md), the checks passed, the runbook it pulled up followed, a lesson saved. A question with no issue shows
-// nothing. Lesson (the user): after a project moved to v2 these lines were gone, and the engine looked switched off.
+// The line for a turn that passed the end check, each part only on this turn's own evidence (the user's rule,
+// 2026-11-12: show only what really happened): ✅ when the end check really checked something, 📖 when the runbook it
+// held the turn to was met, 🌱 for a runbook written, 🧠 for a lesson file this turn changed. 🚨 here only for an Issue
+// line said in the answer and never written to the notes (a written one was shown when written); never "fixed".
+// Lesson (2026-11-12): every part of this line was shown false the same day.
 export const passLine = arg => visible(passText(arg));
-// The pass line's text, before the user's settings hide any part of it.
-export function passText({ acts = {}, turn = {}, rounds = 0 } = {}) {
-  const A = brand(), calls = acts.calls || [], notes = notesOf({ at: turn.at, notesAt: turn.notesAt, notesSha: turn.notesSha });
-  const work = calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)
-    || (/^(Bash|PowerShell)$/.test(c.name) && /\b(git\s+commit|writeFileSync|Set-Content|Out-File)\b|>\s*[\w./"'-]+\.\w+/.test(String(c.input?.command || ''))));
-  // (REQ: upset-acknowledged: an Issue line the agent wrote in its own text, with none in the notes, is acknowledged too,
-  // as the old engine did by copying it to the notes. The end check still reads only the notes and file writes, so a line
-  // dropped after a block holds nothing. Lesson (the old suite under v2): the line was in the chat, and the user saw no
-  // "acknowledged")
-  const issue = issueOf(notes) || issueOf(String(acts.said || '').replace(/\*\*/g, ''));
-  // (a runbook the turn wrote new is shown as made, never as "pulled up": it was not there to pull up. Lesson (the old
-  // suite under v2): a runbook made this turn whose triggers fit the request read as followed)
-  const made = [...new Set(calls.filter(c => c.name === 'Write').map(c => String(c.input?.file_path || '').replace(/\\/g, '/').replace(/^.*?(docs\/playbooks\/[\w-]+\.md)$/, '$1')).filter(f => /^docs\/playbooks\/[\w-]+\.md$/.test(f)))];
-  const book = turn.runbook && !made.some(f => String(turn.runbook).replace(/\\/g, '/').endsWith(f)) && calls.some(c => String(c.input?.file_path || c.input?.command || '').replace(/\\/g, '/').includes(turn.runbook))
-    ? turn.runbook.replace(/^.*?([\w-]+)(?:\/SKILL)?\.md$/, '$1') : '';
-  const learned = [...new Set([...`${acts.said || ''}\n${notes}`.matchAll(LEARNED)].map(m => m[1]))];
-  const passed = [`${A} ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`,
-    ...(book ? [`📖 the ${book} runbook it pulled up was followed`] : []), ...made.slice(0, 2).map(f => `🌱 new runbook made: ${f}`), ...(learned.length ? [`🧠 lesson saved in ${learned.slice(0, 2).join(', ')}`] : [])];
-  return [issue ? `${A} 🚨 acknowledged: ${issue}` : '', work ? passed.join(' · ') : ''].filter(Boolean).join('\n');
+// The pass line's text, before the user's settings hide any part of it. evidence: what the end check proved
+// ({ checked, book, written }), passed in by end.mjs.
+export function passText({ acts = {}, turn = {}, rounds = 0, evidence = {} } = {}) {
+  const A = brand(), calls = acts.calls || [], notes = notesOf({ ...acts, at: turn.at, notesAt: turn.notesAt, notesSha: turn.notesSha });
+  const written = new Set(evidence.written || []), issue = issueOf(notes) ? '' : issueOf(String(acts.said || '').replace(/\*\*/g, ''));
+  const made = [...written].filter(f => /^docs\/playbooks\/[\w-]+\.md$/.test(f) && calls.some(c => c.name === 'Write' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(f)));
+  const book = evidence.book && !made.includes(evidence.book) ? evidence.book.replace(/^.*?([\w-]+)(?:\/SKILL)?\.md$/, '$1') : '';
+  // (a lesson line counts only for a file this turn changed: an old "learned → x" names nothing done now)
+  const learned = [...new Set([...`${acts.said || ''}\n${notes}`.matchAll(LEARNED)].map(m => m[1]).filter(f => [...written].some(w => w === f || w.endsWith(`/${f}`))))];
+  const parts = [...(book ? [`📖 the ${book} runbook was followed`] : []), ...made.slice(0, 2).map(f => `🌱 new runbook made: ${f}`), ...(learned.length ? [`🧠 lesson saved in ${learned.slice(0, 2).join(', ')}`] : [])];
+  const ok = evidence.checked ? [`${A} ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`, ...parts] : parts.length ? [`${A} ${parts.shift()}`, ...parts] : [];
+  return [issue ? `${A} 🚨 acknowledged: ${issue}` : '', ok.join(' · ')].filter(Boolean).join('\n');
 }

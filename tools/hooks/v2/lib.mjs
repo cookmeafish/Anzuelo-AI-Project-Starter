@@ -611,7 +611,9 @@ export function met(item, acts) {
   // project's converted rules): one bad pattern stopped every check of the turn)
   if (/^(answer|prompt|tool|ran)$/.test(item.kind)) try { new RegExp(item.arg); } catch { return null; }
   // (an answer in the user's language meets it too, read with its labels in English, as the end checks read it)
-  if (item.kind === 'answer') { const rx = new RegExp(item.arg, 'i'); return rx.test(acts.answer) || rx.test(inEnglish(acts.answer || '', projectConfig())) || passedDrafts(acts).some(d => rx.test(d)); }
+  // (any answer the turn gave counts, the earlier rounds' too: the user read them all. Lesson (2026-11-12): a third round
+  // asked again for the Finished section the first round's answer had)
+  if (item.kind === 'answer') { const rx = new RegExp(item.arg, 'i'); return rx.test(acts.answer) || rx.test(acts.saidAll || '') || rx.test(inEnglish(acts.answer || '', projectConfig())) || passedDrafts(acts).some(d => rx.test(d)); }
   // (prompt: what the user typed this turn, mid-turn messages too; tool: a tool call whose name and input match)
   // (pasted text, relayed messages and notices are someone else's words: only what the user typed counts, as the old
   // engine's promptMatches judged it. Lesson (the old suite under v2): a pasted note saying "deploy now" set off a
@@ -643,8 +645,11 @@ export function met(item, acts) {
     // (the old engine): a question taught a runbook its Spanish wording, and the sweeps for changed runbooks held it)
     const ro = { has: f => routingWordsOnly(acts, f) };
     return args.some(arg => { const rx = globRx(arg);
+      // (a file this turn's own calls wrote: by an edit tool, or changed while one of its own writing commands or helpers
+      // ran, never any file newer than the turn start. Lesson (2026-11-12): another session's edits in the same folder
+      // held this turn to their changelog and Finished section)
       return acts.calls.some(c => { const f = relp(c.input.file_path || c.input.notebook_path || ''); return /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(f) && !ro.has(f); })
-        || (!!since && filesMatching(arg).some(f => { try { return !ro.has(f) && fs.statSync(at(f)).mtimeMs > since && !onlyTouched(f, since, acts.startHashes); } catch { return false; } })); });
+        || (!!since && touchedSince(acts).some(({ f }) => { try { return rx.test(f) && !ro.has(f) && !onlyTouched(f, since, acts.startHashes); } catch { return false; } })); });
   }
   return null;
 }
@@ -1086,7 +1091,11 @@ const waivedByCommand = (tag, acts) => { const rx = new RegExp(`^waived for this
 // rewritten since is read whole). Lesson: one line added to a weeks-old notes file made its old Issue lines this turn's.
 const nsha = b => createHash('sha1').update(b).digest('hex').slice(0, 16), notesMark = () => { try { const b = fs.readFileSync(at('.cache/turn-notes.md')); return { notesAt: b.length, notesSha: nsha(b) }; } catch { return { notesAt: 0 }; } };
 export { notesMark }; export const notesOf = acts => { try { const f = at('.cache/turn-notes.md'), since = Date.parse(acts.at || '') || 0; if (since && fs.statSync(f).mtimeMs < since - 2000) return '';
-  const b = fs.readFileSync(f), off = acts.notesAt; return Number.isInteger(off) && off <= b.length && (!acts.notesSha || nsha(b.subarray(0, off)) === acts.notesSha) ? b.subarray(off).toString('utf8') : b.toString('utf8'); } catch { return ''; } };
+  const b = fs.readFileSync(f), off = acts.notesAt, t = Number.isInteger(off) && off <= b.length && (!acts.notesSha || nsha(b.subarray(0, off)) === acts.notesSha) ? b.subarray(off).toString('utf8') : b.toString('utf8');
+  // (with another session's turn open in the folder, the file is shared: a line is this turn's only when its own calls
+  // wrote it. Lesson (2026-11-12): a peer's Issue line showed as this session's "acknowledged")
+  if (!acts.calls || !othersOpen(acts)) return t; const own = acts.calls.map(c => JSON.stringify(c.input || {}).replace(/\\n/g, '\n').replace(/\\"/g, '"')).join('\n');
+  return t.split('\n').filter(l => l.trim().length >= 8 && own.includes(l.trim())).join('\n'); } catch { return ''; } };
 export const waivedTag = (tag, acts) => { if (waivedByCommand(tag, acts)) return true;
   return !!acts.at && notesOf(acts).split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };
 const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
@@ -1689,7 +1698,8 @@ export function claimGaps(acts, history = '') {
     // (a path given as an example, or one the answer says was filed or taken in elsewhere, is no claim that it exists.
     // Lesson (trial v40): "for example inbox/W43.csv" and "W42.csv was taken in ... filed as sources/..." were reported)
     .filter(p => { const n = p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), gone = 'delet|remov|retir|renam|moved|filed|archiv|taken in|copied';
-      return !new RegExp(`(${gone})\\w*[^.\\n]{0,80}${n}|${n}[^.\\n]{0,80}(${gone}|gone)|(for example|e\\.g\\.|such as|named like|for instance|would be)[^.\\n]{0,30}${n}`, 'i').test(a); });
+      // (nor one the answer says is still to be written. Lesson (2026-11-12): "the plan, still to be written" was held)
+      return !new RegExp(`(${gone})\\w*[^.\\n]{0,80}${n}|${n}[^.\\n]{0,80}(${gone}|gone|still to be|to be written|not (?:yet )?written|will be (?:written|made))|(for example|e\\.g\\.|such as|named like|for instance|would be|will (?:write|make|be)|to be written|still to write|yet to)[^.\\n]{0,40}${n}`, 'i').test(a); });
   // (two file names joined by a slash, "CLAUDE.md/AGENTS.md", are a pair, not a path: a part before the last that is a
   // file here. Lesson (replay 2026-11-07): it was reported missing)
   const isFile = s => { try { return fs.statSync(at(s)).isFile(); } catch { return false; } };
@@ -1699,7 +1709,10 @@ export function claimGaps(acts, history = '') {
   const ignored = (() => { const rel = missingFiles.filter(p => !/^[A-Za-z]:\//.test(p)); if (!rel.length) return new Set();
     const r = spawnSync('git', ['check-ignore', '--no-index', '--stdin'], { cwd: ROOT, input: rel.join('\n'), encoding: 'utf8', timeout: 5000 });
     return new Set((r.stdout || '').split(/\r?\n/).map(s => s.trim().replace(/\\/g, '/')).filter(Boolean)); })();
-  const real = missingFiles.filter(p => !ignored.has(p) && !p.split('/').slice(0, -1).some(s => /\.[A-Za-z]{1,5}$/.test(s) && isFile(s)));
+  // (a path this turn's own calls wrote, read or printed is real, wherever it lives: the session may work in another
+  // checkout. Lesson (2026-11-12): files written in a worktree were "not existing" because only the main folder was read)
+  const own = acts.calls.map(c => `${JSON.stringify(c.input || {})}\n${c.out || ''}`).join('\n').replace(/\\\\/g, '/').replace(/\\/g, '/');
+  const real = missingFiles.filter(p => !ignored.has(p) && !own.includes(p) && !p.split('/').slice(0, -1).some(s => /\.[A-Za-z]{1,5}$/.test(s) && isFile(s)));
   if (real.length) out.push(`The answer names ${real.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss

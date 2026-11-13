@@ -61,7 +61,7 @@ import { reviewExcuse } from './excuse.mjs';
 import { countGaps } from './count.mjs';
 import { grantProblems, USER_DECIDED } from './grant.mjs';
 export { grantProblems };
-import { letterLines, writingProblems, plainWritingMsg } from './writing.mjs';
+import { letterLines, writingProblems, plainWritingMsg, clip } from './writing.mjs';
 export { letterLines, writingProblems };
 export { doneWhenItems, DONE_LABEL, ledgerItems };
 import { makeProof } from './proof.mjs';
@@ -2731,7 +2731,7 @@ function cmdPretool(data) {
   if (r) { deny(r); return; }
   // (an Issue line written from the shell, which the edit hook never sees, is acknowledged at the next tool call.
   // Lesson (the user): an Issue line appended with echo showed the user nothing)
-  const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE) : '';
+  const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE, data) : '';
   // REQ: quiet-work. Two notices only, each once, in the main session (a helper never started the session's runs and
   // never got the user's message): the agent's own test run still going, and a new user message while helpers run.
   // (under v2, none: nothing during work but safety refusals. The user, 2026-11-07: a reminder at the start, quiet work,
@@ -2915,7 +2915,7 @@ function cmdPosttool(data) {
     && !String(data.tool_input.command).split(/&&|\|\||;|\n|\|/).every(s => READ_ONLY.test(s.trim()) || !s.trim())) syncAll();
   // (REQ: quiet-work: no notices after a tool call; the Stop check asks for what is still missing. Only the user's
   // "acknowledged" line is shown)
-  const ack = acknowledgedLine(p);
+  const ack = acknowledgedLine(p, data);
   if (ack) contextOut('PostToolUse', 'ACKNOWLEDGED: the user was shown that this issue is being fixed.\n', ack);
 }
 // The user sees "acknowledged" the moment the agent writes its "Issue:" line (learn-from-upset), not only when the turn
@@ -2955,7 +2955,10 @@ export function runningLine(d) {
   const names = name === 'Skill' ? [String(inp.skill || inp.name || '').replace(/^.*:/, '')]
     : [...text.replace(/\\/g, '/').matchAll(/(?:docs\/playbooks\/([\w-]+)\.md|skills\/([\w-]+)\/SKILL\.md|tools\/starter\/runbooks\/([\w-]+)\.md)/g)].map(m => m[1] || m[2] || m[3]);
   const turnAt = readJSON(stateFile('turn.json'), {}).at || '', st = readJSON(stateFile(RUNNING), {}), seen = st.turn === turnAt ? st.names || [] : [];
-  const fresh = [...new Set(names)].filter(n => n && !seen.includes(n) && (exists(`docs/playbooks/${n}.md`) || exists(`skills/${n}/SKILL.md`) || exists(`tools/starter/runbooks/${n}.md`)));
+  // (a skill run, or the runbook routed from the user's prompt: one read for reference or named in a command is not run.
+  // Lesson (2026-11-12): runbooks only probed by routing tests showed as "running")
+  const routed = String((V2_TURN && SID ? V2_TURN(SID)?.runbook : '') || '').replace(/^.*\//, '').replace(/\.md$/, '');
+  const fresh = [...new Set(names)].filter(n => n && (name === 'Skill' || n === routed) && !seen.includes(n) && (exists(`docs/playbooks/${n}.md`) || exists(`skills/${n}/SKILL.md`) || exists(`tools/starter/runbooks/${n}.md`)));
   if (!fresh.length) return '';
   writeState(RUNNING, { turn: turnAt, names: [...seen, ...fresh] });
   const file = n => [`docs/playbooks/${n}.md`, `tools/starter/runbooks/${n}.md`, `skills/${n}/SKILL.md`].find(exists);
@@ -3065,7 +3068,7 @@ export function upsetUnacknowledged(name, inp, tp = '') {
     : !it.file ? ` Your Issue line names no runbook or skill that exists${it.runbook ? ` ("${it.runbook}" was not found)` : ''}.` : ' Your Issue line has no "fixed when" outcome of at least 3 words.';
   return `REQ: upset-acknowledged. The user sounds upset, and has not been shown that you understood yet.${why} First open skills/learn-from-upset/SKILL.md, pick the runbook or skill that finds the root cause and fixes this (DIRECTORY.md; debug for a bug), and write one line to ${NOTES_FILE}: "Issue: <what went wrong, in general terms> | runbook: <name> | fixed when: <a checkable outcome>" (the user sees it as "acknowledged" at once), or "Issue: none - <why>" if nothing is wrong (an Edit of that file, or a shell command that appends to it, goes through now; other changes wait). Then retry.`;
 }
-export function acknowledgedLine(p) {
+export function acknowledgedLine(p, data = {}) {
   if (p !== '.cache/turn-notes.md') return '';
   // (under v2 the turn's start is in v2's own record, and with none no note is this turn's. Lesson (the user, in the
   // desktop app): v2 writes no turn.json, so a new session read the whole shared notes file and showed another
@@ -3076,10 +3079,13 @@ export function acknowledgedLine(p) {
   // (this turn's notes only, and an issue no earlier turn acknowledged: the notes file carries over between turns.
   // Lesson (probe): a later, unrelated turn showed the earlier turn's "acknowledged" at its first tool call)
   // (the problem, the runbook that will fix it, and what fixed means; shown only once all three are there)
-  const it = issueParts(lastIssue(turnNotes(Date.parse(turn) || 0))), issue = it.problem.slice(0, 110);
-  if (!issue || it.none || !it.ok || was.issue === issue || (was.past || []).includes(issue)) return '';
+  // (the line must be this session's own: its call wrote it (this one, or one in its transcript), not a peer's in the
+  // shared notes file; the summary its first clause, whole. Lesson (2026-11-12): a peer's Issue line showed, cut mid-word)
+  const it = issueParts(lastIssue(turnNotes(Date.parse(turn) || 0))), issue = clip(it.problem);
+  const own = s => !!s && (JSON.stringify(data.tool_input || {}).includes(s) || (() => { try { return transcriptRows(data.transcript_path || '').some(r => r.type === 'assistant' && JSON.stringify(r.message?.content || '').includes(s)); } catch { return false; } })());
+  if (!issue || it.none || !it.ok || !own(it.problem.slice(0, 40)) || was.issue === issue || (was.past || []).includes(issue)) return '';
   writeState(ACKED, { turn, issue, past: [...(was.past || []), ...(was.issue && was.turn !== turn ? [was.issue] : [])].slice(-20) });
-  return `${brand()} 🚨 acknowledged: ${issue} · ${it.file.startsWith('skills/') ? '⚡' : '📖'} ${it.runbook} ${it.file.startsWith('skills/') ? 'skill' : 'runbook'} · fixed when: ${it.when.slice(0, 90)}`;
+  return `${brand()} 🚨 acknowledged: ${issue}`;
 }
 // the named runbook's "Done when" checklist, for the agent, when the issue is acknowledged (checked at Stop)
 export function issueChecklist() {

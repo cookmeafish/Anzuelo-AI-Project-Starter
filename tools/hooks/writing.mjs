@@ -1,11 +1,11 @@
-// REQ: plain-writing, shared by both engines (moved from hooks.mjs unchanged): what a reader would notice in the
-// answer or a user-facing file.
+// REQ: plain-writing, shared by both engines: what a reader would notice in the answer or a user-facing file.
 import { config } from './settings.mjs';
+// A line's summary: the first clause, cut at a word with "…". Lesson (2026-11-12): "…and I ans" and "(git status" shown
+export const clip = (s, max = 90) => { const t = String(s || '').replace(/\s+/g, ' ').trim().split(/\s*(?:;|\s[-–—]\s|\(|:\s)/)[0].replace(/[,.]+$/, '');
+  return t.length <= max ? t : `${t.slice(0, max + 1).replace(/\s+\S*$/, '').replace(/[,;:]+$/, '')}…`; };
 
-// The lines of a letter, email or message to another person, where courtesy (cfg.courtesy) is warmth, not filler: the
-// whole file when it is a draft in a drafts, letters, correspondence, emails or messages folder (the correspondence skill
-// saves to outputs/drafts/), else each block from a greeting line ("Dear Sam,", "Hi Ana", "Hola Marta:") to the next
-// sign-off line ("Kind regards,", "Thanks,", "Un saludo,"). A doc or an answer with neither keeps every filler rule.
+// The lines of a letter or message, where courtesy is warmth, not filler: a whole draft in a drafts, letters or messages
+// folder, else each block from a greeting line ("Dear Sam,") to the next sign-off ("Kind regards,").
 const LETTER_DIR = /(^|\/)(drafts?|letters?|correspondence|e-?mails?|messages?)\//i;
 const GREETING = /^\s*(\*\*)?(dear|hi|hello|hey|good (morning|afternoon|evening)|greetings|hola|estimad[oa]s?|querid[oa]s?|buen[oa]s (d[ií]as|tardes|noches))\b(\[[^\]\n]*\]|[^\n.!?[]){0,60}[,:!]?(\*\*)?\s*$/i;
 const SIGN_OFF = /^\s*(\*\*)?((kind|best|warm|warmest|many|with)\s+(regards|wishes|thanks)|regards|best|yours( sincerely| faithfully| truly)?|sincerely|thanks( again)?|thank you|cheers|all the best|love|take care|saludos|un saludo|un abrazo|atentamente|cordialmente|gracias)\b(\[[^\]\n]*\]|[^\n.!?[]){0,25}[,.!]?(\*\*)?\s*$/i;
