@@ -48,6 +48,14 @@ fs.appendFileSync(path.join(dir, '.git', 'info', 'exclude'), '\ndata/\n');
 const MIRROR = /^!! (\.claude|\.agents)\/skills\//;
 const wip = () => { const st = g(['status', '--porcelain', '--ignored', '-uall']).stdout.split('\n').filter(Boolean).filter(l => !/^.. (\.anzuelo\/|CLAUDE\.local\.md$|\.claude\/settings\.local\.json$|\.codex\/)/.test(l) && !MIRROR.test(l));
   return { status: st.sort().join('\n'), files: Object.fromEntries(st.map(l => l.slice(3).replace(/^"|"$/g, '')).map(f => [f, hash(f)])), diff: crypto.createHash('sha1').update(g(['diff', 'HEAD']).stdout).digest('hex'), branch: g(['branch', '--show-current']).stdout.trim() }; };
+// (for the three proofs: every file the folder holds before the install, tracked, untracked or ignored, nested checkouts
+// aside; the files a test runner would collect, dot-folders included; and the app's own test command when given)
+const TESTS = /(^|\/)(__tests__\/|[^/]*\.(test|spec)\.[^/]+$)/;
+const tree = () => { const out = {}; const walk = d => { let es = []; try { es = fs.readdirSync(path.join(dir, d), { withFileTypes: true }); } catch { return; }
+  for (const e of es) { const p = d ? `${d}/${e.name}` : e.name; if (p === '.git' || (e.isDirectory() && fs.existsSync(path.join(dir, p, '.git')))) continue; if (e.isDirectory()) walk(p); else out[p] = hash(p); } }; walk(''); return out; };
+const appTest = opt('--app-test'), runApp = () => appTest ? spawnSync(appTest, { cwd: dir, shell: true, encoding: 'utf8', env, timeout: 20 * 60_000 }).status : null;
+const tree0 = tree(), tests = t => Object.keys(t).filter(f => TESTS.test(f) && !f.startsWith('node_modules/')).length, tests0 = tests(tree0), app0 = runApp();
+const refs0 = new Set(g(['grep', '-l', '-F', '.anzuelo']).stdout.split('\n').filter(Boolean));
 const wip0 = wip(), uncommitted = g(['status', '--porcelain', '-uall']).stdout.split('\n').filter(Boolean).length;
 // what the project owns before: its agent rules, hook managers, package settings, and git's hooks path
 const OWN = ['CLAUDE.md', 'AGENTS.md', 'package.json', '.gitignore', 'lefthook.yml', '.pre-commit-config.yaml',
@@ -59,6 +67,7 @@ const files0 = Number(g(['ls-files']).stdout.split('\n').filter(Boolean).length)
 // the install, as the user's agent runs it from the starter
 const t0 = Date.now();
 const inst = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dir, '--private', 'no', '--gitignore', 'no'], { cwd: STARTER, encoding: 'utf8', env, timeout: 600000, maxBuffer: 64 << 20 });
+const { stateOutside } = await import('../../hooks/paths.mjs'), so = stateOutside(path.join(dir, '.anzuelo', 'local'), dir); // (read now: the delete proof removes .anzuelo/)
 // the setup turn: a real headless session in the project
 const TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Skill', 'Agent', 'Task', 'TodoWrite', 'Bash(node:*)', 'Bash(git:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)', 'Bash(yarn:*)', 'Bash(npm:*)'];
 // (--no-agent: the install and the checks only, to try the trial itself; no agent session runs)
@@ -83,6 +92,27 @@ const wip1 = wip(), wipChanged = Object.keys({ ...wip0.files, ...wip1.files }).f
 fs.writeFileSync(path.join(dir, 'TRIAL-NOTE.txt'), 'A note the project itself commits.\n');
 g(['add', 'TRIAL-NOTE.txt']); const commit = g(['commit', '-q', '-m', 'Add a trial note'], { env: { ...env, ANZUELO_SESSION_GATE: 'off' } });
 
+// Proof: a friend's clone (what someone downloading the app gets) carries no engine file, no new engine reference and no
+// hooks path
+const friend = path.join(os.tmpdir(), `anzuelo friend ${Date.now().toString(36)}`);
+spawnSync('git', ['clone', '-q', '--no-hardlinks', '-b', 'feature/trial-work', dir, friend], { encoding: 'utf8' });
+const fg = a => spawnSync('git', a, { cwd: friend, encoding: 'utf8', maxBuffer: 64 << 20 }).stdout || '';
+const ENGINE_RX = /^(\.anzuelo\/|CLAUDE\.local\.md$|\.claude\/settings\.local\.json$|\.codex\/hooks\.json$)|\/\.mirror$/;
+const friendEngine = fg(['ls-files']).split('\n').filter(f => f && ENGINE_RX.test(f)), friendRefs = fg(['grep', '-l', '-F', '.anzuelo']).split('\n').filter(f => f && !refs0.has(f)), friendHooks = fg(['config', '--get', 'core.hooksPath']).trim();
+fs.rmSync(friend, { recursive: true, force: true });
+// Proof: the app's packager never packs the engine: what npm would pack, and an electron-builder file list if it has one
+const pack = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: dir, shell: true, encoding: 'utf8', env, timeout: 300000, maxBuffer: 64 << 20 });
+let packed = null; try { packed = JSON.parse(pack.stdout)[0].files.map(f => f.path); } catch { }
+const pj = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')); } catch { return {}; } })(), ebFiles = [].concat(pj.build?.files || []);
+const { globRx } = await import('../../hooks/v2/lib.mjs'), SAMPLE = ['.anzuelo/engine/tools/hooks/hooks.mjs', 'CLAUDE.local.md', '.claude/skills/plan/SKILL.md', '.codex/hooks.json'];
+const ebPacks = ebFiles.length ? SAMPLE.filter(s => ebFiles.some(p => !String(p).startsWith('!') && globRx(String(p)).test(s)) && !ebFiles.some(p => String(p).startsWith('!') && globRx(String(p).slice(1)).test(s))) : [];
+const packedEngine = (packed || []).filter(f => ENGINE_RX.test(f) || /^\.(claude|agents)\/skills\//.test(f));
+// Proof: delete the engine (its folder and the wiring) and the folder is what it was, file for file; the app's tests
+// are the same files, and its own test command (when given) ends the same way
+for (const f of ['.anzuelo', 'CLAUDE.local.md', '.codex/hooks.json', ...(tree0['.claude/settings.local.json'] ? [] : ['.claude/settings.local.json'])]) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+for (const m of ['.claude/skills', '.agents/skills']) for (const n of (() => { try { return fs.readdirSync(path.join(dir, m)); } catch { return []; } })()) if (fs.existsSync(path.join(dir, m, n, '.mirror'))) fs.rmSync(path.join(dir, m, n), { recursive: true, force: true });
+const tree1 = tree(), treeDiff = Object.keys({ ...tree0, ...tree1 }).filter(f => f !== 'TRIAL-NOTE.txt' && tree0[f] !== tree1[f] && !(f === '.claude/settings.local.json' && tree0[f])), app1 = runApp();
+
 const checks = [
   ['the engine installed in .anzuelo/engine', inst.status === 0 && fs.existsSync(path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks', 'hooks.mjs')), (inst.stderr || inst.stdout || '').slice(-300)],
   ['the setup session ran to an answer', !j.is_error && !!j.result, (j.error || '').slice(0, 300)],
@@ -92,6 +122,9 @@ const checks = [
   ['nothing of the starter outside .anzuelo/ but the wiring', !stray.length, stray.slice(0, 15).join(', ')],
   [`the ${uncommitted} uncommitted files, the ignored dependencies and data, and the branch are untouched`, !wipChanged.length && wip0.status === wip1.status && wip0.diff === wip1.diff && wip1.branch === 'feature/trial-work', `${wipChanged.slice(0, 10).join(', ')} | branch ${wip1.branch}`],
   ['a normal commit of the project\'s own work goes through', commit.status === 0, (commit.stderr || '').slice(0, 300)],
+  ['proof: a friend\'s clone has no engine file, no new reference to .anzuelo and no hooks path', !friendEngine.length && !friendRefs.length && !friendHooks, JSON.stringify({ friendEngine: friendEngine.slice(0, 5), friendRefs: friendRefs.slice(0, 5), friendHooks })],
+  ['proof: the app\'s packager never packs the engine (npm pack, and an electron-builder file list if any)', !packedEngine.length && !ebPacks.length, JSON.stringify({ packedEngine: packedEngine.slice(0, 5), ebPacks, npm: packed ? `${packed.length} files` : `not run (${(pack.stderr || '').trim().split('\n').pop()?.slice(0, 120)})` })],
+  ['proof: with the engine deleted the folder is what it was before the install, file for file; the same test files; the app\'s own tests end the same', !treeDiff.length && tests(tree1) === tests0 && app1 === app0, JSON.stringify({ changed: treeDiff.slice(0, 8), tests: [tests0, tests(tree1)], app: [app0, app1] })],
 ];
 const rec = { at: new Date().toISOString(), src: path.resolve(src), dir, files: files0, minutes: Math.round((Date.now() - t0) / 6000) / 10, prompt, answer: j.result || '', cost: j.total_cost_usd, turns: j.num_turns, session: j.session_id, own: OWN, changedOwn, hooksPath: [hooksPath0, hooksPath1], wiring, stray, review: review ? path.relative(dir, review) : null, checks };
 const out = path.join(STARTER, '.cache', 'trials', `adopt-large-${Date.now().toString(36)}.json`);
@@ -99,7 +132,6 @@ fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON
 for (const [what, ok, why] of checks) console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}${!ok && why ? `: ${why}` : ''}`);
 console.log(`wiring outside .anzuelo/: ${wiring.join(', ') || 'none'}, and ${mirrors} skill copies git ignores (.claude/skills, .agents/skills); ${files0} tracked files; ${rec.minutes} min; record: ${out}`);
 // (an adopted project's state sits in the user's profile: the trial copy's goes with the copy, never left behind)
-const { stateOutside } = await import('../../hooks/paths.mjs'), so = stateOutside(path.join(dir, '.anzuelo', 'local'), dir);
 if (!args.includes('--keep')) { fs.rmSync(dir, { recursive: true, force: true }); if (so) fs.rmSync(so, { recursive: true, force: true }); } else console.log(`kept: ${dir}${so ? ` (its state: ${so})` : ''}`);
 const bad = checks.filter(c => !c[1]).length;
 console.log(`ADOPT-LARGE: ${bad ? 'FAIL' : 'PASS'} (${checks.length - bad} of ${checks.length})`);
