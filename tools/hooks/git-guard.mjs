@@ -48,13 +48,8 @@ function unseenSession() {
   // (v2 keeps its turn in v2-turn.<sid>.json: a session started under v2 wrote only that file, and all its commits were refused)
   // (in the layout's state folder, .anzuelo/local with the engine outside, or beside the code; sweep 2026-11-13)
   if (['turn', 'v2-turn'].some(k => fs.existsSync(abs(`tools/hooks/state/${k}.${sid}.json`)) || fs.existsSync(new URL(`./state/${k}.${sid}.json`, import.meta.url)))) return null;
-  // (refused only when the session is shown to have started in another folder: its transcript sits under another
-  // folder's name in Claude Code's projects folder. A session started here before the install, which no hook has seen
-  // yet, or one whose transcript isn't found, is not refused. Lesson (a review of a large app, 2026-11-13): sessions
-  // the user had open when the engine was installed could not commit)
-  const home = process.env.USERPROFILE || process.env.HOME || '', projects = `${home}/.claude/projects`, here = abs('.').replace(/[\\/]+$/, '').replace(/[^A-Za-z0-9]/g, '-');
-  let at = []; try { at = fs.readdirSync(projects).filter(d => fs.existsSync(`${projects}/${d}/${sid}.jsonl`)); } catch { }
-  return at.length && !at.some(d => d.toLowerCase() === here.toLowerCase()) ? sid : null;
+  const pj = `${process.env.USERPROFILE || process.env.HOME || ''}/.claude/projects`, here = abs('.').replace(/[\\/]+$/, '').replace(/[^A-Za-z0-9]/g, '-').toLowerCase(); // (refused only if its transcript shows another starting folder; sessions open here at install could not commit, 2026-11-13)
+  let at = []; try { at = fs.readdirSync(pj).filter(d => fs.existsSync(`${pj}/${d}/${sid}.jsonl`)); } catch { } return at.length && !at.some(d => d.toLowerCase() === here) ? sid : null;
 }
 const UNSEEN = (what, sid) => `${what} rejected (engine-bypassed): this comes from a Claude Code session (${sid.slice(0, 8)}) that this project's hooks have never seen: it was started in another folder, so none of the project's rules, runbooks or checks ran on its work.\n` +
   `Run node tools/hooks/hooks.mjs begin "<the user's request>" in this project first (it records the request for this session and prints the routing and checks), and node tools/hooks/hooks.mjs check --answer-file .cache/answer.md before answering. Or start the session in this project's folder.`;

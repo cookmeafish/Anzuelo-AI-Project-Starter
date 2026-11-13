@@ -13,4 +13,12 @@ const here = path.resolve(fileURLToPath(import.meta.url)).toLowerCase(), tmp = p
 // (a release's frozen copies keep it: few (the newest 3 stay) and the cache is capped, and its timed tests run there)
 if (!process.env.ANZUELO_NO_COMPILE_CACHE && !here.startsWith(tmp + path.sep))
   try { module.enableCompileCache?.(path.join(os.tmpdir(), 'anzuelo-compile-cache')); } catch { }
+// (with the engine in .anzuelo/engine, its scratch (turn notes, answer drafts) lives in .anzuelo/local/.cache/, where
+// the engine reads it: every text the hooks print names that place, never the app's own .cache/. Lesson (a trial on a
+// large app, 2026-11-13): the agent wrote its draft, as the rules said, into the app's .cache/, where the engine never
+// looks, so an Issue line written there would show no acknowledgement)
+if (/[\\/]\.anzuelo[\\/]engine[\\/]tools[\\/]hooks[\\/]hooks\.mjs$/.test(here)) {
+  const SCRATCH = /(?<![\w./-])\.cache\/(turn-notes\.md|answer[\w.-]*\.md)/g, put = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (chunk, ...rest) => put(typeof chunk === 'string' ? chunk.replace(SCRATCH, '.anzuelo/local/.cache/$1') : chunk, ...rest);
+}
 await import('./hooks-main.mjs');

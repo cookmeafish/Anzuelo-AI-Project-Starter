@@ -46,18 +46,10 @@ export function aiAttributedCommits(cfg = config(), sinceMs = null) {
 export function gitignoreProblems(cfg = config()) {
   const git = (args, input) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', input, maxBuffer: 256 * 1024 * 1024 });
   if (git(['rev-parse', '--is-inside-work-tree']).status !== 0) return [];
-  // (with the engine in .anzuelo/, the project's git is its own: only what the engine wrote is checked (its folder, the
-  // wiring files, its marked skill copies), never the project's own files, folders or .gitignore. Lesson (a review of a
-  // large established app, 2026-11-13): .claude/skills and .cache counted as the engine's, so every push of an app that
-  // tracks its own skill, or keeps its own .cache, would have been refused)
-  if (split) {
-    const copies = [].concat(cfg.skillMirrors || []).flatMap(m => list(m).filter(n => exists(`${m}/${n}/.mirror`)).map(n => `${m}/${n}`));
-    const ENGINE_MADE = ['.anzuelo', 'CLAUDE.local.md', '.claude/settings.local.json', '.codex/hooks.json', ...copies];
-    const lines = a => (git(a).stdout || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-    const exposed = lines(['ls-files', '--others', '--exclude-standard', '--', ...ENGINE_MADE]), committed = lines(['ls-files', '--', ...ENGINE_MADE]);
-    return [...(exposed.length ? [`the engine's files would be pushed: ${exposed.slice(0, 6).join(', ')}${exposed.length > 6 ? ` +${exposed.length - 6} more` : ''} (run node .anzuelo/engine/tools/hooks/wire.mjs to hide them again)`] : []),
-      ...(committed.length ? [`the engine's files are committed: ${committed.slice(0, 6).join(', ')}${committed.length > 6 ? ' ...' : ''} (git rm --cached <file>, then commit)`] : [])];
-  }
+  if (split) { // (engine in .anzuelo/: only what the engine wrote is checked, never the project's own files. 2026-11-13: an app's own skill or .cache refused every push)
+    const mine = ['.anzuelo', 'CLAUDE.local.md', '.claude/settings.local.json', '.codex/hooks.json', ...[].concat(cfg.skillMirrors || []).flatMap(m => list(m).filter(n => exists(`${m}/${n}/.mirror`)).map(n => `${m}/${n}`))];
+    const ls = a => (git(['ls-files', ...a, '--', ...mine]).stdout || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean), out = ls(['--others', '--exclude-standard']), inGit = ls([]);
+    return [out.length && `the engine's files would be pushed: ${out.slice(0, 6).join(', ')} (run node .anzuelo/engine/tools/hooks/wire.mjs to hide them again)`, inGit.length && `the engine's files are committed: ${inGit.slice(0, 6).join(', ')} (git rm --cached <file>, then commit)`].filter(Boolean); }
   if (!exists('.gitignore')) return ['.gitignore is missing: start from the starter\'s tools/starter/gitignore.project'];
   const probs = [];
   // (with the engine in .anzuelo/, only the project's own files are the project git's business: the engine's records

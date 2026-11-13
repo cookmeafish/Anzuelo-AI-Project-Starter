@@ -3236,7 +3236,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { spawnSync } = await import('node:child_process');
     const g = testDir('anzuelo-v2-git-'), sidG = `v2gate${process.pid}`;
     spawnSync('git', ['init', '-q'], { cwd: g });
-    const run = () => spawnSync(process.execPath, [path.join(repo, 'tools/hooks/git-guard.mjs'), 'pre-commit'], { cwd: g, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: sidG, ANZUELO_SESSION_GATE: '' } }).status;
+    // (its transcript under another folder's name: it was started there; refused until a hook records it)
+    const home = path.join(g, '.home'); fs.mkdirSync(path.join(home, '.claude/projects/C--elsewhere'), { recursive: true }); fs.writeFileSync(path.join(home, `.claude/projects/C--elsewhere/${sidG}.jsonl`), '{}\n');
+    const run = () => spawnSync(process.execPath, [path.join(repo, 'tools/hooks/git-guard.mjs'), 'pre-commit'], { cwd: g, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: sidG, ANZUELO_SESSION_GATE: '', USERPROFILE: home, HOME: home } }).status;
     const before = run(), f = (await import('../settings.mjs')).abs(`tools/hooks/state/v2-turn.${sidG}.json`); // (in this layout's state folder)
     fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ at: new Date().toISOString(), runbook: null }));
     const after = run();

@@ -389,6 +389,25 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     push.status === 0 && leak.status !== 0 && /engine's files are committed/.test(leak.stderr || ''), JSON.stringify({ push: [push.status, (push.stderr || '').slice(0, 300)], leak: [leak.status, (leak.stderr || '').slice(0, 200)] }));
   const lr = rd('CLAUDE.local.md') || '';
   check(name, 'its own CLAUDE.local.md keeps every line of the user\'s; the engine only adds its import line', lr.includes(ownLocalRules.trim()) && /^@\.anzuelo\/(engine|local)\/AGENTS\.md$/m.test(lr), JSON.stringify(lr.slice(0, 300)));
+  // (the acknowledgement works in this layout: the session note and the hints name .anzuelo/local/.cache/ for the
+  // engine's scratch, and an Issue line written there, quoting something, shows "acknowledged")
+  {
+    const hk = path.join(dir, '.anzuelo/engine/tools/hooks/hooks.mjs'), sid = 'splitack', tp = path.join(dir, '.anzuelo/local/.cache', `${sid}.jsonl`);
+    fs.mkdirSync(path.dirname(tp), { recursive: true });
+    const henv = { ...genv, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: dir }; delete henv.ANZUELO_ROOT;
+    const row = r => fs.appendFileSync(tp, JSON.stringify({ timestamp: new Date().toISOString(), ...r }) + '\n');
+    const hook = (cmd, extra) => { const r = spawnSync(process.execPath, [hk, cmd], { cwd: dir, encoding: 'utf8', env: henv, input: JSON.stringify({ session_id: sid, transcript_path: tp, ...extra }) }); return (r.stdout || '') + (r.stderr || ''); };
+    const session = hook('session', { source: 'startup' });
+    row({ type: 'user', message: { role: 'user', content: 'WHY DID THE EXPORT DROP THE "NOTES" COLUMN AGAIN' } });
+    const hint = hook('prompt', { prompt: 'WHY DID THE EXPORT DROP THE "NOTES" COLUMN AGAIN' });
+    const notes = path.join(dir, '.anzuelo/local/.cache/turn-notes.md'), line = 'Issue: the export dropped the "notes" column | runbook: learn-from-upset | fixed when: every column is in the export';
+    const input = { file_path: notes, old_string: '', new_string: `${line}\n` };
+    row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'n1', name: 'Edit', input }] } }); fs.mkdirSync(path.dirname(notes), { recursive: true }); fs.appendFileSync(notes, `${line}\n`);
+    const ack = hook('posttool', { tool_name: 'Edit', tool_input: input, tool_response: {} });
+    check(name, 'the acknowledgement works with the engine in .anzuelo/: the session note sends the engine\'s scratch to .anzuelo/local/.cache/, no hook text names the app\'s own .cache/turn-notes.md, and a quoted Issue line written there shows "acknowledged"',
+      /\.anzuelo\/local\/\.cache\//.test(session) && !/(?<![\w./-])\.cache\/turn-notes\.md/.test(session + hint) && /acknowledged: the export dropped the \\?"notes\\?" column/.test(ack) && !fs.existsSync(path.join(dir, '.cache/turn-notes.md')),
+      JSON.stringify({ session: session.slice(-300), hint: hint.slice(0, 300), ack: ack.slice(0, 300) }));
+  }
   // (its own .claude/settings.local.json merged: every key of the user's kept, the engine's hooks added)
   let local = {}; try { local = JSON.parse(rd('.claude/settings.local.json') || '{}'); } catch { }
   const hooksTxt = JSON.stringify(local.hooks || {});
