@@ -75,6 +75,17 @@ What the user saw in that hour, and why:
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real upset message makes 1 item, and a 3-instruction
       message makes 3; ALL PASS.
 
+## Task 4b: show value, not activity
+**Files:** tools/hooks/v2/lines.mjs, tools/hooks/v2/end.mjs
+**Uses / provides:** uses Task 3's evidence.
+- [ ] The routine "✅ checks passed (after N fix rounds) · 📖 …" line is gone. In its place, one line only when Anzuelo
+      changed the outcome this turn: "⚓ Anzuelo caught: <what, in plain words>" (a real miss the agent then fixed), or
+      "🛡️ blocked: <unsafe action>". A turn where nothing was caught shows nothing.
+- [ ] Once a day, at the first prompt of the day, one line sums up the day before: "⚓ Anzuelo yesterday: caught N
+      misses, blocked M unsafe actions". Shown only when N + M > 0, and it can be turned off (status-lines).
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: a turn with a real catch shows one "caught" line naming it; a
+      clean turn shows nothing; the daily line appears once and only with nonzero counts; ALL PASS.
+
 ## Task 5: replay and release
 **Files:** the replay tool
 **Uses / provides:** uses Tasks 1-4.
