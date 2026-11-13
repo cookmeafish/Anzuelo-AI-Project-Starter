@@ -147,6 +147,12 @@ One session of steps 1 to 7, run back to back:
 
 ## Pitfalls
 
+- A test of something the user sees, written with plain sample text, proves nothing about real turns: real text has
+  quotes, backslashes, non-ASCII letters, long lines and pasted blocks, and each can break a comparison the plain text
+  passes. Test such behavior with recorded real inputs (docs/plans/2026-11-13-real-turn-suite.md), and include a quoted
+  and escaped case in any new test of shown text. (2026-11-13: the acknowledgement broke on any quoted Issue line and
+  passed every suite and two release chains.)
+
 - Edit code with the Edit tool, or for bulk edits a Node string-replace script written with the Write tool. Never use
   sed, echo, a heredoc or `node -e` with regexes or backslashes: the shell eats the escapes, and the edit fails or
   changes the wrong text (at least six times in one session).
