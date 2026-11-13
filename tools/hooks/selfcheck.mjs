@@ -2602,6 +2602,12 @@ PRETOOL.push(
   { name: 'shell-hygiene: a heredoc into a code file is refused', tool: 'Bash', input: { command: "cat > src/app.js <<'EOF'\nconst a = /\\d+/;\nEOF" }, deny: true, tag: 'shell-hygiene' },
   { name: 'shell-hygiene: node -e writing a module is refused', tool: 'Bash', input: { command: `node -e "require('fs').writeFileSync('lib/x.mjs', s)"` }, deny: true, tag: 'shell-hygiene' },
   { name: 'shell-hygiene: a scratch script in the temp folder, and output to a text file, go through', tool: 'Bash', input: { command: 'cat > $TEMP/fix.mjs <<\'EOF\'\nx\nEOF\nnode tools/audit.mjs > .cache/audit.txt 2>/dev/null' }, deny: false },
+  // (a search of the whole disk is refused for a bounded one; a search of the project or a named folder goes through.
+  // Lesson (2026-11-12): helpers' disk-wide searches for a program ran for hours after their calls timed out)
+  { name: 'no-disk-scan: find over the drive root is refused', tool: 'Bash', input: { command: 'find / -maxdepth 6 -iname yt-dlp* 2>/dev/null | head' }, deny: true, tag: 'no-disk-scan' },
+  { name: 'no-disk-scan: Get-ChildItem C:\\ -Recurse is refused', tool: 'PowerShell', input: { command: 'Get-ChildItem C:\\ -Recurse -Filter yt-dlp.exe' }, deny: true, tag: 'no-disk-scan' },
+  { name: 'no-disk-scan: dir /s over a drive and rg over C:/ are refused', tool: 'Bash', input: { command: 'cmd //c dir /s C:\\ ; rg -l token C:/' }, deny: true, tag: 'no-disk-scan' },
+  { name: 'no-disk-scan: a bounded search (the project, a named folder, where.exe) goes through', tool: 'Bash', input: { command: 'find . -name "*.md" | head; find ~/Downloads -maxdepth 3 -iname "yt-dlp*"; where.exe yt-dlp; grep -rn token src/' }, deny: false },
   // (in auto mode a changed input is refused by the host after its review, so the call is not rewritten, and not refused
   // either: the brief rule is quality, not safety. Lesson (2026-11-12): three launches in a row were refused and resent)
   { name: 'sub-agent brief without the rules in auto mode: runs as written, never refused or rewritten', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, mode: 'auto',

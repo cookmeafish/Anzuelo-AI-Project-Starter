@@ -38,7 +38,7 @@ let setupProblems = null;
 export async function prepare(data) { if (exists('SETUP-PROMPT.md') || /SETUP-PROMPT\.md/.test(JSON.stringify(data?.tool_input || ''))) try { setupProblems = (await import('../setup.mjs')).setupProblems; } catch { setupProblems = null; } }
 
 // REQ: quiet-work. Refused during work: the irreversible, leaks, a user's protection, a hung headless run. Rest: end check.
-export const IN_WORK_GUARDS = /^REQ: (approval-gate|self-commands|browser-guard|claim-checked|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
+export const IN_WORK_GUARDS = /^REQ: (approval-gate|self-commands|browser-guard|claim-checked|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-disk-scan|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
 // A path pattern in an approved list as a regex: "**/" is any number of folders, none included; "**" anything; "*"
 // within one folder. Lesson (a sweep for the root-file glob bug): "old/**" covered one level only, "**/*.bak" no root file
 export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
@@ -382,6 +382,14 @@ export function pretoolHits(data, cfg) {
     const shellW = [...cmd.matchAll(new RegExp(String.raw`(?:^|[\s;&|(])(?:\d?>>?|tee(?:\s+-a)?)\s*["']?(${CODE_F})\b`, 'g'))].map(m => m[1])
       .concat(/\b(?:node|python3?|py)\s+-[ec]\b/.test(cmd) && /writeFileSync|appendFileSync|open\([^)]*['"][wa]/.test(cmd) ? [...cmd.matchAll(new RegExp(String.raw`['"\`](${CODE_F})['"\`]`, 'g'))].map(m => m[1]) : []).find(inProj);
     if (shellW) add(`REQ: shell-hygiene. This command writes ${shellW}, a code file, through the shell (a heredoc, redirect or inline script), where backslashes and quotes get mangled. Use the Write or Edit tool.`);
+    // REQ: no-disk-scan. A search of the whole disk from the agent's shell (find /, find C:/, dir /s C:\, Get-ChildItem
+    // C:\ -Recurse, grep -r or rg over a drive root) is refused for a bounded one. Lesson (2026-11-12): three helpers'
+    // searches for a program outlived their timed-out calls for hours, held about 4 million handles and slowed the machine
+    const ROOTP = String.raw`["']?(?:\/|\/[a-zA-Z]\/?|[A-Za-z]:[\\\/]?)["']?(?=\s|$|[;|&)])`, seg = cmd.split(/&&|\|\||[;|\n]/);
+    const scan = seg.some(s => new RegExp(String.raw`(?:^|\s)find\s+${ROOTP}`).test(s) || (/(?:^|\s)(dir)\b/i.test(s) && /\s\/s\b/i.test(s) && new RegExp(String.raw`\s${ROOTP}`).test(s))
+      || (/(?:^|\s)(Get-ChildItem|gci|ls|dir)\b/i.test(s) && /-Recurse\b/i.test(s) && new RegExp(String.raw`\s(?:-Path\s+|-LiteralPath\s+)?${ROOTP}`).test(s))
+      || (/(?:^|\s)(rg|grep\s+-\w*[rR]\w*|grep\s+--recursive)\b/.test(s) && new RegExp(String.raw`\s${ROOTP}`).test(s)));
+    if (scan) add('REQ: no-disk-scan. This searches the whole disk, which can run for hours, outlive the call and slow the machine. Search where it can be: a program with where.exe <name> or Get-Command <name>, else the project or a named folder (find ~/Downloads -maxdepth 3 -iname "<name>*").');
     // REQ: forbidden-command. Project-defined commands that must never run (e.g. killing the user's own app or port).
     for (const f of cfg.forbiddenCommands) { try { if (re(f.pattern).test(cmd)) add(`REQ: forbidden-command. ${f.reason || 'This command is forbidden in this project.'} (pattern: ${f.pattern})`); } catch { } }
     // REQ: git-safety. History rewrites and force operations need a fresh backup bundle and the user's explicit words.
