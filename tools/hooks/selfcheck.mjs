@@ -9569,6 +9569,23 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       JSON.stringify({ session: session.status, prompt: prompt.slice(0, 200), secret: secret.slice(0, 200), sync: [sync.status, (sync.stderr || '').slice(0, 300)], same, audit: [audit.status, (audit.stdout || '').split('\n').filter(l => /FAIL|^\s+-/.test(l)).slice(0, 12)], stateAt }));
   } finally { fs.rmSync(proj, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
+if (mineB() && (!TAGS || TAGS.includes('layout-split'))) {
+  // (an upgrade from a linked copy behind its origin ends by saying so: the newest release was not used. Lesson (a
+  // project, 2026-11-12): "Upgraded ... 0 regressions" read as done, the hint line above it unseen)
+  const box = testDir('starter-test-behind-'), g = (cwd, ...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'init.defaultBranch=main', ...a], { cwd, encoding: 'utf8' });
+  try {
+    const origin = path.join(box, 'origin.git'), dev = path.join(box, 'dev'), copy = path.join(box, 'copy');
+    g(box, 'init', '-q', '--bare', origin); g(box, 'clone', '-q', origin, dev);
+    fs.mkdirSync(path.join(dev, 'tools'), { recursive: true }); fs.writeFileSync(path.join(dev, 'tools/new-project.mjs'), "console.log('Upgraded the engine: 0 regressions');\n");
+    g(dev, 'add', '-A'); g(dev, 'commit', '-q', '-m', 'one'); g(dev, 'push', '-q', 'origin', 'HEAD:main'); g(box, 'clone', '-q', origin, copy);
+    fs.writeFileSync(path.join(dev, 'b.txt'), '2'); g(dev, 'add', '-A'); g(dev, 'commit', '-q', '-m', 'two'); g(dev, 'push', '-q', 'origin', 'HEAD:main');
+    const dir = copyProject(); fs.rmSync(path.join(dir, '.starter-template'), { force: true }); write(dir, { 'tools/starter.local.json': JSON.stringify({ path: copy }) });
+    const r = spawnSync(process.execPath, [path.join(dir, 'tools/starter.mjs'), 'upgrade'], { cwd: dir, encoding: 'utf8', timeout: 120000 });
+    const last = (r.stdout || '').trim().split(/\r?\n/).pop() || '';
+    fs.rmSync(dir, { recursive: true, force: true });
+    report(/^NOT THE NEWEST: upgraded from the linked copy at \S+( \([\d-]+\))?, which is (1 commit\(s\) )?behind origin\/main\. Run node tools\/starter\.mjs update/.test(last), 'upgrade: from a linked copy behind its origin, the last line says it was not the newest release and to run update', `${last} | ${(r.stderr || '').slice(0, 200)}`);
+  } finally { fs.rmSync(box, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // install from the starter (its committed engine): the engine is a clone in .anzuelo/engine, an existing project
   // keeps its files, and setup asks once whether .anzuelo/local gets a private repository: the gate holds until the

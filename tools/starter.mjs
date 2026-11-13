@@ -436,11 +436,16 @@ if (cmd === 'link') {
   // Which starter version this upgrades from, and whether that copy is behind its own upstream (repo.mjs behindUpstream:
   // the refs on disk, else the upstream asked once). Lessons (field reports): upgrade said "nothing changed" from a clone
   // two releases behind, and again from one 20 commits behind whose refs were stale.
+  let late = '';
   if (fs.existsSync(path.join(link, '.git'))) {
     const { head, up, behind } = behindUpstream(link);
     if (head) console.log(`starter copy: ${link} at ${head}${behind ? `, ${behind > 0 ? `${behind} commit(s) behind` : 'behind (newer commits on)'} ${up}: node tools/starter.mjs update gets the newest and upgrades from it` : ''}`);
+    // (and the last line says it: the upgrade came from an older copy, not the newest release. Lesson (a project,
+    // 2026-11-12): "Upgraded ... 0 regressions" read as done, the hint above it unseen)
+    if (head && behind) late = `NOT THE NEWEST: upgraded from the linked copy at ${head}, which is ${behind > 0 ? `${behind} commit(s)` : ''} behind ${up}. Run node tools/starter.mjs update to get the newest release.`;
   }
   const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...upgradeFlags()], { encoding: 'utf8', stdio: 'inherit' });
+  if (late) console.log(late.replace(/  +/g, ' '));
   process.exit(r.status ?? 1);
 } else if (cmd === 'uninstall') {
   // take the engine out of this project (engine runbook), with the linked starter's list of engine files
