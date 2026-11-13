@@ -9591,7 +9591,9 @@ if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "ac
     report(!/acknowledged/.test(none) && /"systemMessage":"[^"]*🚨 acknowledged: the export drops the last row/.test(first) && !/acknowledged/.test(again),
       'upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once', JSON.stringify([none.slice(0, 80), first.slice(0, 300), again.slice(0, 80)]));
     // (written from the shell, which the edit hook never sees: shown at the next tool call, once)
-    write(dir, { '.cache/turn-notes.md': `Issue: the totals skip refunds${R}\n` });
+    // (the shell call that wrote it is in the session's transcript: under v2 only this session's own line shows)
+    const shellWrote = l => { if (V2) fs.appendFileSync(path.join(dir, '.cache/ack1.jsonl'), JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: `s${l.length}`, name: 'Bash', input: { command: `echo "${l}" >> .cache/turn-notes.md` } }] } }) + '\n'); };
+    write(dir, { '.cache/turn-notes.md': `Issue: the totals skip refunds${R}\n` }); shellWrote(`Issue: the totals skip refunds${R}`);
     const pre = () => run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'ls' }, ...sid }, env).out;
     const shell = pre(), next = pre();
     report(/"systemMessage":"[^"]*🚨 acknowledged: the totals skip refunds/.test(shell) && !/acknowledged/.test(next),
@@ -9605,7 +9607,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "ac
     report(!/acknowledged/.test(before) && !/acknowledged/.test(appended), 'upset-learned: a later turn never shows an earlier turn\'s "acknowledged", even after appending to the notes', JSON.stringify([before.slice(0, 120), appended.slice(0, 120)]));
     // (a new complaint appended below the earlier Issue line is acknowledged too. Lesson (the user): only the first
     // complaint of a session was acknowledged, five later ones showed nothing)
-    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), `Issue: the invoice total rounds the wrong way${R}\n`);
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), `Issue: the invoice total rounds the wrong way${R}\n`); shellWrote(`Issue: the invoice total rounds the wrong way${R}`);
     const later = pre(), laterAgain = pre();
     report(/"systemMessage":"[^"]*🚨 acknowledged: the invoice total rounds the wrong way/.test(later) && !/acknowledged/.test(laterAgain),
       'upset-learned: a later complaint appended below an earlier Issue line is acknowledged, once', JSON.stringify([later.slice(0, 300), laterAgain.slice(0, 80)]));
@@ -9640,8 +9642,10 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     const bare = pre(edit), bareShown = pre({ tool_name: 'Bash', tool_input: { command: 'ls' } });
     fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: the export drops the last row | runbook: no-such-runbook | fixed when: every row is in the file\n');
     const wrongRb = pre(edit);
-    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: the export drops the last row | runbook: debug | fixed when: the export file has every row\n');
-    const freed = pre(edit);
+    // (the line is this session's: the call that wrote it carries it. 2026-11-12: a peer's line in the shared file showed)
+    const ownLine = 'Issue: the export drops the last row | runbook: debug | fixed when: the export file has every row';
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), `${ownLine}\n`);
+    const freed = pre({ tool_name: 'Bash', tool_input: { command: `echo "${ownLine}" >> .cache/turn-notes.md` } });
     // (each runbook or skill the agent opens is shown once: "running the X runbook")
     const runSkill = pre({ tool_name: 'Read', tool_input: { file_path: path.join(dir, 'skills/debug/SKILL.md') } }), runAgain = pre({ tool_name: 'Read', tool_input: { file_path: path.join(dir, 'skills/debug/SKILL.md') } });
     const runPb = pre({ tool_name: 'Bash', tool_input: { command: 'cat docs/playbooks/status-lines.md' } }), runTool = pre({ tool_name: 'Skill', tool_input: { skill: 'learn-from-upset' } });
@@ -9741,8 +9745,10 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\nDone 8: also before this turn\nDone 2: this turn, inserted above\nLearned (skill): an old lesson\n');
     const inserted = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; import fs from 'fs'; console.log(JSON.stringify(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8')).trim()));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(inserted === JSON.stringify('Done 2: this turn, inserted above'), 'runbook-ledger: new records inserted above an earlier turn\'s lines count alone; the earlier lines stay out', inserted);
-    report(/⚡ running the debug skill \(✅ \d+ items to check off\)/.test(runSkill) && !/running/.test(runAgain) && /📖 running the status-lines runbook \(✅ \d+ items to check off\)/.test(runPb) && /⚡ running the learn-from-upset skill/.test(runTool),
-      'upset-acknowledged: each runbook or skill the agent opens (Read, a command, the Skill tool) shows "running the X runbook" once', JSON.stringify([runSkill, runAgain, runPb, runTool].map(o => o.slice(0, 160))));
+    // ("running" only for a skill run with the Skill tool, or the runbook routed from the prompt: one read or printed for
+    // reference is not run. Lesson (2026-11-12): runbooks only probed by routing tests showed as "running")
+    report(!/running/.test(runSkill) && !/running/.test(runAgain) && !/running/.test(runPb) && /⚡ running the learn-from-upset skill/.test(runTool),
+      'upset-acknowledged: a skill run with the Skill tool shows "running the X skill" once; a runbook or skill only read or printed shows nothing', JSON.stringify([runSkill, runAgain, runPb, runTool].map(o => o.slice(0, 160))));
   } finally { giveBack(dir); }
 }
 if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // engine runbook: removal unwires the hooks, removes the
