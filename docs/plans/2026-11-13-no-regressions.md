@@ -9,7 +9,7 @@ status: open
 behaviors in one contract file the audit enforces, and run the suite in both release chains and after every project
 upgrade.
 
-**Spec (user, 2026-11-13):** Anzuelo must not regress again; the user doesn't want things to break.
+**Spec (user, 2026-11-13):** the engine must not regress again; the user doesn't want things to break.
 
 **Confidence:** 7/10. Main risk: real turns hold private text, so fixtures keep the shape (quotes, backslashes,
 non-ASCII, length, images, helpers) with the words replaced.

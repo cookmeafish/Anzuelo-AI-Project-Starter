@@ -1,16 +1,16 @@
 ---
 status: open
 ---
-# Plan: the user sees only what matters from Anzuelo
+# Plan: the user sees only what matters from the engine
 
-**Goal:** what Anzuelo shows the user is only real and useful: the upset acknowledgement every time, no old notes, at
+**Goal:** what the engine shows the user is only real and useful: the upset acknowledgement every time, no old notes, at
 most one hold per answer with only proven items, and no venting turned into tasks.
 
 **Approach:** fix each cause at its source in the v2 engine, prove each with a test built from the real hour of
 2026-11-13 (session 76462ec3, 10:49 to 11:10), then replay that hour and release.
 
 **Spec (user, 2026-11-13):** the user must be bothered as little as possible; the "acknowledged" line must show; what
-Anzuelo shows must be meaningful, not clutter.
+the engine shows must be meaningful, not clutter.
 
 **Confidence:** 7/10. Main risk: one hold round at most could hide a real miss, so the rounds that stay are the ones
 for safety and for real work not done.
@@ -82,10 +82,10 @@ What the user saw in that hour, and why:
 ## Task 4b: show value, not activity
 **Files:** tools/hooks/v2/lines.mjs, tools/hooks/v2/end.mjs
 **Uses / provides:** uses Task 3's evidence.
-- [ ] The routine "✅ checks passed (after N fix rounds) · 📖 …" line is gone. In its place, one line only when Anzuelo
-      changed the outcome this turn: "⚓ Anzuelo caught: <what, in plain words>" (a real miss the agent then fixed), or
+- [ ] The routine "✅ checks passed (after N fix rounds) · 📖 …" line is gone. In its place, one line only when the engine
+      changed the outcome this turn: "⚓ <brand> caught: <what, in plain words>" (a real miss the agent then fixed), or
       "🛡️ blocked: <unsafe action>". A turn where nothing was caught shows nothing.
-- [ ] Once a day, at the first prompt of the day, one line sums up the day before: "⚓ Anzuelo yesterday: caught N
+- [ ] Once a day, at the first prompt of the day, one line sums up the day before: "⚓ <brand> yesterday: caught N
       misses, blocked M unsafe actions". Shown only when N + M > 0, and it can be turned off (status-lines).
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: a turn with a real catch shows one "caught" line naming it; a
       clean turn shows nothing; the daily line appears once and only with nonzero counts; ALL PASS.
