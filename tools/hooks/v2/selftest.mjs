@@ -4070,11 +4070,13 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (oversight's first live day, 2026-11-12: a quoted example is no promise; "log done" finds a promise by its own text,
   // with "next" in it and the tag left off; a prompt a schedule of this session fires is no new ask)
   const W2 = await import('./worklog.mjs');
-  W2.update('wlogq', { texts: [{ t: 'Rule: words like "I\'ll do it later" can no longer close a request. I\'ll check the export and the import the same way in the next round.', at: ts(5) }] });
+  W2.update('wlogq', { texts: [{ t: 'Rule: words like "I\'ll do it later" can no longer close a request. I\'ll check the export and the import the same way in the next round. If the pool stays high, I\'ll keep the release on hold for now.', at: ts(5) }] });
+  const condWaits = W2.loadLog('wlogq').some(i => /keep the release on hold/.test(i.text) && i.status === 'wait');
   const qItems = W2.loadLog('wlogq').map(i => i.text), doneMsg = W2.logCommand('wlogq', 'done', 'check the export and the import the same way in the next round');
   const P = 'Manager round: keep the coding session working.', stp = transcript([stampAt(0, user('watch the coding session')), stampAt(5, call('ScheduleWakeup', { delaySeconds: 1200, prompt: P, reason: 'round' }, 'scheduled'))]);
   const { onPrompt: op } = await import('./start.mjs'); op({ session_id: 'wlogs', prompt: P, transcript_path: stp }); op({ session_id: 'wlogs', prompt: 'and fix the csv export too', transcript_path: stp });
   const sItems = W2.loadLog('wlogs').map(i => i.text);
+  report(condWaits, 'worklog: a promise under a condition ("If ..., I\'ll ...") waits on it and is never held', W2.loadLog('wlogq'));
   report(!qItems.some(t => /do it later/.test(t)) && qItems.some(t => /same way in the next round/.test(t)) && /^log: done/.test(doneMsg) && !sItems.some(t => /Manager round/.test(t)) && sItems.some(t => /csv export/.test(t)),
     'worklog: a quoted example is no promise; "log done" finds a promise by its own text; a prompt a schedule fires is no new ask', { qItems, doneMsg, sItems });
   for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw', 'wlogq', 'wlogs']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });

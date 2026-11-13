@@ -27,14 +27,14 @@ const FUTURE = /\b(?:I'll|I will|will|going to|next|later|after (?:this|that)|th
 const named = (item, text) => { const w = keys(item); if (!w.length) return false; const need = Math.max(w.length >= 4 ? 2 : 1, Math.round(w.length / 2));
   return String(text).split(/(?<=[.!?\n])\s+/).filter(s => !FUTURE.test(s)).some(s => { const k = new Set(keys(s)); return w.filter(x => k.has(x)).length >= need; }); };
 const PROMISE = /\b(?:I'll|I will|I'm going to|next,? I'll|then I'll)\s+([^.\n]{8,160})/gi;
-// The log brought up to date: new asks (msgs: [{ text, at }]), the agent's promises in its texts ([{ t, at }]), and each
-// open item closed by a later text that names it. Returns the open items, oldest first.
+// The log brought up to date: new asks, the agent's promises, each open item closed by a later text naming it.
 export function update(sid, { msgs = [], texts = [] } = {}) {
   const items = loadLog(sid), have = new Set(items.map(i => i.text));
-  const add = (text, from, when) => { if (!have.has(text)) { items.push({ text, from, at: when, status: 'open' }); have.add(text); } };
+  const add = (text, from, when, status = 'open') => { if (!have.has(text)) { items.push({ text, from, at: when, status }); have.add(text); } };
   for (const m of msgs) for (const a of asksIn(m.text)) add(a, 'user', m.at || new Date().toISOString());
-  // (not inside quotes or code: a quoted example is no promise. Oversight, 2026-11-12)
-  for (const x of texts) for (const p of String(x.t).replace(/```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|“[^”\n]*”/g, ' ').matchAll(PROMISE)) add(`${p[1].trim()} (your promise)`, 'promise', x.at);
+  // (not in quotes or code; one under a condition ("If it fails, I'll ...") waits on it, never held. Oversight, 2026-11-12)
+  for (const x of texts) { const s = String(x.t).replace(/```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|“[^”\n]*”/g, ' ');
+    for (const p of s.matchAll(PROMISE)) add(`${p[1].trim()} (your promise)`, 'promise', x.at, /\b(if|when|once|unless|after|should)\b[^.!?\n]*$/i.test(s.slice(0, p.index).split(/[.!?\n]/).pop() || '') ? 'wait' : 'open'); }
   for (const it of items) if (it.status === 'open' && texts.some(x => x.at > it.at && named(it.text.replace(/ \(your promise\)$/, ''), x.t))) it.status = 'done';
   saveLog(sid, items);
   return items.filter(i => i.status === 'open');
