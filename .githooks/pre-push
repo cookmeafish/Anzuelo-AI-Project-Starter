@@ -1,3 +1,4 @@
 #!/bin/sh
 # REQ: no-ai-attribution. Enabled with: git config core.hooksPath .githooks
-exec node "$(git rev-parse --show-toplevel)/tools/hooks/git-guard.mjs" pre-push
+# (the guard beside this hook's own folder: with the engine in .anzuelo/engine, the project root has no tools/hooks)
+exec node "$(dirname "$0")/../tools/hooks/git-guard.mjs" pre-push

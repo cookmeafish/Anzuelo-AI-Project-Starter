@@ -50,6 +50,8 @@ What the user saw in that hour, and why:
       note command comes with Task 2.
 - [x] Run `node tools/hooks/v2/selftest.mjs`. Expected: one test per write form, failing on the old code; ALL PASS.
       (412/412; the forms test fails on the old code with Edit, Write and Bash all false)
+      Sweep: every real Issue line in the notes of 14 project folders (106 lines, 318 write-form checks): the old
+      comparison missed 3, the new one 0. The misses are lines whose first 40 characters hold a quote.
 
 ## Task 2: notes never shown again
 **Files:** tools/hooks/hooks.mjs (a `note` command), the rules text, skills/learn-from-upset/SKILL.md

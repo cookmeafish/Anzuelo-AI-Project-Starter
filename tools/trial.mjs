@@ -348,6 +348,22 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   }
 }
 
+// ---------- an adopted project with the engine in .anzuelo/engine ----------
+// (its git hooks live in the engine's folder, and the project root has no tools/hooks: each hook finds the guard
+// beside itself. Lesson (a project, 2026-11-13): every commit failed with "Cannot find module .../tools/hooks/git-guard.mjs")
+{
+  const name = 'adopted project with the engine in .anzuelo/engine', dir = path.join(WORK, 'engine-in-anzuelo');
+  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n' }); gitRepo(dir);
+  const genv = { ...env, ANZUELO_SESSION_GATE: 'off' }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
+  const inst = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dir], { cwd: STARTER, encoding: 'utf8', env: genv, timeout: 300000 });
+  const hooksPath = git(['config', '--get', 'core.hooksPath'], dir).stdout.trim();
+  const commit = (file, msg) => { write(dir, { [file]: 'x\n' }); spawnSync('git', ['add', file], { cwd: dir, env: genv }); return spawnSync('git', ['commit', '-q', '-m', msg], { cwd: dir, encoding: 'utf8', env: genv }); };
+  const ok = commit('notes/beans.md', 'Add the beans'), credit = commit('notes/peas.md', 'Add the peas\n\nCo-Authored-By: Claude <noreply@anthropic.com>');
+  check(name, 'a commit runs the engine\'s git guard from .anzuelo/engine and goes through; one crediting an AI is refused by it',
+    inst.status === 0 && /\.anzuelo\/engine\/\.githooks$/.test(hooksPath.replace(/\\/g, '/')) && ok.status === 0 && credit.status !== 0 && !/Cannot find module/.test(`${ok.stderr}${credit.stderr}`),
+    JSON.stringify({ inst: inst.status, err: (inst.stderr || '').slice(0, 200), hooksPath, ok: [ok.status, (ok.stderr || '').slice(0, 200)], credit: [credit.status, (credit.stderr || '').slice(0, 200)] }));
+}
+
 if (deep) {
   const dir = fs.readdirSync(WORK).map(n => path.join(WORK, n)).find(d => fs.existsSync(path.join(d, 'package.json')));
   // mid-setup, like a real project: SETUP-PROMPT.md still there, the fit checklist decided, autonomy on, a plan open.
