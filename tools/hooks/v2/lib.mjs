@@ -700,12 +700,12 @@ export function touchedSince(acts, any = false) {
 }
 // Another session's turn active in this folder during this turn (its record written since this turn began, not ended,
 // started in the last 12 hours): the folder is shared, so this turn's work is only what its own calls name.
-function othersOpen(acts) {
+function othersOpen(acts, ended = false) { // (ended: one that ran during this turn and has ended counts too)
   const own = String(acts.session || '').replace(/[^\w-]/g, '').slice(0, 64), since = Date.parse(acts.at || '') || 0;
   if (!own || !since) return false;
   try {
     return fs.readdirSync(STATE()).some(n => { const m = /^v2-turn\.([\w-]+)\.json$/.exec(n); if (!m || m[1] === own || m[1] === 'manual') return false;
-      try { const p = path.join(STATE(), n); if (fs.statSync(p).mtimeMs < since) return false; const t = JSON.parse(fs.readFileSync(p, 'utf8')); return !!t.at && !t.ended && Date.now() - Date.parse(t.at) < 12 * 3600_000; } catch { return false; } });
+      try { const p = path.join(STATE(), n); if (fs.statSync(p).mtimeMs < since) return false; const t = JSON.parse(fs.readFileSync(p, 'utf8')); return !!t.at && (ended || !t.ended) && Date.now() - Date.parse(t.at) < 12 * 3600_000; } catch { return false; } });
   } catch { return false; }
 }
 // (what the safety scans read: every file changed since the turn began, but none when no call of the turn can write. A
@@ -1032,7 +1032,7 @@ export { notesMark }; export const notesOf = acts => { try { const f = at('.cach
   const b = fs.readFileSync(f), off = acts.notesAt, t = Number.isInteger(off) && off <= b.length && (!acts.notesSha || nsha(b.subarray(0, off)) === acts.notesSha) ? b.subarray(off).toString('utf8') : b.toString('utf8');
   // (with another session's turn open in the folder, the file is shared: a line is this turn's only when its own calls
   // wrote it. Lesson (2026-11-12): a peer's Issue line showed as this session's "acknowledged")
-  if (!acts.calls || !othersOpen(acts)) return t; const own = acts.calls.map(c => JSON.stringify(c.input || {}).replace(/\\n/g, '\n').replace(/\\"/g, '"')).join('\n');
+  if (!acts.calls || !othersOpen(acts, true)) return t; // (a peer's turn that ended during this one wrote its lines too: 2026-11-13) const own = acts.calls.map(c => JSON.stringify(c.input || {}).replace(/\\n/g, '\n').replace(/\\"/g, '"')).join('\n');
   return t.split('\n').filter(l => l.trim().length >= 8 && own.includes(l.trim())).join('\n'); } catch { return ''; } };
 export const waivedTag = (tag, acts) => { if (waivedByCommand(tag, acts)) return true;
   return !!acts.at && notesOf(acts).split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };

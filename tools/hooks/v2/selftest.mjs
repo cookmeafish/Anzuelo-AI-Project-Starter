@@ -876,6 +876,21 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     try { fs.rmSync(path.join(dir, 'tools/hooks/state/v2-turn.notesatprobe.json'), { force: true }); } catch { }
     if (keep) fs.writeFileSync(nf, keep); else fs.rmSync(nf, { force: true });
     report(/Skill lesson/.test(mine) && !/old complaint/.test(mine) && /old complaint/.test(whole) && /Done 1-3/.test(above) && stale === '' && saved === size, 'end: the turn\'s notes are only what it added to the notes file (its size and hash recorded when the turn begins); a file that shrank or was rewritten is read whole, an untouched one not at all', JSON.stringify({ mine, whole: whole.length, above: above.length, stale, saved, size })); }
+  // (a peer session's Issue line, written while this turn ran, is not this turn's even when the peer's turn has ended by
+  // the time this one is judged. Lesson (oversight, 2026-11-13): a peer's repeat-problem line held another session's turn)
+  { const { notesOf, notesMark } = await import('./lib.mjs'), nf = path.join(dir, '.cache/turn-notes.md'), keep = fs.existsSync(nf) ? fs.readFileSync(nf) : null, st = path.join(dir, 'tools/hooks/state');
+    fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, ''); fs.mkdirSync(st, { recursive: true });
+    // (the turn starts now: records earlier tests left in this folder are older than it, so only the peer's counts)
+    const start = new Date(Date.now() + 1000).toISOString(), mark = notesMark(), peerRec = path.join(st, 'v2-turn.peerended.json');
+    const peerLine = 'Issue: the export dropped rows | runbook: export | fixed when: every row is exported';
+    fs.appendFileSync(nf, `${peerLine}\n`);
+    const me = { at: start, ...mark, session: 'meturn', calls: [call('Bash', { command: 'ls' })] };
+    const alone = notesOf(me);
+    fs.writeFileSync(peerRec, JSON.stringify({ at: new Date(Date.now() - 30_000).toISOString(), ended: new Date().toISOString() })); const soon = new Date(Date.now() + 5000); fs.utimesSync(peerRec, soon, soon);
+    const withPeer = notesOf(me);
+    fs.rmSync(peerRec, { force: true }); if (keep) fs.writeFileSync(nf, keep); else fs.rmSync(nf, { force: true });
+    report(/export dropped rows/.test(alone) && !/export dropped rows/.test(withPeer),
+      'end: a line a peer session wrote to the shared notes during this turn is not this turn\'s, even when the peer\'s turn has ended (alone in the folder, the turn\'s added lines are its own)', JSON.stringify({ alone, withPeer })); }
   // (a turn with no routed runbook that greps another runbook's triggers is not following it; printing it whole is.
   // Lesson (a project's report, 2026-11-12): a grep of a runbook's triggers line held a routing fix to its 7 items)
   { const by = command => missing({ runbook: null }, acts([user('make the field guide route to the gui runbook'), call('Bash', { command }), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done. Runbook: export.md')])).filter(s => /export\.md item/.test(s)).length;
@@ -3381,7 +3396,21 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.appendFileSync(path.join(c, 't.jsonl'), JSON.stringify({ type: 'assistant', timestamp: new Date().toISOString(), message: { role: 'assistant', content: [{ type: 'tool_use', id: 'w1', name: 'Bash', input: { command: `echo "${line}" >> .cache/turn-notes.md` } }] } }) + '\n');
     fs.appendFileSync(notes, `${line}\n`);
     const own = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
+    // (each write form, with an Issue line that quotes something: Edit and Write show it after the write, a shell append
+    // at the next call. Lesson (2026-11-13): a quote in the line, escaped in the call's JSON, hid it in every form)
+    const forms = {};
+    for (const form of ['Edit', 'Write', 'Bash']) {
+      const sid = `ackq${form.toLowerCase()}`, tp = path.join(c, `${sid}.jsonl`), q = `Issue: the "${form} total" line is wrong | runbook: learn-from-upset | fixed when: the total matches the rows`;
+      const row = r => fs.appendFileSync(tp, JSON.stringify({ timestamp: new Date().toISOString(), ...r }) + '\n');
+      const go = (cmd, extra) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, transcript_path: tp, ...extra }), env }).stdout || '';
+      row({ type: 'user', message: { role: 'user', content: 'WHY IS THE TOTAL WRONG AGAIN' } }); go('prompt', { prompt: 'WHY IS THE TOTAL WRONG AGAIN' });
+      const input = form === 'Edit' ? { file_path: notes, old_string: 'x', new_string: `x\n${q}` } : form === 'Write' ? { file_path: notes, content: `${q}\n` } : { command: `echo '${q}' >> .cache/turn-notes.md` };
+      row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: `q${form}`, name: form, input }] } }); fs.appendFileSync(notes, `${q}\n`);
+      const after = go('posttool', { tool_name: form, tool_input: input, tool_response: {} }), next = go('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
+      forms[form] = /acknowledged: the \\?"\w+ total\\?" line is wrong/.test(form === 'Bash' ? next : after); // (the output is JSON: \" for a quote)
+    }
     fs.rmSync(c, { recursive: true, force: true });
+    report(Object.values(forms).every(Boolean), 'pretool/posttool: an Issue line that quotes something shows "acknowledged" in every write form (Edit and Write right after, a shell append at the next call)', JSON.stringify(forms));
     report(!/acknowledged/.test(first) && !/acknowledged/.test(peer) && /acknowledged: the summary named a file that does not exist"/.test(own),
       'pretool: a new session shows no other session\'s "acknowledged" line, old or new; its own new Issue line shows, whole', { first: first.slice(0, 200), peer: peer.slice(0, 200), own: own.slice(0, 200) });
   }
