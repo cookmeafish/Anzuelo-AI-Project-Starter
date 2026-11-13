@@ -3780,20 +3780,22 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const s1 = sess(), s2 = sess(), dec = () => { try { return fs.readFileSync(at('docs/DECISIONS.md'), 'utf8'); } catch { return ''; } };
     const told = /ENGINE CHANGED: \d{4}-\d\d-\d\d: engine installed into \.anzuelo\/engine at [0-9a-f]{7}/.test(s1) && !/ENGINE CHANGED/.test(s2);
     for (const [f, t] of [['docs/playbooks/own.md', '# Own runbook\n'], ['skills/mine/SKILL.md', '---\nname: mine\n---\n# Mine\n'], ['docs/STATUS.md', '# Status\nours\n']]) { fs.mkdirSync(path.dirname(path.join(loc, f)), { recursive: true }); fs.writeFileSync(path.join(loc, f), t); }
-    const st = (...a) => spawnSync(process.execPath, [at('.anzuelo/engine/tools/starter.mjs'), 'uninstall', ...a], { cwd: p, encoding: 'utf8', timeout: 120000 });
+    const home = path.join(box, 'home'); fs.mkdirSync(home, { recursive: true }); // (the backup goes to the user's profile, here a test one)
+    const st = (...a) => spawnSync(process.execPath, [at('.anzuelo/engine/tools/starter.mjs'), 'uninstall', ...a], { cwd: p, encoding: 'utf8', timeout: 120000, env: { ...process.env, USERPROFILE: home, HOME: home } });
     const wired = fs.existsSync(at('.claude/settings.local.json')) && /hooks\.mjs/.test(fs.readFileSync(at('.claude/settings.local.json'), 'utf8'));
     const dry = st('--dry-run'), dryLeft = fs.existsSync(at('.anzuelo/engine')), r = st();
-    const backups = (() => { try { return fs.readdirSync(at('.cache/engine-removed')); } catch { return []; } })();
+    const bk = path.join(home, '.anzuelo-backups'), backups = (() => { try { return fs.readdirSync(bk); } catch { return []; } })();
     const local = fs.existsSync(at('.claude/settings.local.json')) ? fs.readFileSync(at('.claude/settings.local.json'), 'utf8') : '';
     const conds = [ins.status === 0 && wired && dry.status === 0 && dryLeft && r.status === 0 && !fs.existsSync(at('.anzuelo')),
       fs.readFileSync(at('.claude/settings.json'), 'utf8') === own, !/hooks\.mjs/.test(local), !fs.existsSync(at('CLAUDE.local.md')),
-      fs.existsSync(at('docs/playbooks/own.md')) && fs.existsSync(at('skills/mine/SKILL.md')) && /ours/.test(fs.readFileSync(at('docs/STATUS.md'), 'utf8')) && fs.existsSync(at('main.py')),
+      // (a fresh install brought none of the project's files in, so none of .anzuelo/local lands in the app's folders)
+      !fs.existsSync(at('docs/playbooks/own.md')) && !fs.existsSync(at('skills/mine')) && !fs.existsSync(at('docs/STATUS.md')) && fs.existsSync(at('main.py')) && !fs.existsSync(at('.cache/engine-removed')),
       !/project engine and its wiring/.test(fs.readFileSync(at('.gitignore'), 'utf8')) && /notes\.md/.test(r.stdout), (g('config', '--get', 'core.hooksPath').stdout || '').trim() === '.githooks',
       fs.readFileSync(at('.codex/hooks.json'), 'utf8') === codex,
-      backups.length === 1 && fs.existsSync(at('.cache/engine-removed', backups[0], 'engine.json')) && fs.existsSync(at('.cache/engine-removed', backups[0], '.anzuelo/local/docs/playbooks/own.md')),
-      told, /^- \d{4}-\d\d-\d\d: engine removed from \.anzuelo\/ \(backed up in \.cache\/engine-removed\//m.test(dec())];
+      backups.length === 1 && fs.existsSync(path.join(bk, backups[0], 'engine.json')) && fs.existsSync(path.join(bk, backups[0], '.anzuelo/local/docs/playbooks/own.md')) && fs.existsSync(path.join(bk, backups[0], 'NOTE.md')),
+      told, !fs.existsSync(at('docs/DECISIONS.md'))];
     report(conds.every(Boolean),
-      'remove (.anzuelo/): uninstall unwires only the engine, puts back git\'s hooks path and the wiring files as they were before the install, brings the project\'s own runbooks, skills and records back, names files still pointing at .anzuelo/, and backs up; the install and the removal each leave a dated line in docs/DECISIONS.md, and session start says the install once',
+      'remove (.anzuelo/): uninstall unwires only the engine, puts back git\'s hooks path and the wiring files as they were before the install, brings back none of .anzuelo/local after a fresh install (no engine record lands in the app\'s docs, skills or runbooks), names files still pointing at .anzuelo/, and backs up outside the project with its note there, not in the app\'s docs; session start says the install once',
       JSON.stringify({ conds, ins: [ins.status, (ins.stderr || '').slice(0, 200)], wired, s1: s1.slice(0, 300), dec: dec().slice(-400), hp: (g('config', '--get', 'core.hooksPath').stdout || '').trim(), codex: fs.existsSync(at('.codex/hooks.json')) && fs.readFileSync(at('.codex/hooks.json'), 'utf8').slice(0, 200), dry: (dry.stdout || dry.stderr || '').slice(-300), r: [r.status, (r.stdout || '').slice(-600), (r.stderr || '').slice(0, 300)], local: local.slice(0, 200) }));
   } finally { fs.rmSync(box, { recursive: true, force: true, maxRetries: 3 }); }
 }

@@ -262,7 +262,8 @@ export function splitUpgrade(dry = false) {
 // Lesson (the user): leaving must be as easy as joining, with the project's own work intact.
 export function splitUninstall(dry) {
   const at = (...p) => path.join(PROJECT, ...p), log = [], stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const backup = at('.cache', 'engine-removed', stamp), save = f => { if (!dry && fs.existsSync(at(f))) { fs.mkdirSync(path.dirname(path.join(backup, f)), { recursive: true }); fs.copyFileSync(at(f), path.join(backup, f)); } };
+  // (the backup goes outside the project: its own .cache/ is the app's. Lesson (a review of a large app, 2026-11-13))
+  const backup = path.join(os.homedir(), '.anzuelo-backups', `${path.basename(PROJECT).replace(/[^\w.-]+/g, '-')}-${stamp}`), save = f => { if (!dry && fs.existsSync(at(f))) { fs.mkdirSync(path.dirname(path.join(backup, f)), { recursive: true }); fs.copyFileSync(at(f), path.join(backup, f)); } };
   const isEngineCmd = h => /\.anzuelo[\\/]+engine[\\/]+tools[\\/]+hooks[\\/]+hooks\.mjs/.test(String(h?.command || ''));
   // 1. the wiring: only the engine's entries go
   for (const f of ['.claude/settings.local.json', '.codex/hooks.json']) {
@@ -320,7 +321,10 @@ export function splitUninstall(dry) {
   // local copy waits in the backup. The engine's state, settings and generated map do not come back.
   const SKIP = /^(\.git|\.cache|\.starter|tools\/hooks\/(state|config\.json|requirements\.json)|tools\/starter|tools\/packs-registry\.json|based-on\.json|config\.json|DIRECTORY\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)(\/|$)/;
   const back = [], clash = [];
-  const walk = d => { let es = []; try { es = fs.readdirSync(path.join(LOCAL, d || '.'), { withFileTypes: true }); } catch { return; }
+  // (an install into a project that had no engine before brought none of the project's files in: nothing comes back,
+  // so no engine record lands in the app's own docs/, skills/ or runbooks. Lesson (a review of a large app, 2026-11-13))
+  const fresh = (() => { try { return JSON.parse(fs.readFileSync(path.join(LOCAL, 'pre-install.json'), 'utf8')).fresh === true; } catch { return false; } })();
+  const walk = fresh ? () => { } : d => { let es = []; try { es = fs.readdirSync(path.join(LOCAL, d || '.'), { withFileTypes: true }); } catch { return; }
     for (const e of es) { const p = d ? `${d}/${e.name}` : e.name; if (SKIP.test(p)) continue; if (e.isDirectory()) walk(p); else (fs.existsSync(at(p)) ? clash : back).push(p); } };
   walk('');
   for (const p of back) { if (!dry) { fs.mkdirSync(path.dirname(at(p)), { recursive: true }); fs.copyFileSync(path.join(LOCAL, p), at(p)); } }
@@ -342,7 +346,14 @@ export function splitUninstall(dry) {
     fs.rmSync(at('.anzuelo'), { recursive: true, force: true, maxRetries: 3 });
   }
   log.push('removed  .anzuelo/ (the engine and its local files)');
-  if (!dry) noteEngineChange(PROJECT, `removed from .anzuelo/ (backed up in ${path.relative(PROJECT, backup).split(path.sep).join('/')}/; ${back.length} file(s) of the project's own brought back${naming.length ? `; ${naming.length} file(s) still name .anzuelo/` : ''})`);
+  // (the engine's lines in git's local exclude file go too: its wiring block and its skill-copy block)
+  { const ex = (spawnSync('git', ['rev-parse', '--git-path', 'info/exclude'], { cwd: PROJECT, encoding: 'utf8' }).stdout || '').trim(), f = ex && path.resolve(PROJECT, ex);
+    let t = ''; try { t = fs.readFileSync(f, 'utf8'); } catch { }
+    const n = t.replace(/\n?# The project engine and its wiring \(made on each machine, never committed\)\n(?:[^\n#][^\n]*\n?)*/, '\n').replace(/\n?# The engine's skill copies[^\n]*\n[\s\S]*?# end of the engine's skill copies\n?/, '\n').replace(/\n{3,}/g, '\n\n');
+    if (t && n !== t) { save(path.relative(PROJECT, f)); if (!dry) fs.writeFileSync(f, n); log.push('updated  git\'s local exclude file (the engine\'s lines removed)'); } }
+  // (a fresh install's removal note goes in the backup: the app's own docs/ never get an engine record)
+  if (!dry && fresh) fs.writeFileSync(path.join(backup, 'NOTE.md'), `Removed the engine from ${PROJECT} on ${new Date().toISOString().slice(0, 10)}; .anzuelo/local is backed up here.\n`);
+  else if (!dry) noteEngineChange(PROJECT, `removed from .anzuelo/ (backed up in ${path.relative(PROJECT, backup).split(path.sep).join('/')}/; ${back.length} file(s) of the project's own brought back${naming.length ? `; ${naming.length} file(s) still name .anzuelo/` : ''})`);
   console.log(log.join('\n'));
   console.log(dry ? `\nDry run: nothing changed (${log.length} item(s) above).` : `\nRemoved the engine: backed up in ${path.relative(PROJECT, backup).split(path.sep).join('/')}/ (.anzuelo/local whole, the changed wiring files, and the engine's commit ${head.slice(0, 7)}${origin ? ` from ${origin}` : ''}). ` +
     `To put it back: clone the starter, run its tools/starter.mjs install "${PROJECT}", then copy .anzuelo/local back from the backup.`);
@@ -518,7 +529,8 @@ if (cmd === 'link') {
   // (the wiring as it was, for uninstall to put back: git's hooks path and the untracked agent files. Lesson (two field
   // reports): a rollback restored neither, and git's hooks path was left at the deleted engine)
   const PRE = ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json', 'CLAUDE.local.md'];
-  fs.writeFileSync(path.join(loc, 'pre-install.json'), JSON.stringify({ hooksPath: (g(['config', '--get', 'core.hooksPath'], dest).stdout || '').trim(),
+  // (fresh: the project had no engine of its own, so none of its files move in, and the uninstall brings none back)
+  fs.writeFileSync(path.join(loc, 'pre-install.json'), JSON.stringify({ fresh: !moved, hooksPath: (g(['config', '--get', 'core.hooksPath'], dest).stdout || '').trim(),
     files: Object.fromEntries(PRE.map(f => [f, fs.existsSync(path.join(dest, f)) ? fs.readFileSync(path.join(dest, f), 'utf8') : null])) }, null, 2) + '\n');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-install-'));
   try {
