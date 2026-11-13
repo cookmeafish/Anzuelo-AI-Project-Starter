@@ -3,6 +3,31 @@
 Where work on the starter itself stands, for the next session. Projects never get this file (their own is
 docs/STATUS.md, which here is the template new projects start from).
 
+## Queue (oversight, for the user, 2026-11-12; in order, tick as done)
+- [ ] 1. The work log (now).
+- [ ] 2. A release with rewrite part 1 + routing + the log, then upgrade all 3 projects the same day.
+- [ ] 3. The rewrite's remaining parts:
+  - [ ] fix proof;
+  - [x] the subagent guard; (ef7b085: never refuses)
+  - [ ] format items never hold;
+  - [ ] bookkeeping turns;
+  - [x] drop the 💬 lines; (ef7b085)
+  - [x] deleting the turn's own files; (ef7b085)
+  - [x] sed -i; (ef7b085)
+  - [x] path checks against the own folder; (65b0057: a path the turn's own calls touched is not "missing")
+  - [ ] the replay of the 2,309 lines;
+  - [ ] the deleted-code diff.
+- [ ] 4. The root-cause rule in the engine.
+- [ ] 5. GUI testing gaps.
+- [ ] 6. The orchestrator feature (my plan is coming).
+- [ ] 7. The .anzuelo migration of every project but the starter, with its audit check.
+- [ ] 8. No-leaks 3-6 and the soak.
+- [ ] 9. Upgrade project three.
+- [ ] 10. Phase B.
+- [ ] 11. Text audit 3-5.
+- [ ] 12. The asyncRewake experiment for Stop feedback.
+- [ ] 13. Hook speed under 300 ms on real-size transcripts.
+
 ## Queue to the finish (oversight's plan, 2026-11-10; tick as done)
 Phase A, open v2 tests to 0, in batches of about 15 (one chain per batch, released when it passes):
 - [x] Batch 1: name-var, note-linked, the "must pass" false hold, stop:a, check-proven (retired: record lines), waive,
