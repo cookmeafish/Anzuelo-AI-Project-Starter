@@ -60,7 +60,9 @@ else in the project (no sync, no runbook edits) until the upgrade prints its res
   summary.** End each line with the decision: `adopted - Worth it: <gain> / <cost>` (then really add it), or
   `declined - <why>`. The `fit:` line: decide each new `?` row in `docs/fit-checklist.md` (add, skip, or `later - when:
   <condition>`, with its reason) until `node tools/fit.mjs check` passes, then end the line with `decided`. The
-  self-test line: run `node tools/hooks/selfcheck.mjs` and end it with `passed`. Ask the user only about what is truly
+  self-test line: the upgrade ran it; if it is not `passed`, run `node tools/hooks/v2/selftest.mjs` (and, if a parity
+  check matters here, `node tools/hooks/selfcheck.mjs --tags <tag>`) and end it with `passed`. Never the whole
+  `selfcheck.mjs` in a project: the starter's release chain ran it, and its file churn slows the machine. Ask the user only about what is truly
   theirs (money, privacy, outward actions), in one question with choices. Tell the user in one line
   (`node tools/fit.mjs summary`).
 - An optional check new in this upgrade (a setting in `tools/hooks/config.json`, such as `quoteCheck`) stays off. Name
@@ -124,7 +126,7 @@ checks and records.
 - [ ] Every check the project wrote in `requirements.json` became a "Done when" line or a test, or has its reason in
       the upgrade review (judgment: which runbook a rule belongs to) (when ran: own-checks).
 - [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview) (when ran: new-project\.mjs).
-- [ ] After an upgrade the self-test ran and passed (ran: selfcheck\.mjs) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local).
+- [ ] After an upgrade the v2 self-test ran and passed (ran: v2[\\/]selftest\.mjs|selfcheck\.mjs --tags) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local).
 - [ ] An upgrade's review lines each end with a decision (hook: upgrade-review) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local) (file: docs/DECISIONS.md).
 - [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:
       plain wording for the user) (when ran: starter\.mjs uninstall).

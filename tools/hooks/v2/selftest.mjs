@@ -109,6 +109,14 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
   report(install.when?.arg === 'tool install' && install.kind === null && install.text === 'An install started setup' && upg.kind === 'ran'
     && !applies(install, upTurn) && applies(upg, upTurn) && met(upg, upTurn) === false,
     'start: a "(when ...)" item applies only on turns where its condition held, and its own check still counts there', [install, upg]);
+  { // (the engine runbook's real upgrade item: met by the v2 self-test, never asking for the whole selfcheck in a project.
+    // Oversight, 2026-11-13: a project read "the self-test" as selfcheck.mjs and ran 1,700 engine tests by hand)
+    const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..'), eng = fs.readFileSync(path.join(repo, 'docs/playbooks/engine.md'), 'utf8');
+    const item = doneWhen(eng).find(i => /After an upgrade the v2 self-test/.test(i.text)), up = c => ({ calls: [{ name: 'Bash', input: { command: 'node tools/starter.mjs upgrade' }, out: 'upgraded' }, ...c], answer: '' });
+    const v2Only = up([{ name: 'Bash', input: { command: 'node tools/hooks/v2/selftest.mjs' }, out: 'v2 selftest: ALL PASS (403 passed, 0 failed)' }]);
+    report(!!item && applies(item, v2Only) && met(item, v2Only) === true && met(item, up([])) === false && /node tools\/hooks\/v2\/selftest\.mjs/.test(eng) && /Never the whole\s+`selfcheck\.mjs` in a project/.test(eng),
+      'start: the engine runbook\'s upgrade item is met by the v2 self-test alone (an upgrade turn running only it is not held), and its text names the v2 self-test, never the whole selfcheck in a project', item);
+  }
   // (a "(when prompt: ...)" item hears only what the user typed: pasted text and relayed messages are someone else's)
   const [dep] = doneWhen('## Done when\n- [ ] Say it was deployed (when prompt: \\bdeploy now\\b) (answer: deployed).\n');
   const heardAs = heard => applies(dep, { heard, calls: [], answer: '' });
@@ -3607,7 +3615,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       && fs.existsSync(at('docs/playbooks/status-lines.md')) && !fs.existsSync(at('tools/audit.mjs')) && !fs.existsSync(at('docs/playbooks/plan.md'))
       && /own-stop\.mjs/.test(cmds) && /hooks\.mjs\\?" jobs x/.test(cmds) && !/hooks\.mjs\\?" (stop|pretool|session)\b/.test(cmds),
       'remove: leaving the engine keeps what the project\'s own scripts and hooks use (with what it loads), and runbooks it changed; only the engine\'s own wiring goes',
-      { plainKept: (plain.match(/^kept.*$/gm) || []).slice(0, 3), status: r.status, where, out: r.stdout.split('\n').filter(l => /^kept/.test(l)).slice(0, 8), cmds: cmds.slice(0, 300), err: r.stderr.slice(0, 200) });
+      JSON.stringify({ plainKept: (plain.match(/^kept.*$/gm) || []).slice(0, 3), status: r.status, where, out: r.stdout.split('\n').filter(l => /^kept/.test(l)).slice(0, 8), cmds: cmds.slice(0, 300), err: r.stderr.slice(0, 200) }));
   } finally { fs.rmSync(box, { recursive: true, force: true }); }
 }
 

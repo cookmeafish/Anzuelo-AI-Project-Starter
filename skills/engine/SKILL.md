@@ -15,7 +15,7 @@ Open `docs/playbooks/engine.md` and follow every step in order. It is the proced
 - [ ] Every check the project wrote in `requirements.json` became a "Done when" line or a test, or has its reason in
       the upgrade review (judgment: which runbook a rule belongs to) (when ran: own-checks).
 - [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview) (when ran: new-project\.mjs).
-- [ ] After an upgrade the self-test ran and passed (ran: selfcheck\.mjs) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local).
+- [ ] After an upgrade the v2 self-test ran and passed (ran: v2[\\/]selftest\.mjs|selfcheck\.mjs --tags) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local).
 - [ ] An upgrade's review lines each end with a decision (hook: upgrade-review) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local) (file: docs/DECISIONS.md).
 - [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:
       plain wording for the user) (when ran: starter\.mjs uninstall).

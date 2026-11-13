@@ -852,7 +852,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const v2st = process.argv.includes('--no-selftest') || !fs.existsSync(path.join(dest, 'tools', 'hooks', 'v2', 'selftest.mjs')) ? { status: 0, stdout: 'v2 selftest: ALL PASS (not run)' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'v2', 'selftest.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000 });
   const stLine = [((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0], ((v2st.stdout || '').match(/^v2 selftest: .*$/m) || [''])[0]].filter(Boolean).join('; ');
   const stPassed = st.status === 0 && /^selfcheck: .*ALL PASS/.test(stLine) && v2st.status === 0 && /v2 selftest: ALL PASS/.test(stLine);
-  items.push(stPassed ? `self-tests: node tools/hooks/selfcheck.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/selfcheck.mjs passes here');
+  // (the line names the v2 self-test, the run a project owes after an upgrade; the whole selfcheck is for the starter's
+  // release chain. Oversight, 2026-11-13: a project read this line and ran all 1,700 engine tests by hand)
+  items.push(stPassed ? `self-tests: node tools/hooks/v2/selftest.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/v2/selftest.mjs passes here (never the whole selfcheck.mjs in a project: the starter\'s release ran it)');
   // (the engine is proven to run here, not only installed: the project's own prompt and Stop hooks run once. Lesson (two
   // projects): an upgrade and a full self-test passed while the default engine could not load in the project)
   const probed = probeEngine(dest), wiringErrs = probed.filter(e => e.startsWith('wiring: ')), engineErrs = probed.filter(e => !e.startsWith('wiring: '));
