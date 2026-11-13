@@ -10043,7 +10043,14 @@ if (mineB() && (!TAGS || TAGS.includes('engine-bypassed'))) { // engine-bypassed
       const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), mode], { cwd: dir, encoding: 'utf8', env: e });
       return { code: r.status, err: r.stderr || '' };
     };
-    const CC = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1', ANZUELO_SESSION_GATE: null };
+    // (the session's transcript sits under another folder's name: it was started there. One started in this folder
+    // before the install, or one whose transcript isn't found, is not refused. Lesson (a review of a large app,
+    // 2026-11-13): sessions open at install time could not commit)
+    const home = path.join(dir, '.home'), enc = d => path.resolve(d).replace(/[\\/]+$/, '').replace(/[^A-Za-z0-9]/g, '-');
+    const tx = (folder, sid) => { fs.mkdirSync(path.join(home, '.claude', 'projects', folder), { recursive: true }); fs.writeFileSync(path.join(home, '.claude', 'projects', folder, `${sid}.jsonl`), '{}\n'); };
+    tx('C--elsewhere-parent', 'sessUnseen1'); tx(enc(dir), 'sessHereBefore');
+    const CC = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1', ANZUELO_SESSION_GATE: null, USERPROFILE: home, HOME: home };
+    const hereBefore = guard({ ...CC, CLAUDE_CODE_SESSION_ID: 'sessHereBefore' }), notFound = guard({ ...CC, CLAUDE_CODE_SESSION_ID: 'sessNoTranscript' });
     const unseen = guard(CC), unseenPush = guard(CC, 'pre-push');
     const person = guard({ CLAUDECODE: null, CLAUDE_CODE_SESSION_ID: null, ANZUELO_SESSION_GATE: null });
     const harness = guard({ ...CC, ANZUELO_SESSION_GATE: 'off' });
@@ -10052,9 +10059,9 @@ if (mineB() && (!TAGS || TAGS.includes('engine-bypassed'))) { // engine-bypassed
     // (each engine's own turn record: v2 keeps v2-turn.<session>.json)
     const recorded = ['turn', 'v2-turn'].some(k => fs.existsSync(path.join(dir, `tools/hooks/state/${k}.sessUnseen1.json`))), seen = guard(CC);
     report(unseen.code === 1 && /engine-bypassed/.test(unseen.err) && /hooks\.mjs begin/.test(unseen.err) && unseenPush.code === 1
-      && person.code === 0 && harness.code === 0 && recorded && seen.code === 0,
-      'engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person\'s commit and a test harness never meet it',
-      JSON.stringify({ unseen: unseen.code, push: unseenPush.code, person: person.code, harness: harness.code, recorded, seen: seen.code, err: unseen.err.slice(0, 200) }));
+      && person.code === 0 && harness.code === 0 && recorded && seen.code === 0 && hereBefore.code === 0 && notFound.code === 0,
+      'engine-bypassed: a commit or push from a Claude Code session started in another folder is refused with the way through; after begin records the session it passes; one started in this folder before the install, a person\'s commit and a test harness never meet it',
+      JSON.stringify({ unseen: unseen.code, push: unseenPush.code, person: person.code, harness: harness.code, recorded, seen: seen.code, hereBefore: hereBefore.code, notFound: notFound.code, err: unseen.err.slice(0, 200) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('forbidden-terms'))) { // forbidden-terms in git: a commit message or staged line with a

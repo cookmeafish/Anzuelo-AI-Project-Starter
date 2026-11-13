@@ -76,7 +76,11 @@ export function wire(dir, { dry = false } = {}) {
   // the hooks read it (local wins), else the engine's)
   if (split && on('claude')) {
     const text = `@.anzuelo/${fs.existsSync(path.join(dir, '.anzuelo', 'local', 'AGENTS.md')) ? 'local' : 'engine'}/AGENTS.md\n`;
-    if (!fs.existsSync(at('CLAUDE.local.md')) || fs.readFileSync(at('CLAUDE.local.md'), 'utf8') !== text) { write(at('CLAUDE.local.md'), text); log.push('wrote    CLAUDE.local.md (Claude Code reads the engine\'s rules from here; it may ask once to allow the import)'); }
+    // (a CLAUDE.local.md the user already has keeps every line: only the engine's import line is added, or switched
+    // between engine and local. Lesson (a review of a large app, 2026-11-13): an existing file was replaced whole)
+    const had = fs.existsSync(at('CLAUDE.local.md')) ? fs.readFileSync(at('CLAUDE.local.md'), 'utf8') : null, IMPORT = /^@\.anzuelo\/(?:engine|local)\/AGENTS\.md\r?$/m;
+    const next = had === null ? text : IMPORT.test(had) ? had.replace(IMPORT, text.trim()) : `${text}${had.startsWith('\n') ? '' : '\n'}${had}`;
+    if (next !== had) { write(at('CLAUDE.local.md'), next); log.push(`${had === null ? 'wrote   ' : 'updated '} CLAUDE.local.md (Claude Code reads the engine's rules from here${had === null ? '' : '; your own lines kept'}; it may ask once to allow the import)`); }
   } else if (on('claude') && !fs.existsSync(at('CLAUDE.md')) && fs.existsSync(eng('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(eng('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
   // Claude Code's hooks: merged into any settings the folder already has
   const sp = at('.claude', split ? 'settings.local.json' : 'settings.json');

@@ -358,8 +358,10 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const ownSkill = '---\nname: release-notes\ndescription: Write the release notes\n---\n# Release notes\nRun `node .claude/skills/release-notes/make.js`.\n';
   const ownDebug = '---\nname: debug\ndescription: The project\'s own debugging steps\n---\n# Debug\nOpen the "logs" panel first.\n';
   const ownLocal = { permissions: { allow: ['Bash(yarn test:*)'], deny: ['Bash(rm -rf:*)'] }, env: { APP_MODE: 'dev' }, hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'node scripts/own-lint.js' }] }] } };
-  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug }); gitRepo(dir);
-  write(dir, { '.claude/settings.local.json': JSON.stringify(ownLocal, null, 2) + '\n' });
+  // (no .gitignore of its own, and its own app data tracked in .cache/: neither is the engine's business)
+  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug, '.cache/app-data.json': '{"items":3}\n' }); gitRepo(dir);
+  const ownLocalRules = '# My notes for this machine\nAnswer in short paragraphs; the "staging" server is down on Fridays.\n';
+  write(dir, { '.claude/settings.local.json': JSON.stringify(ownLocal, null, 2) + '\n', 'CLAUDE.local.md': ownLocalRules });
   const genv = { ...env, ANZUELO_SESSION_GATE: 'off' }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
   const inst = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dir], { cwd: STARTER, encoding: 'utf8', env: genv, timeout: 300000 });
   const hooksPath = git(['config', '--get', 'core.hooksPath'], dir).stdout.trim();
@@ -376,6 +378,17 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     rd('.claude/skills/release-notes/SKILL.md') === ownSkill && rd('.claude/skills/debug/SKILL.md') === ownDebug && !fs.existsSync(path.join(dir, '.claude/skills/debug/.mirror'))
       && copies && !/\.claude\/skills\/plan\//.test(st) && /\?\? \.claude\/skills\/garden-plan\/SKILL\.md/.test(st),
     JSON.stringify({ copies, status: st.split('\n').filter(l => /skills/.test(l)).slice(0, 6), ownDebugKept: rd('.claude/skills/debug/SKILL.md') === ownDebug }));
+  // (a push goes through: the push check looks only at what the engine wrote, never the project's own skill, its own
+  // .cache data or its missing .gitignore; one that would carry an engine file is refused)
+  const remote = path.join(WORK, 'engine-in-anzuelo-remote.git'); git(['init', '-q', '--bare', remote], WORK);
+  const push = spawnSync('git', ['push', '-q', remote, 'HEAD:main'], { cwd: dir, encoding: 'utf8', env: genv });
+  spawnSync('git', ['add', '-f', 'CLAUDE.local.md'], { cwd: dir, env: genv }); spawnSync('git', ['commit', '-q', '--no-verify', '-m', 'Add local rules'], { cwd: dir, env: genv });
+  const leak = spawnSync('git', ['push', '-q', remote, 'HEAD:main'], { cwd: dir, encoding: 'utf8', env: genv });
+  spawnSync('git', ['reset', '-q', '--soft', 'HEAD~1'], { cwd: dir, env: genv }); spawnSync('git', ['rm', '-q', '--cached', 'CLAUDE.local.md'], { cwd: dir, env: genv });
+  check(name, 'a push goes through the engine\'s push check: the project\'s own skill, its own .cache data and its missing .gitignore are not the engine\'s business; a push carrying an engine file is refused',
+    push.status === 0 && leak.status !== 0 && /engine's files are committed/.test(leak.stderr || ''), JSON.stringify({ push: [push.status, (push.stderr || '').slice(0, 300)], leak: [leak.status, (leak.stderr || '').slice(0, 200)] }));
+  const lr = rd('CLAUDE.local.md') || '';
+  check(name, 'its own CLAUDE.local.md keeps every line of the user\'s; the engine only adds its import line', lr.includes(ownLocalRules.trim()) && /^@\.anzuelo\/(engine|local)\/AGENTS\.md$/m.test(lr), JSON.stringify(lr.slice(0, 300)));
   // (its own .claude/settings.local.json merged: every key of the user's kept, the engine's hooks added)
   let local = {}; try { local = JSON.parse(rd('.claude/settings.local.json') || '{}'); } catch { }
   const hooksTxt = JSON.stringify(local.hooks || {});
