@@ -5,14 +5,14 @@
 // first words, the runs before and after the code edits, and what the checks would say. The output names project
 // content: keep it outside the starter (a scratchpad), and write only general findings into tools/starter/reviews/.
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { readRows } from '../hooks/jsonl.mjs';
 
 const args = process.argv.slice(2), maxAt = args.indexOf('--max'), max = maxAt >= 0 ? +args[maxAt + 1] : 20;
 const [project, ...files] = args.filter((a, i) => a !== '--max' && i !== maxAt + 1 || maxAt < 0);
 if (!project || !files.length) { console.error('usage: node tools/starter/replay-fixes.mjs <project dir> <transcript.jsonl>... [--max 20]'); process.exit(2); }
 process.env.CLAUDE_PROJECT_DIR = path.resolve(project); process.env.ANZUELO_ROOT = path.resolve(project); process.env.V2_NO_STATE = '1';
-const L = await import(pathToFileURL(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', 'hooks', 'v2', 'lib.mjs')).href);
+const L = await import(pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'v2', 'lib.mjs')).href);
 
 // A typed prompt starts a turn: a user row with text, not a tool result, not the host's own rows.
 const typed = r => r.type === 'user' && !r.isMeta && !r.isCompactSummary && !r.isSidechain && (typeof r.message?.content === 'string' || (Array.isArray(r.message?.content) && !r.message.content.some(b => b?.type === 'tool_result')));

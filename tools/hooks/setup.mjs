@@ -4,6 +4,7 @@
 import { ROOT, read, readJSON, abs, exists, config, section } from './settings.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { where, recordMap, LOCAL } from './paths.mjs';
 import { rulesText } from './state.mjs';
 import { NAMES_FILE, namesIn } from './names.mjs';
@@ -97,7 +98,7 @@ export function setupProblems(cfg = config()) {
 // next round held it again.
 export function knownTags() {
   const out = new Set(), add = (t, rx) => { for (const m of String(t || '').matchAll(rx)) out.add(m[1]); };
-  const dir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
+  const dir = path.dirname(fileURLToPath(import.meta.url)); // (decoded: a folder with a space kept %20 and crashed)
   for (const d of [dir, path.join(dir, 'v2')]) for (const f of fs.readdirSync(d).filter(f => f.endsWith('.mjs') && !/selfcheck|selftest/.test(f))) add(fs.readFileSync(path.join(d, f), 'utf8'), /(?:REQ: |tag: ')([a-z][\w-]+)/g);
   for (const f of ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json']) add(read(abs(f)), /"tag":\s*"([a-z][\w-]+)"/g);
   add(read(abs('docs/checks/always.md')), /req: ([a-z][\w-]+)/g);

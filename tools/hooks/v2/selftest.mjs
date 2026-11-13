@@ -6,6 +6,7 @@ cleanDead(); watchStop(); // (what a killed run left first: its process is gone;
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url'; // (decodes the path: a project folder with a space or non-ASCII letter. Lesson (a project, 2026-11-13): pathname kept %20 and crashed)
 import { spawnSync } from 'node:child_process';
 import { otherSuites, registerSuite, waitQuiet, releaseLock, timingLock, testedCommit, SPEED_RECORD } from '../selftest-cache.mjs';
 
@@ -111,7 +112,7 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
     'start: a "(when ...)" item applies only on turns where its condition held, and its own check still counts there', [install, upg]);
   { // (the engine runbook's real upgrade item: met by the v2 self-test, never asking for the whole selfcheck in a project.
     // Oversight, 2026-11-13: a project read "the self-test" as selfcheck.mjs and ran 1,700 engine tests by hand)
-    const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..'), eng = fs.readFileSync(path.join(repo, 'docs/playbooks/engine.md'), 'utf8');
+    const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), eng = fs.readFileSync(path.join(repo, 'docs/playbooks/engine.md'), 'utf8');
     const item = doneWhen(eng).find(i => /After an upgrade the v2 self-test/.test(i.text)), up = c => ({ calls: [{ name: 'Bash', input: { command: 'node tools/starter.mjs upgrade' }, out: 'upgraded' }, ...c], answer: '' });
     const v2Only = up([{ name: 'Bash', input: { command: 'node tools/hooks/v2/selftest.mjs' }, out: 'v2 selftest: ALL PASS (403 passed, 0 failed)' }]);
     report(!!item && applies(item, v2Only) && met(item, v2Only) === true && met(item, up([])) === false && /node tools\/hooks\/v2\/selftest\.mjs/.test(eng) && /Never the whole\s+`selfcheck\.mjs` in a project/.test(eng),
@@ -476,7 +477,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   report(said && alias && !never && !pasted, 'pretool: a push to main OK\'d earlier in the session counts (main or master); "never push" and pasted text do not', JSON.stringify({ said, alias, never, pasted }));
   // (the outward-action guard takes the same earlier OK; with none, it still refuses)
   const { spawnSync } = await import('node:child_process');
-  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const c = testDir('anzuelo-v2-push-');
   fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
@@ -514,7 +515,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
     const { slowerThan, machineId } = await import('../selftest-cache.mjs');
     const promptInput = JSON.stringify({ session_id: 'speedp', transcript_path: tq, prompt: 'fix the label on the builder page' });
     HOOK_TIMES = { machine: machineId(), prompt: Math.round(prompt + bare), pretool: Math.round(pretool + bare) };
-    const lastProof = (() => { try { return JSON.parse(fs.readFileSync(path.join(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..'), 'tools/hooks/engine-proof.json'), 'utf8')).speed?.times || null; } catch { return null; } })();
+    const lastProof = (() => { try { return JSON.parse(fs.readFileSync(path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), 'tools/hooks/engine-proof.json'), 'utf8')).speed?.times || null; } catch { return null; } })();
     const slower = slowerThan(lastProof, HOOK_TIMES);
     report(timeVerdict(!slower.length, 'speed: against the last release', JSON.stringify({ last: lastProof, now: HOOK_TIMES })),
       'speed: the prompt and pretool hooks are no more than 15% slower than the last released proof on this machine', JSON.stringify({ last: lastProof, now: HOOK_TIMES, slower }));
@@ -864,11 +865,11 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   report(later.length === 2 && !later.some(s => /item 1:/.test(s)), 'end: stop rounds: a runbook item said not to fit in an earlier round of the request stays cleared in the next round', later);
   // (the audit finds the engine's REQ tags in every module of tools/hooks and v2, read from the folders: a module added
   // later counts with no list to update. Lesson (a release chain, 2026-11-12): three tags in new modules read as unenforced)
-  { const au = fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', 'audit.mjs'), 'utf8'), m = /const hooksSrc = ([^\n]+)/.exec(au)?.[1] || '';
+  { const au = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'audit.mjs'), 'utf8'), m = /const hooksSrc = ([^\n]+)/.exec(au)?.[1] || '';
     report(/readdirSync\(abs\(d\)\)/.test(m) && /'tools\/hooks', 'tools\/hooks\/v2'/.test(m) && !/'people', 'labels'/.test(m), 'audit: the REQ tags are read from every engine module in tools/hooks and tools/hooks/v2, not a fixed list', m.slice(0, 160)); }
   // (the held message shows the way out in the words the check accepts, and those words clear the items: the whole
   // runbook, or one item. Oversight, 2026-11-12: a project's "<runbook> was never followed" cleared nothing)
-  { const src = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), 'end.mjs'), 'utf8');
+  { const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'end.mjs'), 'utf8');
     const shown = /doesn\\'t fit this task: <why>/.test(src) && /item N doesn\\'t fit: <why>/.test(src);
     const whole = waived({ answer: 'export.md doesn\'t fit this task: the turn only changed the triggers of another runbook.' }, gaps);
     const one = waived({ answer: 'item 2 doesn\'t fit: no changelog in this fixture project yet.' }, gaps);
@@ -1285,7 +1286,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         fs.writeFileSync(path.join(sw, 'r1.txt'), 'FAIL  stop: a  -> one\nPASS  stop: b\nFAIL  stop: c  -> x\nselfcheck: FAIL (1 passed, 2 failed)\n');
         fs.writeFileSync(path.join(sw, 'r2.txt'), 'PASS  stop: a\nPASS  stop: b\nFAIL  stop: c  -> y\nFAIL  stop: d  -> z\nselfcheck: FAIL (2 passed, 2 failed)\n');
         const { spawnSync } = await import('node:child_process');
-        const tool = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', 'starter', 'v2-sweep.mjs');
+        const tool = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'v2-sweep.mjs');
         const run = (...a) => spawnSync(process.execPath, [tool, ...a], { encoding: 'utf8', env: { ...process.env, V2_SWEEP_LIST: list } });
         const wrote = run('--from', path.join(sw, 'r1.txt'), '--write').status, same = run('--from', path.join(sw, 'r1.txt')), worse = run('--from', path.join(sw, 'r2.txt')), grow = run('--from', path.join(sw, 'r2.txt'), '--write');
         // (a run where a listed test passes and nothing new fails passes, and takes that test off the list. Oversight,
@@ -1347,7 +1348,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         fs.writeFileSync(f, want.join('\r\n'));
         const same = [1, 2, 3, 7, 1 << 20].every(n => JSON.stringify([...lines(f, n)]) === JSON.stringify(want)), parsed = readRows(f).length;
         fs.rmSync(d, { recursive: true, force: true });
-        const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+        const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
         const walk = p => fs.readdirSync(p, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(p, e.name)) : e.name.endsWith('.mjs') ? [path.join(p, e.name)] : []);
         const tools = [...walk(path.join(repo, 'tools/starter')), ...fs.readdirSync(path.join(repo, 'skills')).flatMap(s => { try { return walk(path.join(repo, 'skills', s, 'scripts')); } catch { return []; } })]
           .filter(t => /\.jsonl\b/.test(fs.readFileSync(t, 'utf8')));
@@ -1358,7 +1359,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       // out of the hash lets a project reuse a pass its changed code never had; one left out of the copy breaks the hooks.
       // Lesson: base-checks, settings, wakeups and others were missing from the proof's file list)
       {
-        const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+        const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
         const src = ['tools/hooks/hooks-main.mjs', ...fs.readdirSync(path.join(repo, 'tools/hooks/v2')).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => `tools/hooks/v2/${f}`)].map(f => fs.readFileSync(path.join(repo, f), 'utf8')).join('\n');
         const mods = [...new Set([...src.matchAll(/from '\.{1,2}\/([\w-]+\.mjs)'/g)].map(m => `tools/hooks/${m[1]}`))].filter(m => fs.existsSync(path.join(repo, m)));
         const { PROOF_PATHS } = await import('../selftest-cache.mjs'), np = fs.readFileSync(path.join(repo, 'tools/new-project.mjs'), 'utf8');
@@ -1366,7 +1367,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         report(mods.length >= 8 && !unhashed.length && !uncopied.length, 'engine modules: each module the hooks import is in the engine proof\'s hash and in the files a new project gets', JSON.stringify({ mods: mods.length, unhashed, uncopied }));
         // (v2 stands alone: none of its files imports the old engine's body, and its hooks take no function passed in
         // from it. Oversight, 2026-11-12: the fit checklist was first ported by passing old-engine functions in)
-        const v2dir = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')));
+        const v2dir = path.join(path.dirname(fileURLToPath(import.meta.url)));
         const v2files = fs.readdirSync(v2dir).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs');
         const importsOld = v2files.filter(f => /from '\.\.\/hooks-main\.mjs'|import\('\.\.\/hooks-main\.mjs'\)/.test(fs.readFileSync(path.join(v2dir, f), 'utf8')));
         const hm = fs.readFileSync(path.join(v2dir, '..', 'hooks-main.mjs'), 'utf8');
@@ -1843,6 +1844,14 @@ report(screenGaps(acts([user('fix the paste test'), call('Edit', { file_path: pa
   for (const f of ['_site', 'web/.svelte-kit']) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
 }
 
+{ // (no engine code takes its own folder from a URL's raw pathname: it keeps %20 for a space, so every project in a folder
+  // with a space or a non-ASCII letter crashed. Lesson (a project, 2026-11-13): the v2 self-test and "waive" both did)
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), bad = [];
+  const walk = d => { for (const e of fs.readdirSync(path.join(repo, d), { withFileTypes: true })) { const r = `${d}/${e.name}`;
+    if (e.isDirectory()) { if (!/node_modules|\.git$|state$/.test(e.name)) walk(r); } else if (/\.(m?js)$/.test(e.name) && /import\.meta\.url\)\.pathname/.test(fs.readFileSync(path.join(repo, r), 'utf8'))) bad.push(r); } };
+  for (const d of ['tools', 'skills', 'packs', 'library']) if (fs.existsSync(path.join(repo, d))) walk(d);
+  report(bad.length === 0, 'paths: no engine code reads its own folder from a URL\'s raw pathname (fileURLToPath decodes a space or non-ASCII letter)', bad);
+}
 // end: check 4, the health check
 const { healthGaps } = await import('./lib.mjs');
 const rule = call('Edit', { file_path: path.join(dir, 'docs/playbooks/export.md'), old_string: 'a', new_string: 'b' });
@@ -1929,7 +1938,7 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   { // (learn-from-upset counts as going through debug, with its debug items: the cause named, and fail-then-pass, which
     // stays required either way. Oversight, 2026-11-13)
     const { doneWhen, applies, met } = await import('./lib.mjs');
-    const lfu = fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..', 'skills/learn-from-upset/SKILL.md'), 'utf8');
+    const lfu = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'skills/learn-from-upset/SKILL.md'), 'utf8');
     const causeItem = doneWhen(lfu).find(i => /names its cause/.test(i.text)), lfuRead = call('Read', { file_path: path.join(dir, 'skills/learn-from-upset/SKILL.md') }, 'skill');
     const said = 'Fixed. The root cause was the label dropped on save; the test now fails on the old code and passes.';
     const withProof = acts([user('the export is broken AGAIN'), lfuRead, failRun, fix, passRun, say(said)]); withProof.complaint = true;
@@ -2143,7 +2152,7 @@ const { questionGaps } = await import('./lib.mjs');
 }
 // (the hooks are named by kind everywhere the user or agent reads about them: Reminder, Guard, Check)
 {
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const { V2_SESSION } = await import('../hooks-main.mjs');
   const docs = [fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8'), fs.readFileSync(path.join(root, 'HOW-TO-USE.md'), 'utf8'), V2_SESSION];
   report(docs.every(t => /\bReminder\b/.test(t) && /\bGuard\b/.test(t) && /\bCheck\b/.test(t)) && /check --answer-file/.test(docs[0]),
@@ -2369,7 +2378,7 @@ const { questionGaps } = await import('./lib.mjs');
 // (the engine runbook's upgrade items fit a real upgrade, never a dry run, which writes nothing. Lesson (replay
 // 2026-11-07): most repeat blocks in one project were dry runs asked for an upgrade review and a commit)
 {
-  const here = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const here = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const lines = fs.readFileSync(path.join(here, 'docs/playbooks/engine.md'), 'utf8').split('\n').filter(l => /\(when ran: starter\\\.mjs upgrade/.test(l));
   const whens = lines.map(l => /\(when\s+ran:\s*([^)]+)\)/i.exec(l)?.[1]).filter(Boolean).map(s => new RegExp(s.trim(), 'i'));
   const fits = c => whens.map(rx => rx.test(c));
@@ -2413,7 +2422,7 @@ const { noteGaps } = await import('./lib.mjs');
   const plain = noteGaps(acts([user('why did you do that'), say('You are right: the list missed two rows. The issue: a filter dropped them.')])).length;
   report(shown === 1 && none === 1 && plain === 0, 'end: an "Issue:" engine note in the answer is named; plain words about an issue are not', { shown, none, plain });
   // (the rules say the same as the check: the Issue line goes to the notes file, never the answer)
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const rules = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8').replace(/\s+/g, ' '), skill = fs.readFileSync(path.join(root, 'skills/learn-from-upset/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
   report(/Issue: <problem>[^.]*line in `\.cache\/turn-notes\.md` \(never in the answer/.test(rules) && /the answer never shows them/.test(skill),
     'rules: AGENTS.md rule 3 and the learn-from-upset skill put the Issue line in the notes file, never the answer, as the end check expects');
@@ -2504,7 +2513,7 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
 { // (upgrades keep what worked: a project whose committed check self-runs (selfRun + selfAuto) keeps it running after
   // an upgrade, with no step for the user: the upgrade's convert puts the command on the approved list with its
   // DECISIONS line, the upgrade commits, and in the next session the end check runs it)
-  const { spawnSync } = await import('node:child_process'), repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const { spawnSync } = await import('node:child_process'), repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const p = testDir('selfrun-upg-'), w = (f, t) => { fs.mkdirSync(path.dirname(path.join(p, f)), { recursive: true }); fs.writeFileSync(path.join(p, f), t); };
   const g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { cwd: p, encoding: 'utf8' });
   w('tools/hooks/config.json', '{"autonomy":"ask"}\n'); w('docs/DECISIONS.md', '# Decisions\n'); w('check-ok.mjs', "console.log('RESULT: PASS')\n"); w('src/a.js', 'a\n');
@@ -3143,7 +3152,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // and the session text, rules, runbooks and skills ask for no record lines, waivers or turn notes (the Issue line that
 // shows the user "acknowledged" excepted)
 {
-  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const saved = process.env.STARTER_ENGINE;
   delete process.env.STARTER_ENGINE;
   const { engineOf, V2_SESSION } = await import('../hooks-main.mjs');
@@ -3293,7 +3302,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // 2026-11-10, many times): the instruction block shown there read as noise, and Claude Code cannot hide it)
     const shown = [ctx, cx.j.reason || ''];
     // (no path or command for the agent either: the session context points it to `hooks.mjs why`. Text audit, 2026-11-12)
-    const { V2_SESSION } = await import((await import('node:url')).pathToFileURL(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', 'hooks-main.mjs')).href);
+    const { V2_SESSION } = await import((await import('node:url')).pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks-main.mjs')).href);
     report(shown.every(t => t.split('\n').length <= 4 && /^⚓ [^\n]* left before this is done\n- /.test(t) && !/\bitem \d+:/.test(t) && t.split('\n').slice(1).every(l => l.length <= 82) && !/\(details:|stop-details|tools\/hooks|hooks\.mjs/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
       && /docs\/playbooks\/export\.md/.test(cc.details) && /Fix what isn't done/.test(cc.details) && /node tools\/hooks\/hooks\.mjs why/.test(V2_SESSION),
       'stop: the text the user sees is at most 4 short lines, with no path, command or instruction for the agent; the full steps are in the details file, which the session context names', JSON.stringify({ shown, details: cc.details.slice(0, 300) }));
@@ -3604,7 +3613,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // what it loads; an engine runbook the project changed stays with its skill; the rest goes. Plan: clean exit, Task 1)
 {
   const { spawnSync } = await import('node:child_process');
-  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const box = testDir('anzuelo-exit-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
   const np = (...a) => spawnSync(process.execPath, [path.join(repo, 'tools/new-project.mjs'), p, ...a], { encoding: 'utf8', timeout: 120000 });
   try {
@@ -3638,7 +3647,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // with no hooks. Lesson (two field reports): a rolled-back move left commits running with no AI-credit or secret checks)
 {
   const { spawnSync } = await import('node:child_process');
-  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const box = testDir('anzuelo-wiring-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
   const g = (...a) => spawnSync('git', a, { cwd: p, encoding: 'utf8' }), hp = () => (g('config', '--get', 'core.hooksPath').stdout || '').trim();
   const node = (...a) => spawnSync(process.execPath, a, { cwd: p, encoding: 'utf8', timeout: 60000, env: { ...process.env, CLAUDE_PROJECT_DIR: p, ANZUELO_ROOT: '' } });
@@ -3668,7 +3677,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // Plan: clean exit, Task 2)
 {
   const { spawnSync } = await import('node:child_process');
-  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const box = testDir('anzuelo-exit-split-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a), loc = at('.anzuelo', 'local');
   const g = (...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: p, encoding: 'utf8' });
   try {
@@ -3708,7 +3717,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // (a name moved out of hooks.mjs into a base module is imported where hooks.mjs still uses it. Lesson (2026-11-08):
 // localDate moved to settings.mjs, the "last" command crashed, and only the full suite found it)
 {
-  const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
+  const here = path.dirname(fileURLToPath(import.meta.url));
   const top = src => [...src.matchAll(/^(?:export\s+)?(?:async\s+)?(?:function\*?\s+([\w$]+)|(?:const|let|var)\s+([\w$]+))/gm)].map(m => m[1] || m[2]);
   const hooks = fs.readFileSync(path.join(here, '..', 'hooks-main.mjs'), 'utf8'), mine = new Set(top(hooks));
   const imported = new Set([...hooks.matchAll(/^import\s*\{([^}]*)\}/gm)].flatMap(m => m[1].split(',').map(s => s.trim().split(/\s+as\s+/).pop())));
@@ -3767,7 +3776,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
 {
-  const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
+  const here = path.dirname(fileURLToPath(import.meta.url));
   // (the budget by what runs and when, decided 2026-11-08 when the sweep showed parity cannot fit 2,000 lines: the guard
   // and mid-task notes (every tool call) 600, the reminder (every message) 400, the end check (once per turn) 2,000, the
   // base modules 700, all of it 4,000, tests not counted; hooks.mjs joins when 1e cuts it to the entry. Plan:
@@ -3885,7 +3894,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // standalone skill and pack scripts says windowsHide, except one marked as showing a window on purpose. Lesson (the user,
 // through oversight, 2026-11-11): console windows flashed up while the hooks and tests ran)
 {
-  const repoH = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repoH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const { withHidden } = await import('../hidewin.mjs');
   const cpM = (await import('node:child_process')).default, { spawnSync: namedSpawn } = await import('node:child_process');
   const shape = (a, k) => JSON.stringify(withHidden(a, k).map(x => typeof x === 'function' ? 'fn' : x));
@@ -3911,7 +3920,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // cache. Each case runs with its temp folder pointed at an empty one, so anything left there is the run's own. Lesson
 // (oversight, 2026-11-11): about 11,000 fixture folders were left in the temp folder and the machine lagged)
 {
-  const repoT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repoT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-tempcheck-'));
   try {
     const envT = d => ({ ...process.env, TEMP: d, TMP: d, TMPDIR: d });
@@ -4001,7 +4010,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // copy and from the engine, and the turn record lands in local, never in the project or the engine)
 {
   const { spawnSync } = await import('node:child_process');
-  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const proj = testDir('anzuelo-split-'), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
   fs.mkdirSync(path.join(eng, 'tools', 'hooks'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(eng, 'tools/hooks/v2'), { recursive: true });
@@ -4022,7 +4031,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // changed since "begin", not nothing. Lesson (the old suite under v2): an edited hook file got CHECK: PASS)
 {
   const { spawnSync } = await import('node:child_process');
-  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const m = testDir('anzuelo-v2-manual-');
   let got = {};
   try {
@@ -4109,7 +4118,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // Oversight, 2026-11-12: a chain on a failed commit could only be ended by killing its processes, which was refused)
 {
   const { spawn } = await import('node:child_process');
-  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const tmp = testDir('stoptest-'), env = { ...process.env, TEMP: tmp, TMP: tmp, TMPDIR: tmp };
   const tt = JSON.stringify((await import('node:url')).pathToFileURL(path.join(repoRoot, 'tools/hooks/testtmp.mjs')).href);
   const kid = code => spawn(process.execPath, ['--input-type=module', '-e', `const T = await import(${tt}); T.testDir('kid-'); T.watchStop(); ${code}`], { env, stdio: 'ignore' });
@@ -4198,7 +4207,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(!quoted && !copied && !pasted && own, 'prompt checks read only the user\'s own words: a quoted, copied or pasted line asks nothing', JSON.stringify({ quoted, copied, pasted, own })); }
 // (a waiver of a name no check uses is refused with the closest real names; a report under tools/starter/reviews/ is no
 // engine change for the starter's own checks. Oversight, 2026-11-12: "waive starter-selftest" said waived, held again)
-{ const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+{ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const w = spawnSync(process.execPath, [path.join(repo, 'tools/hooks/hooks.mjs'), 'waive', 'starter-selftest', 'only a review report changed'], { cwd: repo, encoding: 'utf8' });
   const { DEV_SELF_TESTS, DEV_CHANGELOG } = await import('../base-checks.mjs'), { globRx } = await import('./lib.mjs');
   const ign = c => [].concat(c.when.filesIgnore || []).some(g => globRx(g).test('tools/starter/reviews/2026-11-12-audit.md'));
@@ -4230,7 +4239,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // in its own folder; the suites prune it; the leak check names each count that rose past its budget. User rule,
 // 2026-11-12: Node's default compile cache held about 2.65 million files from test copies, never pruned)
 {
-  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const probe = base => { const d = path.join(base, 'tools', 'hooks'); fs.mkdirSync(d, { recursive: true }); fs.copyFileSync(path.join(repoRoot, 'tools/hooks/hooks.mjs'), path.join(d, 'hooks.mjs'));
     fs.writeFileSync(path.join(d, 'hooks-main.mjs'), "import m from 'node:module'; console.log(m.getCompileCacheDir?.() || 'none');");
     const env = { ...process.env }; delete env.ANZUELO_NO_COMPILE_CACHE; return spawnSync(process.execPath, [path.join(d, 'hooks.mjs')], { encoding: 'utf8', env }).stdout.trim(); };
@@ -4273,7 +4282,7 @@ fs.rmSync(dir, { recursive: true, force: true });
 // (the release verdict on the time limits, for the proof: judged only with a quiet window, nothing noted, and every test
 // passing, on the exact commit tested)
 {
-  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const rec = path.join(repoRoot, SPEED_RECORD);
   if (RELEASE) {
     const judged = quiet && !noted && !fail;
