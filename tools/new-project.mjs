@@ -502,9 +502,15 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const prevQuestions = [...prevHooks.matchAll(/export const INTERVIEW\w* = \[([^\]]*)\]/g)].flatMap(m => [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
   // the starter commit this project last took its engine from (its hooks.mjs as shipped then), or null when unknown
   const gitAt = (c, rel) => spawnSync('git', ['show', `${c}:${rel}`], { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 }).stdout || '';
+  // (each engine file compared with the same file in each commit, never prevHooks, which joins several files. Lesson
+  // (a project, 2026-11-13): once prevHooks held three files nothing matched, so every kept file was listed again)
+  const ownText = n => { try { return fs.readFileSync(path.join(dest, 'tools', 'hooks', n), 'utf8').replace(/\r\n/g, '\n'); } catch { return ''; } };
   const baseCommit = (() => {
-    for (const c of (spawnSync('git', ['log', '--format=%H', '--', 'tools/hooks/hooks-main.mjs', 'tools/hooks/hooks.mjs'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean))
-      if ((gitAt(c, 'tools/hooks/hooks-main.mjs') || gitAt(c, 'tools/hooks/hooks.mjs')).replace(/\r\n/g, '\n') === prevHooks) return c;
+    const main = ownText('hooks-main.mjs'), entry = ownText('hooks.mjs');
+    for (const c of (spawnSync('git', ['log', '--format=%H', '--', 'tools/hooks/hooks-main.mjs', 'tools/hooks/hooks.mjs'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean)) {
+      const m = gitAt(c, 'tools/hooks/hooks-main.mjs').replace(/\r\n/g, '\n');
+      if (main ? m === main : gitAt(c, 'tools/hooks/hooks.mjs').replace(/\r\n/g, '\n') === entry) return c;
+    }
     return null;
   })();
   if (!dry) for (const f of SNAP.filter(f => fs.existsSync(path.join(dest, f)))) { const b = path.join(backupDir, f + '.orig'); fs.mkdirSync(path.dirname(b), { recursive: true }); fs.copyFileSync(path.join(dest, f), b); }

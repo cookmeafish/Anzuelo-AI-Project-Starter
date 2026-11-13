@@ -5301,7 +5301,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['stop-rounds', 'upgrade-clean','status-bar', 'stop-log','usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
+const STANDALONE_TAGS = ['upgrade-kept-quiet', 'stop-rounds','upgrade-clean','status-bar', 'stop-log','usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -9581,6 +9581,25 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       'layout: with the engine in .anzuelo/engine the reminder, a guard, sync and the audit work from there, sync leaves the engine as it was, and hook state lands in .anzuelo/local',
       JSON.stringify({ session: session.status, prompt: prompt.slice(0, 200), secret: secret.slice(0, 200), sync: [sync.status, (sync.stderr || '').slice(0, 300)], same, audit: [audit.status, (audit.stdout || '').split('\n').filter(l => /FAIL|^\s+-/.test(l)).slice(0, 12)], stateAt }));
   } finally { fs.rmSync(proj, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
+  // REQ: upgrade-kept-quiet. A file the project edited is named in the upgrade review only when the starter changed it
+  // since the project's last upgrade (found by its engine file); an engine of unknown origin names it, to be safe.
+  // Lesson (a project, 2026-11-13): the base commit was never found, so every decided file came back each upgrade
+  const run = tweakEngine => { const dir = copyProject(), g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: dir, encoding: 'utf8' });
+    try {
+      fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+      spawnSync(process.execPath, ['tools/skills.mjs', 'enable', 'architecture'], { cwd: dir, encoding: 'utf8' });
+      const sk = path.join(dir, 'skills/architecture/SKILL.md'); fs.appendFileSync(sk, '\nOur own step: cite the archive first.\n');
+      if (tweakEngine) fs.appendFileSync(path.join(dir, 'tools/hooks/hooks-main.mjs'), '\n// a build no starter commit has\n');
+      g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'project');
+      const r = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--no-selftest'], { encoding: 'utf8', timeout: 600000 });
+      const dec = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();
+      return { status: r.status, named: /file: skills\/architecture\/SKILL\.md, edited in this project so kept/.test(`${dec}\n${r.stdout}`), kept: /Our own step/.test(fs.readFileSync(sk, 'utf8')), err: (r.stderr || '').slice(0, 200) };
+    } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } };
+  const known = run(false), unknown = run(true);
+  report(known.status === 0 && known.kept && !known.named && unknown.named,
+    'upgrade: a file the project edited is not asked about again when the starter has not changed it since the project\'s engine; an engine of unknown origin still names it', JSON.stringify({ known, unknown }));
 }
 if (mineB() && (!TAGS || TAGS.includes('upgrade-clean'))) {
   // REQ: upgrade-clean. An upgrade over uncommitted project work stops before changing anything; --allow-dirty goes on
