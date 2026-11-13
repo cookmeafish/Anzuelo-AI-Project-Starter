@@ -4041,7 +4041,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const probe = base => { const d = path.join(base, 'tools', 'hooks'); fs.mkdirSync(d, { recursive: true }); fs.copyFileSync(path.join(repoRoot, 'tools/hooks/hooks.mjs'), path.join(d, 'hooks.mjs'));
     fs.writeFileSync(path.join(d, 'hooks-main.mjs'), "import m from 'node:module'; console.log(m.getCompileCacheDir?.() || 'none');");
     const env = { ...process.env }; delete env.ANZUELO_NO_COMPILE_CACHE; return spawnSync(process.execPath, [path.join(d, 'hooks.mjs')], { encoding: 'utf8', env }).stdout.trim(); };
-  const inst = path.join(repoRoot, '.cache', `cc-gate-${process.pid}`), temp = testDir('ccgate-');
+  // (the installed case in the home folder: this suite may itself run in a frozen copy, where the cache is off)
+  const inst = path.join(os.homedir(), `.anzuelo-cc-gate-${process.pid}`), temp = testDir('ccgate-');
   let installed, inTemp; try { installed = probe(inst); inTemp = probe(temp); } finally { fs.rmSync(inst, { recursive: true, force: true }); }
   const { pruneCompileCache } = await import('../testtmp.mjs'), cc = testDir('ccprune-'), ver = `v${process.versions.node}-x64-test`;
   for (const v of [ver, 'v1.0.0-x64-old']) { fs.mkdirSync(path.join(cc, v)); for (let i = 0; i < 5; i++) fs.writeFileSync(path.join(cc, v, `f${i}`), ''); }
