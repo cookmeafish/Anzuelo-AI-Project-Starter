@@ -576,23 +576,27 @@ const STOP = [
     host: { CLAUDE_PROJECT_DIR: '.' }, expect: { block: true, tags: ['runbook-exists'] },
     after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /Names: [^\n]*runbook-exists/.test(d.hookSpecificOutput.additionalContext || '')
       && userNote(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}`,
-    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
-    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /^⚓ [^\n]* left before this is done\n- /.test(d.hookSpecificOutput.additionalContext || '') && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
+    // (v2: a turn it holds (a real gap: the new note links to nothing; format items never hold since 2026-11-12), in its
+    // own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready, one line per week.' + FIN, expect: { block: true, tags: ['note-linked'] }, after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /^⚓ [^\n]* left before this is done\n- /.test(d.hookSpecificOutput.additionalContext || '') && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'stop form: Codex (its input has turn_id) gets the classic block with a one-line note for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     hookInput: { turn_id: 'turn-1', model: 'gpt-x' }, expect: { block: true, tags: ['runbook-exists'] },
     after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && userNote(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}`,
-    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
-    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && d.decision === 'block' && /^⚓ [^\n]* left before this is done\n- /.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
+    // (v2: a turn it holds (a real gap: the new note links to nothing; format items never hold since 2026-11-12), in its
+    // own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready, one line per week.' + FIN, expect: { block: true, tags: ['note-linked'] }, after: (dir, reason, d) => (d && d.decision === 'block' && /^⚓ [^\n]* left before this is done\n- /.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'stop form: an unknown host gets the bare classic block', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     expect: { block: true, tags: ['runbook-exists'] },
     after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage && !/Claude/.test(d.reason)) || `got ${JSON.stringify(d).slice(0, 300)}`,
-    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
-    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && d.decision === 'block' && /^⚓ [^\n]* left before this is done\n- /.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
+    // (v2: a turn it holds (a real gap: the new note links to nothing; format items never hold since 2026-11-12), in its
+    // own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready, one line per week.' + FIN, expect: { block: true, tags: ['note-linked'] }, after: (dir, reason, d) => (d && d.decision === 'block' && /^⚓ [^\n]* left before this is done\n- /.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'stop form: stopStyle "block" forces the classic block even where feedback is supported', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     host: { CLAUDE_PROJECT_DIR: '.' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), stopStyle: 'block' }) }, expect: { block: true, tags: ['runbook-exists'] },
     after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput) || `got ${JSON.stringify(d).slice(0, 300)}`,
-    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
-    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
+    // (v2: a turn it holds (a real gap: the new note links to nothing; format items never hold since 2026-11-12), in its
+    // own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready, one line per week.' + FIN, expect: { block: true, tags: ['note-linked'] }, after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'unrouted work turn that creates + indexes a runbook: runbook-exists passes', prompt: 'build me a weekly meal plan for the family',
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x', ...COLD_MEAL },
     tools: [bash('node tools/audit.mjs')], answer: 'Playbook: meal-plan.md (created). Existing skills checked: installed skills and the official repo - none fit.' + FIN, expect: { block: false } },
@@ -616,7 +620,10 @@ const STOP = [
     v2: AUDIT_FAIL('generated files are current (skills, mirrors, DIRECTORY.md)', 'DIRECTORY.md', 'lost its generated block (<!-- generated:start ... <!-- generated:end -->)') },
   { pack: 'knowledge', name: 'files changed without a Finished section: blocked', prompt: 'research desk prices', tools: [sk('research')],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
-    answer: 'Skill: research. Sources: https://a.com', expect: { block: true, tags: ['finished-summary'] } },
+    answer: 'Skill: research. Sources: https://a.com', expect: { block: true, tags: ['finished-summary'] },
+    // (v2: the Finished section is a format item and never holds a turn (2026-11-12); rule 7 and the reminder still
+    // ask for it. Dropped on purpose under v2)
+    v2: { expect: { not: ['finished-summary'] } } },
   { pack: 'knowledge', name: 'project change without CHANGELOG: blocked', prompt: 'research desk prices', tools: [sk('research')],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/INDEX.md': 'knowledge/desks.md' },
     answer: 'Skill: research. Sources: https://a.com' + FIN, expect: { block: true, tags: ['knowledge-changelog'] } },
@@ -783,7 +790,10 @@ const STOP = [
     expect: { block: false } },
   // a Finished section from an earlier round counts only while no file changed after it
   { pack: 'knowledge', name: 'a Finished section in a draft before a later change does not count: blocked', prompt: 'research desk prices', tools: [sk('research')], drafts: ['Skill: research. Sources: https://a.com' + FIN],
-    later: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW } }], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.', expect: { block: true, tags: ['finished-summary'] } },
+    later: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW } }], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.', expect: { block: true, tags: ['finished-summary'] },
+    // (v2: the Finished section no longer holds a turn (format items, 2026-11-12): dropped by decision, so the draft rule
+    // has nothing left to hold under v2; the turn passes on what it proved)
+    v2: { expect: { not: ['finished-summary'] } } },
   { pack: 'knowledge', name: 'a Finished section in a draft with no change after it still counts: finished-summary passes', prompt: 'research desk prices', tools: [sk('research')], drafts: ['Skill: research. Sources: https://a.com' + FIN],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.', expect: { not: ['finished-summary', 'playbook-named'] } },
   { name: 'hooks changed without running the tests: blocked', prompt: 'add a hook check for budget tables', tools: [pb('project'), bash('node tools/audit.mjs')],
@@ -823,7 +833,9 @@ const STOP = [
   { pack: 'knowledge', name: 'last_assistant_message is checked too: blocked when it lacks Finished', prompt: 'research desk prices', tools: [sk('research')],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
     drafts: ['Skill: research. Sources: https://a.com' + FIN], later: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW } }],
-    answer: null, last: 'Skill: research. Sources: https://a.com', expect: { block: true, tags: ['finished-summary'] } },
+    answer: null, last: 'Skill: research. Sources: https://a.com', expect: { block: true, tags: ['finished-summary'] },
+    // (v2: the answer the host hands over is still what is judged; proven on a real gap, a source claim with no source)
+    v2: { last: 'Skill: research. Desks cost about 312 dollars on average.', expect: { block: true } } },
   { name: 'reblock cap: 4th stop in a turn lets the session end', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 3,
     expect: { block: false } },
   // (blocks made while background work ran count toward the same 3. Lesson (a trial): 3 such blocks plus 2 more made 5
@@ -949,7 +961,10 @@ const STOP = [
       // (under v2 a file is the turn's work when a call of the turn wrote it: the plan is written, then checked, and the
       // draft checked before answering, as the rules ask, so the turn passes in one round)
       tools: [pb('plan'), { name: 'Write', input: { file_path: 'docs/plans/2026-10-17-export.md', content: '# Export: plan' } }, bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md'),
-        bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'PASS')], prep: promptPrep('make a plan for the csv export') },
+        bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'PASS')], prep: promptPrep('make a plan for the csv export'),
+      // (v2 says "was followed", not "it pulled up": the runbook may be one the answer names as followed, which the
+      // engine did not pull up, so the old words could be false (end-line truth, 2026-11-12))
+      after: (dir, reason, d) => /^⚓ .+? ✅ checks passed · 📖 the plan runbook was followed/.test(d?.systemMessage || '') || `no pass line: ${JSON.stringify(d).slice(0, 200)}` },
     after: (dir, reason, d) => /^⚓ .+? ✅ checks passed · 📖 the plan runbook it pulled up was followed/.test(d?.systemMessage || '') || `no pass line: ${JSON.stringify(d).slice(0, 200)}` },
   { name: 'prompt-visible: a runbook the agent opened on its own is not credited to Anzuelo', prompt: 'tidy up the csv export notes',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
@@ -1692,9 +1707,12 @@ STOP.push(
     files: { 'docs/notes-index.md': '# Notes\nDeskmate keeps these notes.\n- [a](a.md)\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Linked.' + FIN, expect: { not: ['name-var'] } },
   { name: 'waive command: a step waived by command, not in the answer: met', prompt: 'make a cleaning rota note', files: { 'notes/rota.md': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node tools/hooks/hooks.mjs waive finished-summary "the user asked for no summary today"', 'waived for this turn: finished-summary')],
-    answer: 'The rota is in notes/rota.md.', expect: { not: ['finished-summary'] } },
+    answer: 'The rota is in notes/rota.md.', expect: { not: ['finished-summary'] },
+    // (v2: format items never hold (2026-11-12), so the waive is proven on a real gap: a new note that links nothing)
+    v2: { files: { 'docs/rota.md': 'x', 'docs/CHANGELOG.md': 'x' }, tools: [bash('node tools/hooks/hooks.mjs waive note-linked "the rota stands alone by design"', 'waived for this turn: note-linked')], answer: 'The rota is in docs/rota.md.', expect: { not: ['note-linked'] } } },
   { name: 'waive command: without it the same answer is held: blocked', prompt: 'make a cleaning rota note', files: { 'notes/rota.md': 'x', 'docs/CHANGELOG.md': 'x' },
-    answer: 'The rota is in notes/rota.md.', expect: { block: true, tags: ['finished-summary'] } },
+    answer: 'The rota is in notes/rota.md.', expect: { block: true, tags: ['finished-summary'] },
+    v2: { files: { 'docs/rota.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'The rota is in docs/rota.md.', expect: { block: true, tags: ['note-linked'] } } },
   // (a turn that ends while helpers run keeps the full check's steps on record, so they are checked later whatever the
   // next request is. Lesson (a gap review): a fifth of one project's requests ended waiting and were never fully checked)
   { name: 'waiting end: what the full check would ask stays on record for the next Stop', prompt: 'add a line about screenshots to the finish checklist',
@@ -1792,7 +1810,8 @@ STOP.push(
     answer: 'Added the endpoint, and all tests pass. N/A(app-test-pass): Go is not installed on this machine.', expect: { tags: ['claim-checked'], says: /One such line is enough/ } },
   // Lesson: complaint answers listed STATUS, CHANGELOG, plans and rule files one by one around a one-line fix
   { name: 'finished-summary: no Finished section: blocked, and the records need no list', prompt: 'add the endpoint', files: { 'src/api.js': 'x', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Added the endpoint.', expect: { tags: ['finished-summary'], says: /plus the usual records/ } },
+    answer: 'Added the endpoint.', expect: { tags: ['finished-summary'], says: /plus the usual records/ },
+    v2: { expect: { not: ['finished-summary'] } } }, // (v2: the Finished section never holds, 2026-11-12, as above)
   { name: 'finished-summary: a Finished section that names the code and "plus the usual records": passes', prompt: 'add the endpoint', files: { 'src/api.js': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Added the endpoint.\n\n## Finished\n- Changed: src/api.js, plus the usual records.', expect: { not: ['finished-summary'] } },
   { name: 'claim-checked: the tests were waived and the answer says NOT VERIFIED: passes', prompt: 'add the endpoint',
@@ -2151,17 +2170,20 @@ STOP.push(
     v2: { prep: dir => { write(dir, { 'notes.txt': 'x' }); const g = (...a) => spawnSync('git', a, { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' } });
       g('init', '-q'); g('add', '-A'); g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'old'); run(dir, 'prompt', { prompt: 'save my notes' }); } } },
   // plain writing
-  { name: 'answer with an em dash: blocked', prompt: 'hello', answer: 'Sure \u2014 here it is.', expect: { block: true, tags: ['plain-writing'] } },
-  { name: 'answer with filler: blocked', prompt: 'hello', answer: 'Great question! I hope this helps.', expect: { block: true, tags: ['plain-writing'] } },
+  // (v2: plain writing is a format item and never holds a turn (oversight and the user, 2026-11-12: format holds made
+  // turns longer for wording alone); it stays in the reminder and rule 7. Dropped on purpose under v2)
+  { name: 'answer with an em dash: blocked', prompt: 'hello', answer: 'Sure \u2014 here it is.', expect: { block: true, tags: ['plain-writing'] }, v2: { expect: { block: false, not: ['plain-writing'] } } },
+  { name: 'answer with filler: blocked', prompt: 'hello', answer: 'Great question! I hope this helps.', expect: { block: true, tags: ['plain-writing'] }, v2: { expect: { block: false, not: ['plain-writing'] } } },
   { name: 'user-facing file with filler: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/meal-plan.md': NEWPB + '\nIt is important to note that meals matter.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['plain-writing'] } },
+    files: { 'docs/playbooks/meal-plan.md': NEWPB + '\nIt is important to note that meals matter.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['plain-writing'] }, v2: { expect: { not: ['plain-writing'] } } },
   // (the short step names the file the problem is in, so the answer is not rewritten for a file's sentence. Lesson,
   // trial round 24: "Make the writing plain" held a turn for 3 rounds, and the answer was rewritten each time)
   { name: 'plain-writing: the short step names the file with the problem', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB + '\nIt is important to note that meals matter.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN,
     expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason) => /^\s*\d+\. Make the writing plain[^\n]*meal-plan\.md/m.test(reason) || `the short step names no file: ${reason.slice(0, 300)}`,
     // (v2 lists each step as one line: the same point, the file named in it)
-    v2: { after: (dir, reason) => /^- Make it plain and direct[^\n]*\(seen in [^\n]*meal-plan\.md\)/m.test(reason) || `the step names no file: ${reason.slice(0, 300)}` } },
+    // (v2: plain writing never holds, 2026-11-12, as above: there is no step to name a file in)
+    v2: { expect: { not: ['plain-writing'] }, after: null } },
   // runbooks
   { name: 'new runbook without a check: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks: none - a test runbook\n', ''), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['runbook-complete'] },
@@ -2359,7 +2381,8 @@ STOP.push(
   { name: 'background agent still running: the files it changes are not this turn\'s: passes', prompt: 'start a helper on the export code', tools: [BG], files: { 'src/helper-made.js': 'x' },
     answer: 'A helper is working on it.', expect: { block: false, not: ['finished-summary'] } },
   { name: 'background agent reported back: the files count again: blocked', prompt: 'start a helper on the export code', tools: [BG], rows: [BG_DONE], files: { 'src/helper-made.js': 'x' },
-    answer: 'The helper finished.', expect: { block: true, tags: ['finished-summary'] } },
+    answer: 'The helper finished.', expect: { block: true, tags: ['finished-summary'] },
+    v2: { files: { 'src/helper-made.js': 'x', 'docs/helper-notes.md': 'x' }, expect: { block: true, tags: ['note-linked'] } } }, // (v2: a real gap, not the retired Finished hold)
   { name: 'background agent running: the main session\'s Finished section waits until the helper reports back', prompt: 'start a helper on the export code', tools: [BG, { name: 'Write', input: { file_path: 'docs/main-notes.md', content: 'x' } }],
     files: { 'docs/main-notes.md': 'x', 'src/helper-made.js': 'x' }, answer: 'Wrote the notes.', expect: { not: ['finished-summary'] } },
   // unchanged content and build outputs are not changes
@@ -2404,8 +2427,8 @@ STOP.push(
       return (!long.length && /\[runbook-exists\]/.test(why) && /runbook-create/.test(why)) || `long lines: ${long.join(' | ').slice(0, 300)} | why: ${why.slice(0, 200)}`;
     },
     // (under v2 the hook's own short text, one plain line per step, is what it returns; the full steps, read by the tags,
-    // are in the details file that "hooks.mjs why" prints)
-    v2: { after: (dir, reason, d) => {
+    // are in the details file that "hooks.mjs why" prints) (and no Finished step: format items never hold, 2026-11-12)
+    v2: { expect: { block: true, tags: ['runbook-exists'] }, after: (dir, reason, d) => {
       const why = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'why'], { cwd: dir, encoding: 'utf8' }).stdout;
       const short = String(d?.reason || d?.hookSpecificOutput?.additionalContext || '');
       const long = short.split('\n').filter(l => l.length > 100);
@@ -2422,7 +2445,7 @@ STOP.push(
       'Footer: Playbook: zorbl-research.md (followed, no files changed this turn) · Skill: research (looked up the catalog for the zorbl) · N/A(changelog): nothing changed · N/A(status-handoff): a quick answer', expect: { not: ['plain-writing'] } },
   { name: 'plain-writing: a long run-on sentence in a real answer: blocked', prompt: 'hello',
     answer: 'The desk we looked at last week is still the best pick for the room because it is sturdy and quiet and easy to adjust and it fits by the window and the price stayed the same and the shop can deliver it on Friday and they will also take the old one away for free if we ask them nicely before noon on the day.',
-    expect: { tags: ['plain-writing'] } },
+    expect: { tags: ['plain-writing'] }, v2: { expect: { block: false, not: ['plain-writing'] } } }, // (v2: never holds, 2026-11-12)
   // the self-test a check-file change needs: none for tuning, the touched checks' scenarios for check logic
   { name: 'hooks-tested: a namesIgnore glob in config.json needs no self-test: passes', prompt: 'ignore the vendor folder in the name check', tools: [pb('project'), bash('node tools/audit.mjs')],
     prep: turnStart('config.json', s => JSON.stringify({ ...JSON.parse(s), namesIgnore: ['vendor/**'] }, null, 2)), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } },
@@ -2853,7 +2876,11 @@ STOP.push(
   // plan-open: an open plan when the turn starts (the prompt hook records it), a work turn, and no plan file touched:
   // stopped once to resume, tick or close it
   { name: 'plan-open: an open plan ignored during a work turn: blocked', prompt: WIRE, ...planAt(WIRE),
-    files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wired it up.' + FIN, expect: { block: true, tags: ['plan-open'] } },
+    files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wired it up.' + FIN, expect: { block: true, tags: ['plan-open'] },
+    // (v2 holds a plan only for the session carrying it out or a request in the user's own words to go on with it, not
+    // a request sharing words with a task (keyword forcing, retired 2026-11-07; 2026-11-12: another session's plans held
+    // turns). The promise kept: an open plan ignored while going on with it is held)
+    v2: { prompt: 'continue the export plan: wire up the export button', ...planAt('continue the export plan: wire up the export button') } },
   { name: 'plan-open: the plan\'s step ticked this turn: passes', prompt: WIRE, ...planAt(WIRE),
     files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/plans/2026-10-18-export.md': '# Export: plan\n- [x] helpers\n- [x] wire it up\n- [ ] test it\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wired it up.' + FIN, expect: { not: ['plan-open'] } },
   // (only a request that continues the plan is held to it: one about other work, or a message relayed from another
@@ -2875,12 +2902,16 @@ STOP.push(
   { name: 'plan-open: a request naming two words of an open task is held to the plan: blocked', prompt: 'label the jars on the top shelf',
     edit: { 'docs/plans/2026-10-18-tidy-pantry.md': () => '# Tidy pantry: plan\n- [x] shelves\n- [ ] label the same jars by date\n' },
     prep: promptPrep('label the jars on the top shelf'),
-    files: { 'notes/pantry.md': '# Pantry\nLabels.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Labelled them.' + FIN, expect: { block: true, tags: ['plan-open'] } },
+    files: { 'notes/pantry.md': '# Pantry\nLabels.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Labelled them.' + FIN, expect: { block: true, tags: ['plan-open'] },
+    // (v2: shared words are a guess (keyword forcing, retired 2026-11-07): a plan holds only the session carrying it out
+    // or the user's own words to go on with it, 2026-11-12. Dropped on purpose under v2)
+    v2: { expect: { not: ['plan-open'] } } },
   { name: 'plan-open: a request naming the plan\'s own subject is still held to it: blocked', prompt: 'scale the pancake recipe by servings',
     edit: { 'docs/plans/2026-10-18-recipe-scaling.md': () => '# Recipe scaling: plan\n- [x] helpers\n- [ ] scale by servings\n',
       'docs/plans/2026-10-12-recipe-tags.md': () => '# Recipe tags: plan\nstatus: done\n- [x] tags\n', 'docs/plans/2026-10-14-recipe-photos.md': () => '# Recipe photos: plan\nstatus: done\n- [x] photos\n' },
     prep: promptPrep('scale the pancake recipe by servings'),
-    files: { 'recipes/pancakes.md': '# Pancakes\nServes 4.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Scaled it.' + FIN, expect: { block: true, tags: ['plan-open'] } },
+    files: { 'recipes/pancakes.md': '# Pancakes\nServes 4.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Scaled it.' + FIN, expect: { block: true, tags: ['plan-open'] },
+    v2: { expect: { not: ['plan-open'] } } }, // (v2: shared words are a guess, dropped on purpose 2026-11-12, as above)
   { name: 'plan-open: a request relayed from another session is not held to the plan: passes', prompt: '<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>',
     ...planAt('<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>'),
     files: { 'tools/hooks/extra.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Upgraded.' + FIN, expect: { not: ['plan-open'] } },
@@ -3074,7 +3105,8 @@ STOP.push(
   { name: 'stop-wait: a resumed reviewer still running: the turn waits, no steps asked', prompt: 'add the rename command', tools: [RESUMED],
     files: { 'src/rename.js': 'x' }, answer: 'Waiting for the reviewer.', expect: { block: false } },
   { name: 'stop-wait: the resumed reviewer reported back: the steps are asked', prompt: 'add the rename command', tools: [RESUMED], rows: [BG_DONE],
-    files: { 'src/rename.js': 'x' }, answer: 'Waiting for the reviewer.', expect: { block: true, tags: ['finished-summary'] } },
+    files: { 'src/rename.js': 'x' }, answer: 'Waiting for the reviewer.', expect: { block: true, tags: ['finished-summary'] },
+    v2: { files: { 'src/rename.js': 'x', 'docs/rename.md': 'x' }, expect: { block: true, tags: ['note-linked'] } } }, // (v2: a real gap, not the retired Finished hold)
   // (a headless run ends with its answer, and a helper resumed by a message is stopped with it. Lesson, trial round 23:
   // a headless setup resumed its helper, answered "the setup is still running", and the user got no result)
   { name: 'headless-resume: a headless run ending while a resumed helper runs: blocked', prompt: 'add the rename command', tools: [RESUMED],
@@ -3738,14 +3770,18 @@ STOP.push(
   { name: 'wakeup-left: headless, the user asked for the reminder: passes', prompt: 'remind me in 20 minutes to check the deploy', tools: [WAKE('Remind the user to check the deploy.')], rows: [SDK_ROW],
     answer: 'Done: a reminder (a scheduled wakeup) fires in 20 minutes.', expect: { block: false, not: ['wakeup-left'] } },
   { name: 'wakeup-left: a recurring cron job left behind: blocked', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '*/7 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f2 (next run 17:07).' }],
-    answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['wakeup-left'], says: /CronDelete[\s\S]*cr8a91f2|cr8a91f2[\s\S]*CronDelete/ } },
+    answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['wakeup-left'], says: /CronDelete[\s\S]*cr8a91f2|cr8a91f2[\s\S]*CronDelete/ },
+    // (v2: a known recurring schedule never holds an interactive turn: it stands on purpose, and its prompts show when
+    // they fire (2026-11-12: a schedule the user asked for held a turn as "still pending"). A one-shot or unknown tool
+    // still holds. Dropped on purpose under v2; a headless run still holds it)
+    v2: { expect: { not: ['wakeup-left'] } } },
   // (an answer that says the job stays on, what it does and when it runs next keeps it on purpose, as the check's own
   // message asks. Lesson (a live false hold, 2026-11-10): "checks on the work every half hour; next run 11:58" was held
   // twice, since only the words wakeup, reminder, cron or scheduled counted)
   { name: 'wakeup-left: a job the answer says stays on, with what it does and its next run: passes', prompt: 'keep an eye on the other session', tools: [{ name: 'CronCreate', input: { cron: '*/30 * * * *', prompt: 'check on the other session' }, result: 'Scheduled recurring job id cr8a91f5 (next run 11:58).' }],
     answer: 'The oversight job stays on: it checks on the coding session every half hour; next run 11:58.', expect: { not: ['wakeup-left'] } },
   { name: 'wakeup-left: a schedule named with no word that it stays on: blocked', prompt: 'keep an eye on the other session', tools: [{ name: 'CronCreate', input: { cron: '*/30 * * * *', prompt: 'check on the other session' }, result: 'Scheduled recurring job id cr8a91f6 (next run 11:58).' }],
-    answer: 'Done for now, the session looks fine.', expect: { block: true, tags: ['wakeup-left'] } },
+    answer: 'Done for now, the session looks fine.', expect: { block: true, tags: ['wakeup-left'] }, v2: { expect: { not: ['wakeup-left'] } } }, // (v2: as above)
   // (a recurring job that has fired already is a standing schedule, set up on purpose, not one left behind. Lesson
   // (dogfood): an hourly job the user asked for was flagged at the end of every short turn between its runs)
   { name: 'wakeup-left: a recurring cron job that has fired already is a standing schedule: passes', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '0 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f4 (next run 18:00).' }],
@@ -3791,7 +3827,9 @@ STOP.push(
   { ...DEBUG_TURN, name: 'waive command: several waivers chained in one command all count', tools: [sk('debug'), bash(WAIVE2, 'waived for this turn: debug-root-cause\nwaived for this turn: finished-summary')],
     answer: 'Skill: debug. The import was fine; nothing needed fixing.', expect: { not: ['debug-root-cause', 'finished-summary'] } },
   { ...DEBUG_TURN, name: 'waive command: only the waived step is waived, the next one still holds: blocked', tools: [sk('debug'), bash(WAIVE2.split(' && ')[0], 'waived for this turn: debug-root-cause')],
-    answer: 'Skill: debug. The import was fine; nothing needed fixing.', expect: { block: true, tags: ['finished-summary'], not: ['debug-root-cause'] } },
+    answer: 'Skill: debug. The import was fine; nothing needed fixing.', expect: { block: true, tags: ['finished-summary'], not: ['debug-root-cause'] },
+    // (v2: the next step that still holds is a real gap, a new note linking nothing; format items never hold, 2026-11-12)
+    v2: { files: { ...DEBUG_TURN.files, 'docs/import-notes.md': 'x' }, expect: { block: true, tags: ['note-linked'], not: ['debug-root-cause'] } } },
   { ...DEBUG_TURN, name: 'answer-noise: an N/A(<check>) line in the answer still waives it (compatibility)', answer: 'Skill: debug. The import was fine.\nN/A(debug-root-cause): the import was never broken here' + FIN,
     expect: { not: ['debug-root-cause'] } },
   // answer-language: the user's language for every label
@@ -4372,7 +4410,9 @@ STOP.push(
   { name: 'skill-learn: the same turn with a real lesson owed: demanded', edit: cfgEdit({ repeatStopRounds: true }), prompt: 'you forgot the allergens again!! from now on every item lists them',
     tools: [pb('project')], active: true, blocks: 1, failed: ['rule-request'],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nhook: N/A an answer in chat has no file to check\nLearned (rule): every item lists its allergens → CLAUDE.md\n') },
-    answer: 'You\'re right: two items had none.\nChecked: docs/menu.md - two lines had no allergens. Added them.' + FIN, expect: { tags: ['skill-learn'] } },
+    answer: 'You\'re right: two items had none.\nChecked: docs/menu.md - two lines had no allergens. Added them.' + FIN, expect: { tags: ['skill-learn'] },
+    // (v2 takes the runbook from the prompt's route or the answer naming it as followed, not from a runbook only opened)
+    v2: { answer: 'Playbook: project.md. You\'re right: two items had none.\nChecked: docs/menu.md - two lines had no allergens. Added them.' + FIN } },
   // answer-traced: a figure worked out from two traced figures in the same answer is traced; a made-up one is not
   { name: 'answer-traced: a difference of two figures read this turn: passes', prompt: 'how did we do last month', tools: [{ name: 'Read', input: { file_path: 'data/sales.csv' }, result: 'month,sales\n2026-09,4300\n2026-08,3840' }],
     answer: 'September sales were 4300, which is 460 more than August (3840).', expect: { not: ['answer-traced'] } },
@@ -4430,7 +4470,7 @@ STOP.push(
   { name: 'plain-writing: a letter shown in the answer keeps its warm line: passes', prompt: 'write a letter to the tenant about the rent',
     answer: 'Here is the letter. It was not sent.\n\n' + LETTER.split('\n\n').slice(1).join('\n\n'), expect: { not: ['plain-writing'] } },
   { name: 'plain-writing: "I hope you" in a guide is still filler: blocked', prompt: 'write a guide to the rent rules', files: { 'outputs/rent-guide.md': '# Rent guide\n\nI hope you find this guide useful. Rent is due on the 1st.\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'The guide is in outputs/rent-guide.md.' + FIN, expect: { tags: ['plain-writing'] } },
+    answer: 'The guide is in outputs/rent-guide.md.' + FIN, expect: { tags: ['plain-writing'] }, v2: { expect: { not: ['plain-writing'] } } }, // (v2: never holds, 2026-11-12)
   // a deliverable about one person goes in that person's outputs folder (Lesson: a per-flat letter was blocked for not being in outputs/)
   { pack: 'knowledge', name: 'deliverable-file: saved in the person\'s profiles/<name>/outputs/: passes', prompt: 'write a rent reminder for alice', edit: PEOPLE, tools: [pb('deliverable')],
     files: { 'profiles/alice/outputs/2026-10-21-rent-reminder.md': '# Rent reminder\n\nRent is due on the 1st.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: deliverable.md. Saved in profiles/alice/outputs/2026-10-21-rent-reminder.md.' + FIN, expect: { not: ['deliverable-file'] } },
@@ -4550,7 +4590,8 @@ STOP.push(
     after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; } },
   { name: 'bg-moved: a moved command stopped by the agent no longer holds the Stop: blocked', prompt: 'run the full sweep over the notes',
     tools: [bash('node tools/sweep.mjs', MOVED_FULL('bq2a', BG_OUT('g'))), { name: 'TaskStop', input: { task_id: 'bq2a' }, result: '{"message":"Successfully stopped task: bq2a (node tools/sweep.mjs)"}' }],
-    files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: true, tags: ['finished-summary'] } },
+    files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: true, tags: ['finished-summary'] },
+    v2: { expect: { block: true, tags: ['note-linked'] } } }, // (v2: a real gap, not the retired Finished hold, 2026-11-12)
   { name: 'gate-redirect: an audit run into a log file by a finished background job counts by that file: passes', prompt: 'add a house style note to the checks',
     prep: () => fs.writeFileSync(BG_OUT('h'), 'sync: skills, mirrors, DIRECTORY.md and the CLAUDE.md/AGENTS.md twin are current\n'), tools: [BG_JOB('bh1', AUDIT_JOB, BG_OUT('h'))], rows: [MOVED_DONE('bh1', 0)],
     files: { ...RULES_EDIT, '.cache/sweep-audit.txt': 'PASS   1. rules twin\naudit: PASS (28 sweeps, 0 failed, 2 warnings)\naudit exit 0\n' }, answer: 'Added the note.' + FIN, expect: { not: ['audit-run'] } },
@@ -5938,7 +5979,8 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
     const c = spawnSync(process.execPath, argv, { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
     const wrote = fs.readdirSync(st).filter(f => touched.some(t => f.startsWith(t)));
     // (v2's header is "CHECK: Not done yet:"; the old engine's "CHECK: FAIL")
-    report(cmd && c.status === 1 && /CHECK: (FAIL|Not done yet)/.test(c.stdout) && /Finished/.test(c.stdout) && !wrote.length,
+    // (v2 names no Finished step: format items never hold, 2026-11-12; it lists what is really missing)
+    report(cmd && c.status === 1 && /CHECK: (FAIL|Not done yet)/.test(c.stdout) && (process.env.STARTER_ENGINE === 'v2' ? /\n- \S/.test(c.stdout) : /Finished/.test(c.stdout)) && !wrote.length,
       'check-preview: the advertised self-check runs in a hook-wired session, finds its request, and leaves its Stop state alone',
       `command: ${cmd || '(not in the preview)'} | exit ${c.status}: ${c.stdout.slice(0, 300)} | state written: ${wrote.join(', ') || 'none'}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
@@ -6174,17 +6216,26 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
         write(dir, HOST_FIX);
         applyEdits(dir, { ...cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'] }), ...ALWAYS_V2 }, Date.now() - 7200_000);
         let preview = run(dir, 'prompt', { prompt: c.prompt, session_id: 'scenario', transcript_path: hostTp(dir) }).out; try { preview = JSON.parse(preview).hookSpecificOutput?.additionalContext ?? preview; } catch { }
-        const since = Date.now() - 1000;
-        applyEdits(dir, c.edit, Date.now());
-        const tp = transcript(dir, c, since);
-        const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: false, session_id: 'scenario' });
+        // (the request's row is not dated before the turn the prompt hook recorded: v2 reads the turn from that time)
+        const since = Date.now() + 5;
+        applyEdits(dir, c.edit, Date.now() + 10);
+        // (the turn's own edit calls, as a real session has them: v2 counts only files the turn's calls wrote, 2026-11-12)
+        const tp = transcript(dir, { ...c, tools: [...c.tools, ...Object.keys(c.edit).map(editTool)] }, since);
+        // (with the small-fix rule on, as in a project: a one-line NOTES edit is held to no record step)
+        const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: false, session_id: 'scenario' }, { STARTER_NO_SMALL: '' });
         let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
         const reason = v2Full(dir, d);
         const held = [...reason.matchAll(/^- (.+)$/gm)].map(m => m[1]);
         // (a held line is named when the reminder lists its runbook's items, or holds its always.md item's opening words)
         const named = l => { const rb = /(docs\/playbooks\/[\w-]+\.md|tools\/starter\/runbooks\/[\w-]+\.md|skills\/[\w-]+\/SKILL\.md) item \d+/.exec(l)?.[1];
           if (rb) return preview.includes(`open ${rb} and follow it`);
-          const al = /docs\/checks\/always\.md item \d+: (.{1,40})/.exec(l)?.[1]; return !!al && preview.includes(al.trim()); };
+          const al = /docs\/checks\/always\.md item \d+: (.{1,40})/.exec(l)?.[1]; if (al) return preview.includes(al.trim());
+          // (the changelog and status steps are the "record steps" the reminder's small-fix line names)
+          if (/^Check: (Add a dated line to docs\/CHANGELOG\.md|Work is left open: update docs\/STATUS\.md)/.test(l)) return /record steps/.test(preview);
+          // (a health-check line listing only what was broken in the test copy before the turn (no file the turn changed)
+          // is the copy's, not this turn's: queue item "fix proof" makes the check itself say so. 2026-11-12)
+          if (/^The project's health check/.test(l)) return !Object.keys(c.edit).some(f => l.includes(f));
+          return false; };
         // (the "Also checked at the end if files change" part says when its checks apply, as the old line's "If it
         // changes" part did: it is no claim about this turn, so only the rest is judged for checks that can't fire)
         const firm = preview.replace(/ ?Also checked at the end if files change: [^\n]*/g, '');
@@ -9537,11 +9588,15 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       JSON.stringify({ ins: [ins.status, (ins.stdout || '').slice(-300), (ins.stderr || '').slice(0, 300)], before: before.slice(0, 300), afterYes: afterYes.slice(0, 200), repo, afterNo: afterNo.slice(0, 200), cfg }));
     // (the project maker's own choice for a folder with files is that same install: everything under .anzuelo/, the
     // project's files untouched, git status showing the ignore list alone. The user's rule, 2026-11-12)
+    // (it declares a git hook manager, lefthook, not installed yet: git's hooks path stays free for it. Lesson (an
+    // adoption trial, 2026-11-12): a fresh clone had only sample hooks, the path was taken, and lefthook never ran)
     const est = path.join(tmp, 'est'); fs.mkdirSync(path.join(est, 'src'), { recursive: true }); fs.writeFileSync(path.join(est, 'src/app.js'), 'console.log(1);\n');
+    fs.writeFileSync(path.join(est, 'lefthook.yml'), 'pre-commit:\n  commands: {}\n');
     const eg = (...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: est, encoding: 'utf8' });
     eg('init', '-q'); eg('add', '-A'); eg('commit', '-q', '-m', 'theirs');
     const np = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), est], { encoding: 'utf8', timeout: 300000 });
-    const st = (eg('status', '--porcelain').stdout || '').trim();
+    const st = (eg('status', '--porcelain').stdout || '').trim(), lhPath = (eg('config', 'core.hooksPath').stdout || '').trim();
+    report(np.status === 0 && lhPath === '', 'install: a project declaring a git hook manager (lefthook, husky, pre-commit) keeps git\'s hooks path for it, installed or not', `hooksPath: ${lhPath}`);
     report(np.status === 0 && fs.existsSync(path.join(est, '.anzuelo/engine/tools/hooks/hooks.mjs')) && !fs.existsSync(path.join(est, 'tools/hooks')) && fs.readFileSync(path.join(est, 'src/app.js'), 'utf8') === 'console.log(1);\n' && !fs.existsSync(path.join(est, 'README.md')) && !/^\?\? (tools|skills|packs|library|AGENTS\.md|CLAUDE\.md|DIRECTORY\.md)\b/m.test(st),
       'install: the project maker puts an established project\'s engine under .anzuelo/ by itself: its files untouched, no engine code, rules or template readme in the project (only its own records, docs/)', JSON.stringify({ status: np.status, st, out: (np.stdout || '').slice(-200), err: (np.stderr || '').slice(0, 200) }));
   } finally { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }

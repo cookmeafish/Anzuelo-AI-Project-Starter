@@ -38,7 +38,7 @@ export function wakeupsPending(rows, now = Date.now()) {
         const delay = Number(input.delaySeconds ?? input.delay_seconds ?? /\bin (\d+)\s*s\b/.exec(res.text)?.[1] ?? NaN);
         const at = Number(res.extra?.scheduledFor) || (ts && delay > 0 ? ts + delay * 1000 : 0);
         const recurring = known?.kind === 'cron' ? input.recurring !== false : !known && !at;
-        pending.push({ tool: x.name, id, prompt: String(input.prompt || ''), at, recurring, i, cancel: known?.cancel || 'cancel it with the tool that deletes or cancels it, given its id' });
+        pending.push({ tool: x.name, id, prompt: String(input.prompt || ''), at, recurring, schedule: known?.kind === 'cron' && recurring, i, cancel: known?.cancel || 'cancel it with the tool that deletes or cancels it, given its id' });
       } else if (known && (input.stop || input.cancel)) {
         for (let k = pending.length - 1; k >= 0; k--) if (pending[k].tool === x.name) pending.splice(k, 1);
       } else if (WAKE_CANCEL.test(x.name) && res && !res.err) {
@@ -68,7 +68,8 @@ export function wakeupsPending(rows, now = Date.now()) {
 export const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|check-?ins?|recordatorios?|programad[oa]s?)\b|\b(stays? on|keeps? (running|going|checking)|next (run|check)|runs? again|(?:is|are) back on|\d+-(?:minute|min|hour|day)|every (quarter( of an)? hour|half (an )?hour|hour|day|week|\d+\s*(min(ute)?s?|h(ours?)?|days?))|sigue (activ[oa]|corriendo)|cada (cuarto de hora|media hora|hora|d[ií]a|\d+\s*(min(utos)?|horas?)))\b/i;
 export function wakeGaps(rows, answer = '', prompt = '', now = Date.now()) {
   const headless = rows.some(r => /^sdk/.test(String(r?.entrypoint || ''))), forced = headless && !WAKE_ASK.test(prompt);
-  const left = wakeupsPending(rows, now).filter(w => forced || (!w.recurring && !((w.id && answer.includes(w.id)) || WAKE_SAID.test(answer))));
+  // (a known recurring schedule stands; an unknown tool with no due time is no schedule, so it still holds)
+  const left = wakeupsPending(rows, now).filter(w => forced || (!w.schedule && !((w.id && answer.includes(w.id)) || WAKE_SAID.test(answer))));
   if (!left.length) return [];
   const hhmm = ms => { const d = new Date(ms); return Number.isNaN(+d) ? '' : d.toTimeString().slice(0, 5); };
   return [`${left.length > 1 ? `${left.length} wakeups you scheduled are` : 'A wakeup you scheduled is'} still pending: ` +

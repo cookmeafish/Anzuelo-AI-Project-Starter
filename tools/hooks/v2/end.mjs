@@ -67,7 +67,7 @@ function planGaps(acts) {
 // documents) links to related notes (a .md link, a [[wiki link]] or "## Related" saying why it stands alone).
 const NOT_A_NOTE = /(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation|fit-checklist|lessons|recommended-tools|user-requirements|starter-feedback|glossary)\.md$/i;
 export function noteLinkedGaps(acts) {
-  if (checkOff('note-linked')) return [];
+  if (checkOff('note-linked') || waivedTag('note-linked', acts)) return [];
   const cfg = projectConfig(), dirs = [...new Set(['docs/knowledge', ...[].concat(cfg.knowledgeDirs || [])].map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '').toLowerCase()).filter(Boolean))];
   const isNote = p => /\.md$/i.test(p) && !NOT_A_NOTE.test(p) && (/^docs\/(knowledge|notes)\/.+\.md$/i.test(p) || /^docs\/[^/]+\.md$/i.test(p)
     || (dirs.some(d => p.toLowerCase().startsWith(d + '/')) && !/(^|\/)(_?templates?|attachments?|\.obsidian|\.trash)\//i.test(p)));
@@ -743,10 +743,10 @@ function judge(data, { shadow = false } = {}) {
   // (format items never hold: the Finished section, plain-writing reflows, a runbook item asking for the Finished section.
   // The reminder asks for them up front. The user, 2026-11-12: a hold for format splits the answer into fragments)
   const fmt = engineChecks().filter(r => ['finished-summary', 'plain-writing'].includes(r?.tag)).map(r => `Check: ${r.message}`.slice(0, 60));
-  { const keep = list.filter(s => !fmt.some(m => s.startsWith(m)) && !/^Make it plain and direct\b/.test(s) && !/ item \d+: [^\n]*\bFinished\b/.test(s)); list.splice(0, list.length, ...keep); }
+  const notFmt = s => !fmt.some(m => s.replace(/^Then, once [^:]+: /, '').startsWith(m)) && !/^Make it plain and direct\b/.test(s) && !/ item \d+: [^\n]*\bFinished\b/.test(s); list.splice(0, list.length, ...list.filter(notFmt));
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
-  list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));
+  list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)).filter(notFmt));
   list.push(...S('skillLearn', () => skillLearnGaps(turn, acts, list, data.session_id || '', decided.request || '')).filter(kept(acts)));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.

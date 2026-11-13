@@ -141,7 +141,13 @@ export function wire(dir, { dry = false } = {}) {
     if (!dry) spawnSync('git', ['config', '--unset', 'core.hooksPath'], { cwd: dir });
     log.push(`repaired git's hooks path (it pointed at ${hooksPath}, which has no hook scripts)`); hooksPath = '';
   }
-  const ownHooks = hooksPath === '' && fs.existsSync(at('.git', 'hooks')) && fs.readdirSync(at('.git', 'hooks')).some(n => !n.endsWith('.sample'));
+  // (a hook manager the project declares is its own hooks too, installed or not yet: lefthook, husky, pre-commit,
+  // simple-git-hooks. Lesson (an adoption trial, 2026-11-12): a fresh clone of a lefthook project had only sample hooks,
+  // the path was taken, and lefthook's checks would never run)
+  const pkg = (() => { try { return fs.readFileSync(at('package.json'), 'utf8'); } catch { return ''; } })();
+  const manager = ['lefthook.yml', 'lefthook.yaml', '.lefthook.yml', 'lefthook.json', '.husky', '.pre-commit-config.yaml'].find(f => fs.existsSync(at(f)))
+    || (/"(simple-git-hooks|husky|lefthook)"\s*:/.test(pkg) ? 'package.json' : '');
+  const ownHooks = hooksPath === '' && (!!manager || (fs.existsSync(at('.git', 'hooks')) && fs.readdirSync(at('.git', 'hooks')).some(n => !n.endsWith('.sample'))));
   if (hooksPath !== null && hooksPath !== GITHOOKS) {
     if ((hooksPath && hooksPath !== '.githooks') || ownHooks) log.push(`kept     your git hooks (${hooksPath || '.git/hooks'}). To add the starter's checks (AI attribution, secrets, .gitignore), call .githooks/pre-commit, commit-msg and pre-push from yours.`);
     else if (!hasHooks(at(GITHOOKS))) log.push(`not set  git's hooks path: ${GITHOOKS} holds no hook scripts here`);
