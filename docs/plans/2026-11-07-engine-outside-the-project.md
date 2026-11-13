@@ -207,3 +207,21 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
       `.anzuelo/engine`, the private-repository question to the user, and no push without the user's OK.)
 - [ ] Confirm in each: `git status` shows no engine files, and a work turn gets the reminder and the end check.
 - [ ] In each project, run `git status --porcelain` and its own selfcheck. Expected: no engine files listed, 0 failed.
+
+### Task 8: nothing of the starter outside .anzuelo/ (2026-11-12, the user's rule via oversight)
+Changes Task 6's choice: the project records the starter makes (docs/BRIEF.md, docs/CHANGELOG.md, docs/DECISIONS.md,
+docs/security.md, docs/foundation.md) also go to `.anzuelo/local/`, so an established app's own CHANGELOG or docs never
+collide or mix with them. Assumed: a project already installed with them in its own folder keeps reading them there
+(no forced move); new installs put them in `.anzuelo/local/`.
+**Files:** `tools/hooks/paths.mjs`, `tools/starter.mjs`, `tools/audit.mjs`, `tools/hooks/setup.mjs` (adoption review),
+`tools/hooks/selfcheck.mjs`
+- [ ] paths.mjs: the records are local; read from the project only when the project's own copy is the one in use
+      (older installs), and config `recordPaths` maps a record to the project's own equivalent (such as
+      `"docs/CHANGELOG.md": "CHANGELOG.md"`). Test: a fresh install has none of them outside `.anzuelo/`.
+- [ ] Install: `.anzuelo/` is ignored through `.git/info/exclude`; `.gitignore` is touched only with `--gitignore yes`
+      (the user agrees at install). Test: git status after install shows nothing.
+- [ ] Adoption review: where the project has its own CHANGELOG, docs/ or decision records, one item proposes using it
+      (`recordPaths`) instead of a second one. Test.
+- [ ] Audit: an installed project has no starter-made file outside `.anzuelo/` except the wiring (CLAUDE.local.md,
+      git-ignored host settings, skill mirrors) and an agreed `.gitignore` line. Test that it fails on a stray record.
+- [ ] Then the adoption trial's agent part on the public-repo copy (v2, `.anzuelo` layout).

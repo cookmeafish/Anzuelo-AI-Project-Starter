@@ -51,9 +51,15 @@ export function wire(dir, { dry = false } = {}) {
   const eh = path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks'), split = fs.existsSync(eh), { where } = resolver(split ? roots(eh, {}) : { ENGINE: dir, PROJECT: dir, LOCAL: dir });
   const log = [], at = (...p) => path.join(dir, ...p), eng = (...p) => where(path.join(...p)), write = (p, text) => { if (!dry) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text); } };
   const HOOKS_REL = split ? '.anzuelo/engine/tools/hooks/hooks.mjs' : 'tools/hooks/hooks.mjs', GITHOOKS = split ? '.anzuelo/engine/.githooks' : '.githooks';
+  // (the block goes in git's own exclude file, no project file: .gitignore only when the user agreed at install
+  // (config "gitignore": true) or an older install already put it there. The user's rule, 2026-11-12: nothing of the
+  // starter outside .anzuelo/ but the wiring)
   if (split) {
     const gi = at('.gitignore'), have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
-    if (!have.includes(GITIGNORE_MARK)) { write(gi, `${have}${have && !have.endsWith('\n') ? '\n' : ''}${have ? '\n' : ''}${GITIGNORE_BLOCK}`); log.push('updated  .gitignore (the engine and its wiring stay out of git)'); }
+    let agreed = false; try { agreed = JSON.parse(fs.readFileSync(eng('tools', 'hooks', 'config.json'), 'utf8')).gitignore === true; } catch { }
+    const ex = (spawnSync('git', ['rev-parse', '--git-path', 'info/exclude'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim();
+    const target = agreed || have.includes(GITIGNORE_MARK) || !ex ? gi : path.resolve(dir, ex), now = target === gi ? have : (() => { try { return fs.readFileSync(target, 'utf8'); } catch { return ''; } })();
+    if (!now.includes(GITIGNORE_MARK)) { write(target, `${now}${now && !now.endsWith('\n') ? '\n' : ''}${now ? '\n' : ''}${GITIGNORE_BLOCK}`); log.push(`updated  ${target === gi ? '.gitignore' : "git's local exclude file"} (the engine and its wiring stay out of git)`); }
   }
   // Which agents to wire on this project: "wireAgents" in tools/hooks/config.json (default: all). Lesson: a Codex-only
   // user got CLAUDE.md and .claude/ back on every upgrade, with no way to say no.

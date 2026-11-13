@@ -31,9 +31,13 @@ const BOTH = /^(skills|docs\/playbooks|docs\/checks|tools\/starter\/runbooks|AGE
 // anything else it keeps there stay in its git)
 const ENGINE_NOTES = /^docs\/(STATUS\.md|plans|glossary\.md|reviews|MENU\.md|names\.json|recommended-tools\.md|starter-feedback\.md|fit-checklist\.md|lessons\.md|routines\.md)(\/|$)/;
 const norm = p => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '');
+// (the project records the starter makes go local too, so an established app's own CHANGELOG or docs never collide or
+// mix with them. The user's rule, 2026-11-12: everything of the starter for a project lives under .anzuelo/. An older
+// install that has them in the project keeps using those; "recordPaths" maps one to the project's own equivalent)
+export const RECORDS = /^docs\/(BRIEF|CHANGELOG|DECISIONS|security|foundation)\.md$/;
 export function kind(p) {
   const r = norm(p);
-  if (LOCAL_ALWAYS.test(r) || ENGINE_NOTES.test(r)) return 'local';
+  if (LOCAL_ALWAYS.test(r) || ENGINE_NOTES.test(r) || RECORDS.test(r)) return 'local';
   if (BOTH.test(r)) return 'both';
   if (ENGINE_ONLY.test(r)) return 'engine';
   return 'project';
@@ -45,14 +49,22 @@ const exists = f => { try { fs.statSync(f); return true; } catch { return false;
 // Lesson (a field report): a project's own scripts read its runbooks, checklists and status by path, so moving them
 // to .anzuelo/local would have broken every one of those readers.
 export const keepList = local => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).keepInProject || []).map(s => norm(s).replace(/\/+$/, '')).filter(Boolean); } catch { return []; } };
+// The records the project keeps in its own equivalent: "recordPaths" in .anzuelo/local/config.json, such as
+// { "docs/CHANGELOG.md": "CHANGELOG.md" }, proposed by the adoption review when the project has one.
+export const recordMap = local => { try { const m = JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).recordPaths || {}; return Object.fromEntries(Object.entries(m).filter(([k, v]) => RECORDS.test(norm(k)) && v).map(([k, v]) => [norm(k), norm(v)])); } catch { return {}; } };
 // resolver(r) gives where(p) (to read: local copy, else engine copy, else local) and whereWrite(p) (always local for
 // engine-made files, so an upgrade never meets a change of the project's).
 export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
   const at = (root, p) => path.resolve(root, norm(p));
   const keep = r.keep || (r.LOCAL !== r.PROJECT ? keepList(r.LOCAL) : []);
   const kept = p => { const q = norm(p); return keep.some(k => q === k || q.startsWith(k + '/')); };
+  // (a record: mapped to the project's own equivalent, else the project's copy an older install has, else local)
+  const recs = r.LOCAL !== r.PROJECT ? (r.records || recordMap(r.LOCAL)) : {}, back = Object.fromEntries(Object.entries(recs).map(([k, v]) => [v, k]));
+  const record = p => { const q = norm(p); if (r.LOCAL === r.PROJECT || !RECORDS.test(q)) return null;
+    return recs[q] ? at(r.PROJECT, recs[q]) : !exists(at(r.LOCAL, q)) && exists(at(r.PROJECT, q)) ? at(r.PROJECT, q) : null; };
   const where = p => {
     if (path.isAbsolute(String(p))) return path.resolve(String(p));
+    const rec = record(p); if (rec) return rec;
     const k = kind(p);
     if (kept(p) && k !== 'project') return k === 'both' && !exists(at(r.PROJECT, p)) && exists(at(r.ENGINE, p)) ? at(r.ENGINE, p) : at(r.PROJECT, p);
     if (k === 'engine') return at(r.ENGINE, p);
@@ -60,11 +72,12 @@ export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
     if (k === 'both' && r.LOCAL !== r.ENGINE && !exists(at(r.LOCAL, p)) && exists(at(r.ENGINE, p))) return at(r.ENGINE, p);
     return at(r.LOCAL, p);
   };
-  const whereWrite = p => path.isAbsolute(String(p)) ? path.resolve(String(p)) : kind(p) === 'project' || kept(p) ?at(r.PROJECT, p) : kind(p) === 'engine' ? at(r.ENGINE, p) : at(r.LOCAL, p);
+  const whereWrite = p => path.isAbsolute(String(p)) ? path.resolve(String(p)) : record(p) || (kind(p) === 'project' || kept(p) ? at(r.PROJECT, p) : kind(p) === 'engine' ? at(r.ENGINE, p) : at(r.LOCAL, p));
   // The project-relative name of an absolute path under any root (the most specific root first: local and engine sit
   // inside the project).
   const relOf = a => {
     const f = path.resolve(r.PROJECT, String(a || ''));
+    { const q = path.relative(r.PROJECT, f).split(path.sep).join('/'); if (back[q]) return back[q]; } // (the project's own changelog is "docs/CHANGELOG.md")
     for (const root of [r.LOCAL, r.ENGINE, r.PROJECT].sort((x, y) => y.length - x.length)) {
       const q = path.relative(root, f);
       if (q === '' || (!q.startsWith('..') && !path.isAbsolute(q))) return q.split(path.sep).join('/');

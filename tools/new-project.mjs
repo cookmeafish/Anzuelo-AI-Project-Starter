@@ -916,7 +916,7 @@ const existing = fs.existsSync(dest) ? fs.readdirSync(dest).filter(n => n !== '.
 if (auto && existing.length && !dry && !flag('--dev') && !fs.existsSync(path.join(dest, '.anzuelo', 'engine'))) {
   const val = k => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
   console.log(`${dest} already has files: installing the engine under ${path.join(dest, '.anzuelo')}, nothing of the project's touched.\n`);
-  const r = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dest, ...['--name', '--desc', '--private'].flatMap(k => val(k) ? [k, val(k)] : [])], { stdio: 'inherit' });
+  const r = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dest, ...['--name', '--desc', '--private', '--gitignore'].flatMap(k => val(k) ? [k, val(k)] : [])], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
 if (existing.length && !flag('--adopt')) console.log(`${dest} already has files: adding the starter around them. Nothing existing is overwritten.\n`);

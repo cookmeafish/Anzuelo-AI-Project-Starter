@@ -9591,14 +9591,23 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
     // (it declares a git hook manager, lefthook, not installed yet: git's hooks path stays free for it. Lesson (an
     // adoption trial, 2026-11-12): a fresh clone had only sample hooks, the path was taken, and lefthook never ran)
     const est = path.join(tmp, 'est'); fs.mkdirSync(path.join(est, 'src'), { recursive: true }); fs.writeFileSync(path.join(est, 'src/app.js'), 'console.log(1);\n');
-    fs.writeFileSync(path.join(est, 'lefthook.yml'), 'pre-commit:\n  commands: {}\n');
+    fs.writeFileSync(path.join(est, 'lefthook.yml'), 'pre-commit:\n  commands: {}\n'); fs.writeFileSync(path.join(est, 'CHANGELOG.md'), '# Changes\n');
     const eg = (...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: est, encoding: 'utf8' });
     eg('init', '-q'); eg('add', '-A'); eg('commit', '-q', '-m', 'theirs');
     const np = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), est], { encoding: 'utf8', timeout: 300000 });
     const st = (eg('status', '--porcelain').stdout || '').trim(), lhPath = (eg('config', 'core.hooksPath').stdout || '').trim();
     report(np.status === 0 && lhPath === '', 'install: a project declaring a git hook manager (lefthook, husky, pre-commit) keeps git\'s hooks path for it, installed or not', `hooksPath: ${lhPath}`);
-    report(np.status === 0 && fs.existsSync(path.join(est, '.anzuelo/engine/tools/hooks/hooks.mjs')) && !fs.existsSync(path.join(est, 'tools/hooks')) && fs.readFileSync(path.join(est, 'src/app.js'), 'utf8') === 'console.log(1);\n' && !fs.existsSync(path.join(est, 'README.md')) && !/^\?\? (tools|skills|packs|library|AGENTS\.md|CLAUDE\.md|DIRECTORY\.md)\b/m.test(st),
-      'install: the project maker puts an established project\'s engine under .anzuelo/ by itself: its files untouched, no engine code, rules or template readme in the project (only its own records, docs/)', JSON.stringify({ status: np.status, st, out: (np.stdout || '').slice(-200), err: (np.stderr || '').slice(0, 200) }));
+    // (nothing of the starter outside .anzuelo/ but the wiring: the records in .anzuelo/local, .gitignore untouched (git's
+    // own exclude file keeps .anzuelo/ out), so git status shows nothing. The user's rule, 2026-11-12)
+    report(np.status === 0 && fs.existsSync(path.join(est, '.anzuelo/engine/tools/hooks/hooks.mjs')) && fs.readFileSync(path.join(est, 'src/app.js'), 'utf8') === 'console.log(1);\n' && st === ''
+      && fs.existsSync(path.join(est, '.anzuelo/local/docs/BRIEF.md')) && !fs.existsSync(path.join(est, 'docs')) && !fs.existsSync(path.join(est, 'README.md')),
+      'install: an established project gets the engine under .anzuelo/ by itself: its records in .anzuelo/local, its own files and .gitignore untouched, git status clean', JSON.stringify({ status: np.status, st, out: (np.stdout || '').slice(-200), err: (np.stderr || '').slice(0, 200) }));
+    // (the audit fails on a stray record in the project's folders; the adoption review proposes the project's own changelog)
+    const aud = () => spawnSync(process.execPath, [path.join(est, '.anzuelo/engine/tools/audit.mjs')], { cwd: est, encoding: 'utf8', timeout: 300000 }).stdout || '';
+    const clean = aud(); fs.mkdirSync(path.join(est, 'docs')); fs.writeFileSync(path.join(est, 'docs/STATUS.md'), '# Status\n'); const strayed = aud(); fs.rmSync(path.join(est, 'docs'), { recursive: true, force: true });
+    const sp = spawnSync(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(pathToFileURL(path.join(est, '.anzuelo/engine/tools/hooks/setup.mjs')).href)}); console.log(m.setupProblems().join('\\n'))`], { cwd: est, encoding: 'utf8', timeout: 60000 });
+    report(/PASS\s+\d+\. nothing of the engine outside/.test(clean) && /FAIL\s+\d+\. nothing of the engine outside[\s\S]*docs\/STATUS\.md/.test(strayed) && /its own CHANGELOG\.md/.test(sp.stdout || ''),
+      'install: the audit fails on an engine record in the project\'s own folders, and the adoption review proposes the project\'s own CHANGELOG.md (recordPaths)', JSON.stringify({ clean: (/[^\n]*nothing of the engine[^\n]*/.exec(clean) || [''])[0], strayed: (/[^\n]*nothing of the engine[^\n]*/.exec(strayed) || [''])[0], setup: (sp.stdout || sp.stderr || '').slice(0, 300) }));
   } finally { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-readonly')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {

@@ -2,7 +2,8 @@
 // docs/BRIEF.md must route through v2's router, the one the user's requests go through. Loaded only when needed: it
 // reads v2's routing (plan step 1b; oversight 2026-11-12).
 import { ROOT, read, readJSON, abs, exists, config, section } from './settings.mjs';
-import { where } from './paths.mjs';
+import path from 'node:path';
+import { where, recordMap, LOCAL } from './paths.mjs';
 import { rulesText } from './state.mjs';
 import { NAMES_FILE, namesIn } from './names.mjs';
 import { fitProblems } from './fit.mjs';
@@ -62,6 +63,11 @@ export function setupProblems(cfg = config()) {
     if (!lines.some(l => /^\s*-\s+keep:/i.test(l))) probs.push('docs/DECISIONS.md: add a "## Adoption review" listing what the project already has (its hooks, runbooks, skills, rules, commands), one "- keep: <item> - <what the engine does instead of overriding it>" line each');
     const open = lines.filter(l => /^\s*-\s+improve:/i.test(l) && (!/\|\s*(small|big)\s*\|/i.test(l) || /\|\s*\??\s*$/.test(l)));
     if (open.length) probs.push(`docs/DECISIONS.md "## Adoption review": ${open.length} improvement line(s) need "| small|big | <decision>" (a big one is the user's: ok, no or explore): ${open[0].trim().slice(0, 80)}`);
+    // (the project's own changelog, decision records or security notes are used, not a second copy: the review decides
+    // each, and "recordPaths" in .anzuelo/local/config.json points the engine at it. The user's rule, 2026-11-12)
+    const mapped = recordMap(LOCAL), own2 = [['docs/CHANGELOG.md', ['CHANGELOG.md', 'CHANGES.md', 'HISTORY.md', 'History.md']], ['docs/DECISIONS.md', ['docs/adr', 'docs/decisions', 'adr']], ['docs/security.md', ['SECURITY.md']]]
+      .flatMap(([rec, cands]) => cands.filter(c => exists(path.join(ROOT, c))).slice(0, 1).map(c => [rec, c])).filter(([rec, c]) => !mapped[rec] && !rev.includes(c));
+    for (const [rec, c] of own2) probs.push(`docs/DECISIONS.md "## Adoption review": the project has its own ${c}. Decide whether the engine uses it for ${rec} instead of a second copy: "- improve: use ${c} for ${rec} (recordPaths) | small | <decision>"; if yes, add "recordPaths": { "${rec}": "${c}" } to .anzuelo/local/config.json`);
   }
   probs.push(...setupCompleteness(cfg, { final: true }));
   // REQ: fit-checklist. Every candidate is decided by the AI with a reason that holds (node tools/fit.mjs check)

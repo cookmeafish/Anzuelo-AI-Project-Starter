@@ -6,7 +6,7 @@
 //                                                 git), so the project can grow later even without the starter folder
 //   node tools/starter.mjs remove                 remove the leftovers and forget the starter
 // With the engine outside the project (plan: docs/plans/2026-11-07-engine-outside-the-project.md):
-//   node tools/starter.mjs install "<folder>" [--private yes|no] [--name ..] [--desc ..]   (from the starter) clone the
+//   node tools/starter.mjs install "<folder>" [--private yes|no] [--gitignore yes|no] [--name ..] [--desc ..]   (from the starter) clone the
 //                                                 engine into <folder>/.anzuelo/engine, the files made for the project
 //                                                 into .anzuelo/local, and wire it through git-ignored local settings
 //   node .anzuelo/engine/tools/starter.mjs local-repo yes|no   record the setup answer: .anzuelo/local as a private git
@@ -492,11 +492,12 @@ if (cmd === 'link') {
   // through git-ignored local settings. The templates are new-project.mjs's, made in a scratch folder and sorted by
   // paths.mjs kind(). Plan: engine outside the project, Task 4.
   const val = k => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
-  if (!arg) { console.error('usage: node tools/starter.mjs install "<project folder>" [--private yes|no] [--name "Name"] [--desc "one line"]'); process.exit(2); }
+  if (!arg) { console.error('usage: node tools/starter.mjs install "<project folder>" [--private yes|no] [--gitignore yes|no] [--name "Name"] [--desc "one line"]'); process.exit(2); }
   const dest = path.resolve(arg), eng = path.join(dest, '.anzuelo', 'engine'), loc = path.join(dest, '.anzuelo', 'local');
   if (fs.existsSync(eng)) { console.error(`${eng} exists: upgrade it instead (git pull there)`); process.exit(1); }
-  const priv = val('--private');
+  const priv = val('--private'), gign = val('--gitignore');
   if (priv && !/^(yes|no)$/.test(priv)) { console.error('--private takes yes or no'); process.exit(2); }
+  if (gign && !/^(yes|no)$/.test(gign)) { console.error('--gitignore takes yes or no'); process.exit(2); }
   const g = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
   const had = fs.existsSync(dest) ? fs.readdirSync(dest).filter(n => n !== '.git') : [];
   const moved = fs.existsSync(path.join(dest, 'tools', 'hooks', 'hooks.mjs'));
@@ -539,6 +540,8 @@ if (cmd === 'link') {
     console.log(`installed the engine in ${eng}; ${counts.local} file(s) made for the project in ${loc}; ${counts.project} new project file(s); ${counts.kept} kept as they were`);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   if (priv) console.log(setLocalRepo(loc, priv === 'yes'));
+  // (.gitignore is touched only when the user agrees: else git's local exclude file keeps .anzuelo/ out of git)
+  if (gign === 'yes') try { const cf = path.join(loc, 'tools', 'hooks', 'config.json'); fs.writeFileSync(cf, JSON.stringify({ ...JSON.parse(fs.readFileSync(cf, 'utf8')), gitignore: true }, null, 2) + '\n'); } catch (e) { console.error(`--gitignore yes: ${e.message}`); }
   const w = spawnSync(process.execPath, [path.join(eng, 'tools', 'hooks', 'wire.mjs')], { cwd: dest, encoding: 'utf8' });
   process.stdout.write(w.stdout || ''); if (w.status !== 0) { process.stderr.write(w.stderr || ''); process.exit(1); }
   noteEngineChange(dest, `${moved ? 'moved' : 'installed'} into .anzuelo/engine at ${(g(['rev-parse', '--short', 'HEAD'], eng).stdout || '').trim()}`);

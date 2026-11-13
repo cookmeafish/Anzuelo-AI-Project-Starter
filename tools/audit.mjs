@@ -18,7 +18,7 @@ import {
   starterOnlyChars,
 } from './hooks/hooks-main.mjs';
 import { setupProblems } from './hooks/setup.mjs';
-import { listAll, split, ENGINE as ENGINE_DIR, PROJECT as PROJECT_DIR, LOCAL as LOCAL_DIR, keepList } from './hooks/paths.mjs';
+import { listAll, split, ENGINE as ENGINE_DIR, PROJECT as PROJECT_DIR, LOCAL as LOCAL_DIR, keepList, kind, recordMap } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
@@ -146,6 +146,17 @@ sweep('the engine lives under .anzuelo/', () => {
   if (!out.length) return { note: `${files.length} engine files, all under .anzuelo/` };
   const list = [`${out.length} engine files outside .anzuelo/, for example ${out.slice(0, 3).join(', ')}${split ? '' : ': move the engine to .anzuelo/engine (docs/playbooks/engine.md)'}`];
   return split ? { fail: list } : { warn: list };
+});
+// And none of what the engine makes for the project (its records and notes) outside .anzuelo/: one the project's git
+// does not track, not kept (keepInProject) or mapped to the project's own (recordPaths), is a stray copy. The wiring
+// (CLAUDE.local.md, host settings, skill mirrors, git's exclude file) is allowed. The user's rule, 2026-11-12.
+sweep('nothing of the engine outside .anzuelo/ but the wiring', () => {
+  if (!split) return { note: 'the engine is not in .anzuelo/engine here' };
+  const g = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: PROJECT_DIR, encoding: 'utf8' });
+  if (g.status !== 0) return { note: 'not a git repository: nothing to compare' };
+  const keep = keepList(LOCAL_DIR), mapped = new Set(Object.values(recordMap(LOCAL_DIR)));
+  const stray = (g.stdout || '').split('\n').filter(f => f && !f.startsWith('.anzuelo/') && kind(f) === 'local' && !mapped.has(f) && !keep.some(k => f === k || f.startsWith(`${k}/`)));
+  return stray.length ? { fail: [`${stray.length} engine record(s) or note(s) in the project's own folders, for example ${stray.slice(0, 3).join(', ')}: they belong in .anzuelo/local (or name the project's own file in recordPaths)`] } : {};
 });
 sweep('AGENTS.md and CLAUDE.md are identical twins', () => split ? (/^@\.anzuelo\/(engine|local)\/AGENTS\.md$/m.test(read(abs('CLAUDE.local.md'))) ? {} : { warn: ['CLAUDE.local.md is made on each machine: run node .anzuelo/engine/tools/hooks/wire.mjs'] }) : !exists('CLAUDE.md') ?{ warn: ['CLAUDE.md is made on each machine: run node tools/hooks/wire.mjs'] } :
   read(abs('CLAUDE.md')) && read(abs('CLAUDE.md')) === read(abs('AGENTS.md')) ? {} : { fail: ['AGENTS.md and CLAUDE.md differ or one is missing. Run node tools/hooks/hooks.mjs sync (both must say they "are twins").'] });
