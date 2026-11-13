@@ -787,6 +787,17 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
   report(trig.only && trig.holds === false && trig.marker === false && !step.only && step.holds === true && step.marker === true && !unknown.only && unknown.holds === true && unknown.marker === true,
     'end: routing-only: a runbook whose only change is its triggers line sets off no project check on changed runbooks; a changed step, or one with no known start, still does', JSON.stringify({ trig, step, unknown }));
 }
+// REQ: a11y-checked fires only for a turn that changed a file that renders: an upgrade that refreshed only the engine's
+// files (its pack library under packs/gui, its hooks, docs and runbooks) gets no screen items. Lesson (a project,
+// 2026-11-13): an upgrade turn was held three rounds for screenshots and accessibility
+{
+  const { holdsReq } = await import('./lib.mjs');
+  const a = acts([user('upgrade the engine'), say('Upgraded.')]), gui = changed => holdsReq({ guiChanged: true }, a, { changed });
+  const engineOnly = gui(['packs/gui/files/tools/gui-review.html', 'packs/gui/templates/page.html', 'tools/hooks/v2/lib.mjs', 'docs/playbooks/gui.md', 'skills/gui-review-loop/SKILL.md']);
+  const page = gui(['web/index.html']), style = gui(['src/components/Menu.tsx']);
+  report(engineOnly === false && page === true && style === true,
+    'end: the screen checks (accessibility, a11y-checked) fire only when a file that renders changed: an upgrade that changed only the engine\'s files (packs/gui, its hooks, docs, skills) gets none; a page or component does', JSON.stringify({ engineOnly, page, style }));
+}
 // REQ: name-var under v2: a name from docs/names.json typed out in a doc or in code text is held; in its marker, or read
 // from the file in code, it is not. (the old engine's check, through the shared tools/hooks/names.mjs)
 {

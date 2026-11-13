@@ -1268,7 +1268,7 @@ export function holdsReq(c, acts, x) {
     // (routed means opened this turn: the agent picks its runbook, and keyword routing is retired (2026-11-07). An
     // unmistakable release, publish or deploy is the check's own action key, such as toolRan)
     playbookRouted: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')),
-    guiChanged: v => !v || x.changed.some(f => (projectConfig().guiFiles || []).some(g => globRx(g).test(f))),
+    guiChanged: v => !v || x.changed.some(f => { const c = projectConfig(); return (c.guiFiles || []).some(g => globRx(g).test(f)) && !(c.guiIgnore || []).some(g => globRx(g).test(f)); }), // (guiIgnore too, as gui.mjs: packs/gui is the engine's library. Lesson (a project, 2026-11-13): an upgrade was held for accessibility)
     changedContentMatches: v => { const spec = typeof v === 'string' ? { pattern: v } : v, rx = reqRe(spec.pattern), fs2 = (spec.files || ['**/*']).map(globRx);
       return acts.calls.some(k => /^(Edit|Write|MultiEdit)$/.test(k.name) && fs2.some(g => g.test(relp(k.input.file_path || ''))) && rx.test(String(k.input.new_string ?? k.input.content ?? (k.input.edits || []).map(e => e.new_string).join('\n')))); },
     // (the answer names where its facts come from: a project file opened this turn that it did not write, in plain words,
