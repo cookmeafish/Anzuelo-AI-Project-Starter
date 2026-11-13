@@ -1868,14 +1868,14 @@ const FIX_CODE = /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|sh|ps1)$/i, RUN_FAILE
 export function fixGaps(acts) {
   const calls = acts.calls || [], code = calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && FIX_CODE.test(String(c.input?.file_path || '')) && !/(^|[\\/])(tests?|__tests__)[\\/]|\.test\.|selftest|selfcheck/i.test(String(c.input?.file_path || '')));
   const debug = calls.some(c => c.name === 'Read' && /[\\/]debug[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))), routed = (acts.routes || []).some(f => /(^|[\\/])(debug|bugfix|field-report|learn-from-upset|improvement-loop)(\.md|[\\/]SKILL\.md)$/.test(String(f)));
-  if (!code.length || !(acts.complaint || debug || routed) ||/\bNOT VERIFIED\b/.test(String(acts.answer || ''))) return [];
+  if (!code.length || !(acts.complaint || debug || routed) || /\bNOT VERIFIED\b/.test(`${acts.said || ''}\n${acts.answer || ''}`)) return []; // (any text of the turn: a later round's answer replaces the first)
   const runs = proofTurn(acts).runs, n = r => r.editedBefore.filter(f => FIX_CODE.test(f)).length, key = r => r.cmd.replace(/\s+/g, ' ').trim(), bad = r => r.error || RUN_FAILED.test(r.out);
   const failedBefore = new Set(runs.filter(r => n(r) === 0 && bad(r)).map(key)), shown = runs.some(r => n(r) >= code.length && !bad(r) && failedBefore.has(key(r)));
   // (a patch, not a fix: added code that keys a condition on the report's own quoted example, or that only adds a bare
   // catch, a retry or a longer timeout; the answer naming the root cause releases the second. Oversight, 2026-11-12)
   const added = code.map(c => { const o = String(c.input?.old_string || ''); return String(c.input?.new_string ?? c.input?.content ?? (c.input?.edits || []).map(e => e.new_string).join('\n')).split('\n').filter(l => l.trim() && !o.includes(l) && !/^\s*(\/\/|#|\*|\/\*)/.test(l)); }).flat();
   const keyed = [...`${acts.heard || ''}\n${acts.said || ''}`.matchAll(/["“'`]([^"”'`\n]{6,80})["”'`]/g)].map(m => m[1]).find(e => added.some(l => l.includes(e) && /\bif\b|[!=]==?|\.includes\(|\.test\(|\bcase\b|\?\s/.test(l)));
-  const bare = added.length > 0 && added.every(l => /^\s*(try\s*\{|\}?\s*catch\b|\}\s*$|(for|while)\s*\(.*(retr|attempt|tries)|.*\b(timeout|retries|attempts)\w*\s*[:=]\s*\d)/i.test(l)) && !/\broot cause\b|\bthe cause (is|was)\b/i.test(String(acts.answer || ''));
+  const bare = added.length > 0 && added.every(l => /^\s*(try\s*\{|\}?\s*catch\b|\}\s*$|(for|while)\s*\(.*(retr|attempt|tries)|.*\b(timeout|retries|attempts)\w*\s*[:=]\s*\d)/i.test(l)) && !/\broot cause\b|\bthe cause (is|was)\b/i.test(`${acts.said || ''}\n${acts.answer || ''}`);
   return [!debug && 'This turn fixed a problem without the debug skill: open skills/debug/SKILL.md and follow its phases (the cause first, a test that fails without the fix).',
     !shown && 'Show the fix on the failure itself: run the reproduction or test before changing the code and see it fail, then the same command after the last change and see it pass. If it cannot run, say so ("NOT VERIFIED: <what> - <why>").',
     keyed && `The fix keys on the report's own example ("${keyed.slice(0, 40)}"): it hides this case and not the next. Fix the cause, so every case like it works.`,

@@ -5301,7 +5301,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['upgrade-clean', 'status-bar', 'stop-log','usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
+const STANDALONE_TAGS = ['stop-rounds', 'upgrade-clean','status-bar', 'stop-log','usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -5383,6 +5383,8 @@ const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new P
 
 // Each behavior ported to v2, by what its end-check message asks (one line per port, with the port's commit).
 const V2_ASKS = {
+  'fix-proven': /Show the fix on the failure itself|fixed a problem without the debug skill|keys on the report's own example|only catches, retries or waits longer/,
+  'repeat-planned': /came back within 14 days/,
   'data-computed': /appears? in no output of this turn|does not add up|which did not run this turn|but the sentence with the other results/,
   'gui-review-report': /gui\.md item \d+: "Visual review: PASS after N rounds"/,
   'scope-separate': /Keep each person's details apart|^- Files of .+ changed, but this request is/m, // 617f3ec
@@ -8877,20 +8879,6 @@ if (mineB()) { // autonomy-hint and the fit checklist: "autonomy auto" decided a
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 
-if (mineB()) { // stop rounds: round 1 lists everything; a waiver and markers given once hold; later rounds add nothing new
-  // (v2 names no check: its steps are recognized by what they ask, V2_ASKS and ENGINE_MSG, in the short text and details)
-  const tagsOf = r => { const n = (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').filter(Boolean); if (n.length) return n;
-    const v2r = `${r.reason || ''}\n${r.details || ''}`;
-    return [...Object.keys(V2_ASKS).filter(t => V2_ASKS[t].test(v2r)), ...Object.keys(ENGINE_MSG).filter(t => ENGINE_MSG[t] && v2r.includes(`- Check: ${ENGINE_MSG[t]}`))]; };
-  const s = { prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x', 'src/parser.js': 'export const parse = s => s;', 'docs/CHANGELOG.md': 'x' } };
-  const a1 = 'Skill: debug. Fixed it. N/A(debug-test-added): this fixture has no test framework yet. N/A(verification-report): a fixture with no app to run.' + FIN;
-  const r1 = runStop({ ...s, answer: a1 }), t1 = tagsOf(r1);
-  const a2 = 'Root cause: the parser read the header twice.';
-  const r2 = runStop({ ...s, drafts: [a1], answer: a2, active: true, blocks: 1, failed: t1 }), t2 = tagsOf(r2);
-  const r3 = runStop({ ...s, drafts: [a1, a2], answer: 'Skill lesson: none - the root cause was found, only not written down yet.', active: true, blocks: 2, failed: [...t1, ...t2] }), t3 = tagsOf(r3);
-  report(t1.includes('debug-root-cause') && !t1.includes('skill-learn') && ![...t1, ...t2, ...t3].some(t => ['debug-test-added', 'verification-report'].includes(t)) && t2.every(t => t1.includes(t)) && !t2.includes('debug-root-cause') && !t2.includes('playbook-named') && !t2.includes('finished-summary') && !r3.blocked,
-    'stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new', `round 1: ${t1} | round 2: ${t2} | round 3: ${t3}`);
-}
 
 if (mineB()) { // plan-open: a plan with unticked steps is announced at the next session, for any agent, until it is done or dropped
   const dir = copyProject();
@@ -9383,6 +9371,21 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
 }
 // standalone tests that can also be asked for by tag (--tags <tag>): outside the full-run-only block above.
 // Lesson: they sat inside it, so their "--tags" gates never ran and a fast run could not prove them.
+if (mineB() && (!TAGS || TAGS.includes('stop-rounds'))) { // stop rounds: round 1 lists everything; a waiver and markers given once hold; later rounds add nothing new
+  // (v2 names no check: its steps are recognized by what they ask, V2_ASKS and ENGINE_MSG, in the short text and details)
+  const tagsOf = r => { const n = (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').filter(Boolean); if (n.length) return n;
+    const v2r = `${r.reason || ''}\n${r.details || ''}`;
+    return [...Object.keys(V2_ASKS).filter(t => V2_ASKS[t].test(v2r)), ...Object.keys(ENGINE_MSG).filter(t => ENGINE_MSG[t] && v2r.includes(`- Check: ${ENGINE_MSG[t]}`))]; };
+  const s = { prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x', 'src/parser.js': 'export const parse = s => s;', 'docs/CHANGELOG.md': 'x' } };
+  // (NOT VERIFIED: a fix with no reproduction run says so, or fix-proven holds it; said once, it holds in later rounds)
+  const a1 = 'Skill: debug. Fixed it. NOT VERIFIED: the parser fix - this fixture has no test framework to run it. N/A(debug-test-added): this fixture has no test framework yet. N/A(verification-report): a fixture with no app to run.' + FIN;
+  const r1 = runStop({ ...s, answer: a1 }), t1 = tagsOf(r1);
+  const a2 = 'Root cause: the parser read the header twice.';
+  const r2 = runStop({ ...s, drafts: [a1], answer: a2, active: true, blocks: 1, failed: t1 }), t2 = tagsOf(r2);
+  const r3 = runStop({ ...s, drafts: [a1, a2], answer: 'Skill lesson: none - the root cause was found, only not written down yet.', active: true, blocks: 2, failed: [...t1, ...t2] }), t3 = tagsOf(r3);
+  report(t1.includes('debug-root-cause') && !t1.includes('skill-learn') && ![...t1, ...t2, ...t3].some(t => ['debug-test-added', 'verification-report'].includes(t)) && t2.every(t => t1.includes(t)) && !t2.includes('debug-root-cause') && !t2.includes('playbook-named') && !t2.includes('finished-summary') && !r3.blocked,
+    'stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new', `round 1: ${t1} | round 2: ${t2} | round 3: ${t3}`);
+}
 if (mineB() && INSTALLED.includes('app') && (!TAGS || TAGS.includes('version-bump'))) { // version-bump: a file with no
   // version is refused, and "none" turns the check off (Lesson, trial round 13: a Go service set go.mod, chose git tags,
   // and version-bump fired every code turn)
