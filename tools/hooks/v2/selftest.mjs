@@ -4059,6 +4059,13 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   const state = d => { try { return fs.readdirSync(d).filter(f => f.startsWith('v2-turn.')); } catch { return []; } };
   report(/harvest item one/.test(a) && /invoice item one/.test(b) && state(path.join(loc, 'tools/hooks/state')).length === 2 && !state(path.join(proj, 'tools/hooks/state')).length && !state(path.join(eng, 'tools/hooks/state')).length,
     'paths: hooks run from .anzuelo/engine name local and engine runbooks, and keep their turn records in .anzuelo/local', { a: a.slice(0, 300), b: b.slice(0, 300), local: state(path.join(loc, 'tools/hooks/state')) });
+  // REQ: engine-readonly. An edit inside the engine is refused and points at the project's own copy; an edit of that
+  // copy in .anzuelo/local, or of the project's own files, goes through
+  const edit = f => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: proj, encoding: 'utf8', input: JSON.stringify({ session_id: 'splitedit', tool_name: 'Edit', tool_input: { file_path: f, old_string: 'a', new_string: 'b' } }),
+    env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: proj, CLAUDE_PROJECT_DIR: proj } }).stdout || '';
+  const inEngine = edit(path.join(eng, 'docs/playbooks/invoice.md')), inLocal = edit(path.join(loc, 'docs/playbooks/harvest.md')), own = edit(path.join(proj, 'notes.md'));
+  report(/engine-readonly/.test(inEngine) && /override docs\/playbooks\/invoice\.md/.test(inEngine) && !/engine-readonly/.test(inLocal) && !/engine-readonly/.test(own),
+    'guard: with the engine in .anzuelo/engine, an edit inside it is refused (upgrades replace it) and names the override that makes the project\'s copy; the local copy and the project\'s own files are edited freely', JSON.stringify({ inEngine: inEngine.slice(0, 300), inLocal: inLocal.slice(0, 200), own: own.slice(0, 200) }));
   fs.rmSync(proj, { recursive: true, force: true });
 }
 
