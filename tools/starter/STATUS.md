@@ -10,7 +10,9 @@ docs/STATUS.md, which here is the template new projects start from).
   fresh install of an established project puts everything under .anzuelo/ (the engine-outside plan's remaining steps,
   plus the audit check); then migrate projects one and two. Confirm the adoption review (surgery mode) works on v2 with
   the .anzuelo layout by a trial on a copy of a large public repository.
-- [ ] 2b. Fix proof (item 3's first part), then the rest as queued.
+- [ ] 2b. Fix proof (item 3's first part), then the rest as queued. Includes: the health check says "fails after this
+  change" for audit failures that were there before the turn (found 2026-11-12 once a test fixture really had a turn):
+  hold only what the turn's change broke, or name the rest as already there.
 - [ ] 3. The rewrite's remaining parts:
   - [ ] fix proof;
   - [x] the subagent guard; (ef7b085: never refuses)
