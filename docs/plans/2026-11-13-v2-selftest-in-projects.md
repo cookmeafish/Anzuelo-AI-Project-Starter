@@ -33,7 +33,8 @@ without its run outputs when it has no commit), the current engine put on it, an
 - [x] After the fixes: the v2 self-test passes in a copy of each real project (387, 387, 388) and in the starter (406).
 - [x] The trial, with the v2 self-test in every sample project, passes (156/156).
 - [x] The release chain passes (released 5cff447, pushed).
-- [ ] The projects upgrade and run it for real (one project notified; two wait on the user).
+- [ ] The projects upgrade and run it for real (one project done: on 5cff447, 390/390, nothing to decide; two wait on
+      the user). Their notices say `update --force` once: the old starter.mjs that runs the comparison lacks the fix.
 - [ ] An adopted project with the engine in `.anzuelo/engine` joins the trial's samples, so that layout is proven by
       every release too.
 - [ ] Found on the way: the audit's count of tags with a v2 test counts any mention in selftest.mjs, so a comment
