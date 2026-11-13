@@ -97,7 +97,7 @@ below first: it shows the user "acknowledged", and the end-of-turn check looks f
       user can tell at once what was actually wrong).
 - [ ] The miss is fixed and verified (judgment: the user can see the corrected result).
 - [ ] A code fix names its cause with the evidence that shows it (answer: \b(root cause|the cause (is|was)|cause:|caused by)\b) (when tool: ^(Edit|Write|MultiEdit)\b.*\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|sh|ps1)\b).
-- [ ] A code fix ran the same check or reproduction failing before the change and passing after, or says "NOT VERIFIED: <what> - <why>" (the end check holds a code fix without it).
+- [ ] A code fix ran the same check or reproduction failing before the change and passing after, or says "NOT VERIFIED: <what> - <why>" (judgment: no item marker can see the order of runs; the end check's fix-proof step holds a code fix without it).
 - [ ] Every other case of the same miss in the same result was looked for and fixed, not only the one the user named
       (judgment: what counts as "the same kind" needs a reader).
 - [ ] Each part of the complaint was checked on its own, and the answer says which parts held (judgment: whether a
