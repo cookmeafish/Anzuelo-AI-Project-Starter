@@ -64,6 +64,10 @@ What the user saw in that hour, and why:
 - [ ] A repeat-problem or open-plan item holds only the session that owns it. Sending the problem to the owning
       session counts as handled.
 - [ ] Status and changelog asks only when this turn changed a starter or project file of that kind.
+- [ ] The agent isn't hounded for false alarms: each check keeps a running count of its holds that turned out real (the
+      agent changed work because of them) and false (met already, waived with a reason, or the answer showed it didn't
+      apply). A check whose holds are mostly false over its last 20 stops holding: it moves to the start-of-turn
+      reminder, and the release replay reports it to be fixed. Safety guards are never demoted.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the two answers from the real hour pass with at most one hold
       each; ALL PASS.
 
