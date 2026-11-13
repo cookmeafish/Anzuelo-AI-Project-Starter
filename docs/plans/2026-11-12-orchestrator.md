@@ -13,17 +13,17 @@ decisions.
 - cross-session messaging (ListAgents, SendMessage, and an inbox socket that hooks can post to);
 - session-scoped schedules as a backup only.
 
-Anzuelo writes a small event log per project in its own stable format, so the orchestrator never depends on Claude
+<!--name:STARTER_NAME-->Anzuelo<!--/name--> writes a small event log per project in its own stable format, so the orchestrator never depends on Claude
 Code's internal transcript format.
 
-**Spec (user, 2026-11-12):** Anzuelo can launch an orchestrator agent or terminal that orchestrates effectively; the
+**Spec (user, 2026-11-12):** <!--name:STARTER_NAME-->Anzuelo<!--/name--> can launch an orchestrator agent or terminal that orchestrates effectively; the
 plan is researched and thought through, and the feature is available whenever the user wants to use it.
 
 **Confidence:** 7/10. Checked on this machine (2026-11-12): Claude Code 2.1.323 has `--agent`, `--agents`,
 `--append-system-prompt` and `-n/--name`, and Windows Terminal (`wt.exe`) is installed. Remaining risks, each with a
 fallback below:
 - Monitor watches end after 30 minutes at most (the inbox socket is the main signal, not Monitor).
-- The transcript line format is internal (Anzuelo's own event log is the main input).
+- The transcript line format is internal (<!--name:STARTER_NAME-->Anzuelo<!--/name-->'s own event log is the main input).
 
 **How to resume:** run `node skills/plan/scripts/plan-tasks.mjs next docs/plans/2026-11-12-orchestrator.md`, or find the
 first unticked box.
@@ -74,7 +74,7 @@ Lessons from orchestrating by hand (2026-11-10 to 2026-11-12):
 - A burst of events must not flood a session's inbox: one message per finished turn at most, and only when there's
   something worth acting on.
 
-## Task 1: an event log per project, in Anzuelo's own format
+## Task 1: an event log per project, in <!--name:STARTER_NAME-->Anzuelo<!--/name-->'s own format
 **Files:** tools/hooks/v2/end.mjs, tools/hooks/v2/start.mjs, tools/hooks/v2/guard.mjs, a new events module
 **Uses / provides:** provides the orchestrator's main input.
 - [ ] Each hook appends one JSON line to `.anzuelo/local/state/events.jsonl` (in the starter: `tools/hooks/state/`), with
@@ -85,12 +85,12 @@ Lessons from orchestrating by hand (2026-11-10 to 2026-11-12):
 
 ## Task 2: the orchestrator agent and its start command
 **Files:** `.claude/agents/orchestrator.md` (generated), tools/starter.mjs (`orchestrator` command), a new runbook
-`docs/playbooks/orchestrator.md`
+(docs/playbooks/orchestrator.md, to be written)
 **Uses / provides:** uses Task 1; provides the running session.
 - [ ] The agent file holds the role, rules and tools, and an `initialPrompt` that: reads the watch list, registers its
       inbox (Task 3), sets a 15-minute backup schedule, and reports in one line.
 - [ ] `node tools/starter.mjs orchestrator [--watch <paths>]` writes the local watch list. Once the user has said OK in
-      the conversation, it opens `wt new-tab -d <dir> claude --agent orchestrator -n "Anzuelo orchestrator"` (fallback:
+      the conversation, it opens `wt new-tab -d <dir> claude --agent orchestrator -n "<!--name:STARTER_NAME-->Anzuelo<!--/name--> orchestrator"` (fallback:
       `start "" cmd /k ...`). Without an OK, it prints the command for the user to run.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the agent file is generated with every rule above; the command
       prints the exact launch line in dry-run mode; ALL PASS.
