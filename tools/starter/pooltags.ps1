@@ -2,11 +2,11 @@
 # work: which kind of kernel object grows while the test suites run. Starter-only.
 #   powershell -NoProfile -File tools/starter/pooltags.ps1                  top 12 paged and nonpaged tags
 #   powershell -NoProfile -File tools/starter/pooltags.ps1 -Csv <file>      every tag to a CSV (Tag,PagedMB,PagedLive,NonPagedMB,NonPagedLive)
-#   powershell -NoProfile -File tools/starter/pooltags.ps1 -Diff <a> <b>    growth per tag from CSV a to CSV b, top 15 by paged MB
-param([string]$Csv, [string[]]$Diff)
+#   powershell -NoProfile -File tools/starter/pooltags.ps1 -Diff <a> -To <b>   growth per tag from CSV a to CSV b, top 15 by paged MB
+param([string]$Csv, [string]$Diff, [string]$To)
 if ($Diff) {
-  $a = @{}; Import-Csv $Diff[0] | % { $a[$_.Tag] = $_ }
-  Import-Csv $Diff[1] | % { $o = $a[$_.Tag]; [pscustomobject]@{ Tag = $_.Tag
+  $a = @{}; Import-Csv $Diff | % { $a[$_.Tag] = $_ }
+  Import-Csv $To | % { $o = $a[$_.Tag]; [pscustomobject]@{ Tag = $_.Tag
       PagedMB = [math]::Round([double]$_.PagedMB - [double]($o.PagedMB), 1); PagedLive = [int64]$_.PagedLive - [int64]($o.PagedLive)
       NonPagedMB = [math]::Round([double]$_.NonPagedMB - [double]($o.NonPagedMB), 1); NonPagedLive = [int64]$_.NonPagedLive - [int64]($o.NonPagedLive) } } |
     Sort-Object PagedMB -Descending | Select-Object -First 15 | Format-Table -AutoSize | Out-String
