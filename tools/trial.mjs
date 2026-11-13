@@ -134,9 +134,10 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   // "is everything wired and healthy?"
   const a = node(['tools/audit.mjs'], dir);
   check(name, 'the audit runs with no failed sweep', /audit: PASS/.test(a.stdout), a.stdout.split('\n').filter(l => /^FAIL|^\s+- /.test(l)).slice(0, 8).join(' | '));
-  // "does the check a project runs after an upgrade pass here?" The v2 self-test, in a project (one sample: it takes a
-  // minute). Lesson (a project, 2026-11-13): it had only ever run in the starter, and crashed on the starter's own tools
-  if (name === Object.keys(SAMPLES)[0]) { const v = node(['tools/hooks/v2/selftest.mjs'], dir); check(name, 'the v2 self-test passes in the project', v.status === 0 && /v2 selftest: ALL PASS/.test(v.stdout), (v.stdout.split('\n').filter(l => /^FAIL|^v2 selftest/.test(l)).slice(0, 5).join(' | ') || `${v.stderr || ''}`.slice(-300))); }
+  // "does the check a project runs after an upgrade pass here?" The v2 self-test, in every sample (adopted ones, with
+  // their own rules, hooks and settings, too). Lessons (a project, 2026-11-13): it had only ever run in the starter; then
+  // a fresh project passed while adopted ones failed on their own text, settings and hooks
+  { const v = node(['tools/hooks/v2/selftest.mjs'], dir); check(name, 'the v2 self-test passes in the project', v.status === 0 && /v2 selftest: ALL PASS/.test(v.stdout), (v.stdout.split('\n').filter(l => /^FAIL|^v2 selftest/.test(l)).slice(0, 5).join(' | ') || `${v.stderr || ''}`.slice(-300))); }
   // "is it slower?" The hooks stay within their speed budget
   const b = node(['tools/hooks/hooks.mjs', 'bench'], dir);
   check(name, 'the hooks stay within their speed budget', b.status === 0 && !/over budget|SLOW/i.test(b.stdout), b.stdout.slice(-300));

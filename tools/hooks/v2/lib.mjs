@@ -51,10 +51,10 @@ export const sessionStart = file => { try { const fd = fs.openSync(file, 'r'), b
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 // (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
-// and the engine's, the records from .anzuelo/local; anywhere else every path is under ROOT, as before. Plan:
-// docs/plans/2026-11-07-engine-outside-the-project.md)
+// and the engine's, the records from .anzuelo/local; anywhere else (a plain ROOT, a test fixture: no .anzuelo/) every
+// path is under ROOT. Plan: docs/plans/2026-11-07-engine-outside-the-project.md; sweep, 2026-11-13)
 const HERE = roots(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), {});
-export const LAYOUT = HERE.split ? { ENGINE: HERE.ENGINE, PROJECT: ROOT, LOCAL: path.join(ROOT, '.anzuelo', 'local'), split: true } : { ENGINE: ROOT, PROJECT: ROOT, LOCAL: ROOT, split: false };
+export const LAYOUT = HERE.split && fs.existsSync(path.join(ROOT, '.anzuelo')) ? { ENGINE: HERE.ENGINE, PROJECT: ROOT, LOCAL: path.join(ROOT, '.anzuelo', 'local'), split: true } : { ENGINE: ROOT, PROJECT: ROOT, LOCAL: ROOT, split: false };
 const { where: at, relOf, listAll } = resolver(LAYOUT);
 export { at };
 const RUNBOOK_DIRS = ['docs/playbooks', 'tools/starter/runbooks'];
@@ -687,13 +687,13 @@ const ranAt = (acts, t, f) => {
 // The files written since the turn began, with their times, walked once per turn and skipped when no call could write
 // (Skill can: it may run a helper that writes). Lesson: each check walked the tree, 74 ms more per Stop.
 const READ_ONLY = /^(Read|Grep|Glob|LS|WebFetch|WebSearch|ToolSearch|ListAgents|SendMessage|TodoWrite|TaskList|TaskGet|TaskOutput|AskUserQuestion|ScheduleWakeup|CronList)$/;
-// (this turn's work: only what changed while its own commands or helpers ran, never a peer session's edits. any: every
-// file written since the turn began, for what a check requires)
-const walkedAll = new WeakMap();
+// (this turn's work: only what changed while its own commands or helpers ran, never a peer session's edits; a tracked
+// file rewritten byte for byte, which git still sees unchanged, is no change (a project, 2026-11-13). any: all written)
+const walkedAll = new WeakMap(), gitSame = (fs2, since) => { if (!fs2.length) return new Set(); const g = a => spawnSync('git', [...a, '--', ...fs2], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); const tr = g(['ls-files']), st = g(['status', '--porcelain']), lg = g(['log', `--since=@${Math.floor(since / 1000)}`, '--format=', '--name-only']); if (tr.status !== 0 || st.status !== 0 || lg.status !== 0) return new Set(); const dirty = new Set([...st.stdout.split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, '')), ...lg.stdout.split('\n').filter(Boolean)]); return new Set(tr.stdout.split('\n').filter(f => f && !dirty.has(f))); }; // (and no commit touched it this turn)
 export function touchedSince(acts, any = false) {
   const since = Date.parse(acts.at || '') || 0;
   if (!since) return [];
-  const all = () => { if (!walkedAll.has(acts)) walkedAll.set(acts, filesMatching('**/*').map(f => ({ f, t: mtime(f) })).filter(x => x.t > since)); return walkedAll.get(acts); };
+  const all = () => { if (!walkedAll.has(acts)) { const w = filesMatching('**/*').map(f => ({ f, t: mtime(f) })).filter(x => x.t > since), same = gitSame(w.map(x => x.f).slice(0, 400), since); walkedAll.set(acts, w.filter(x => !same.has(x.f))); } return walkedAll.get(acts); };
   if (any) return all();
   if (!walked.has(acts)) walked.set(acts, acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : all().filter(x => ranAt(acts, x.t, x.f)));
   return walked.get(acts);

@@ -8,7 +8,7 @@
 //   node tools/hooks/git-guard.mjs scan                        list unpushed commits that credit an AI
 import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
-import { config, secretHit, forbiddenRe } from './settings.mjs';
+import { config, secretHit, forbiddenRe, abs } from './settings.mjs';
 import { fileURLToPath } from 'node:url';
 import { aiAttributedCommits, gitignoreProblems } from './repo.mjs';
 import { proofCovers, PROOF_FILE } from './selftest-cache.mjs';
@@ -45,9 +45,9 @@ if (mode === 'commit-msg') {
 function unseenSession() {
   const sid = String(process.env.CLAUDE_CODE_SESSION_ID || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   if (process.env.CLAUDECODE !== '1' || !sid || process.env.ANZUELO_SESSION_GATE === 'off') return null;
-  // (engine v2 keeps its turn in v2-turn.<sid>.json. Lesson: under v2 a session's begin and prompt hooks wrote only
-  // that file, so every commit from a session started under v2 was refused)
-  return ['turn', 'v2-turn'].some(k => fs.existsSync(new URL(`./state/${k}.${sid}.json`, import.meta.url))) ? null : sid;
+  // (v2 keeps its turn in v2-turn.<sid>.json: a session started under v2 wrote only that file, and all its commits were refused)
+  // (in the layout's state folder, .anzuelo/local with the engine outside, or beside the code; sweep 2026-11-13)
+  return ['turn', 'v2-turn'].some(k => fs.existsSync(abs(`tools/hooks/state/${k}.${sid}.json`)) || fs.existsSync(new URL(`./state/${k}.${sid}.json`, import.meta.url))) ? null : sid;
 }
 const UNSEEN = (what, sid) => `${what} rejected (engine-bypassed): this comes from a Claude Code session (${sid.slice(0, 8)}) that this project's hooks have never seen: it was started in another folder, so none of the project's rules, runbooks or checks ran on its work.\n` +
   `Run node tools/hooks/hooks.mjs begin "<the user's request>" in this project first (it records the request for this session and prints the routing and checks), and node tools/hooks/hooks.mjs check --answer-file .cache/answer.md before answering. Or start the session in this project's folder.`;

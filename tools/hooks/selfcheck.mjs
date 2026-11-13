@@ -5301,7 +5301,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['upgrade-kept-quiet', 'stop-rounds','upgrade-clean','status-bar', 'stop-log','usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
+const STANDALONE_TAGS = ['update-newest', 'upgrade-kept-quiet','stop-rounds','upgrade-clean','status-bar', 'stop-log','usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -9581,6 +9581,28 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       'layout: with the engine in .anzuelo/engine the reminder, a guard, sync and the audit work from there, sync leaves the engine as it was, and hook state lands in .anzuelo/local',
       JSON.stringify({ session: session.status, prompt: prompt.slice(0, 200), secret: secret.slice(0, 200), sync: [sync.status, (sync.stderr || '').slice(0, 300)], same, audit: [audit.status, (audit.stdout || '').split('\n').filter(l => /FAIL|^\s+-/.test(l)).slice(0, 12)], stateAt }));
   } finally { fs.rmSync(proj, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
+if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template')) && (!TAGS || TAGS.includes('update-newest'))) {
+  // REQ: update-newest. "update" calls the project current only when its release proof matches the starter's too: a
+  // release that changed only a skill or the self-test left the five compared files equal, and the project was told
+  // "nothing to upgrade" (a project, 2026-11-13)
+  const dirs = [];
+  try {
+    const mkd = n => { const d = testDir(`starter-newest-${n}-`); dirs.push(d); return d; };
+    const p = copyProject(); dirs.push(p); fs.rmSync(path.join(p, '.starter-template'), { force: true });
+    const fake = "console.log('UPGRADE ARGS ' + JSON.stringify(process.argv.slice(3)));\n";
+    write(p, { 'tools/new-project.mjs': fake, 'tools/hooks/engine-proof.json': '{"engine":"old","tests":1}\n' });
+    const origin = mkd('origin'), og = gitInit(origin), five = ['tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/engine-checks.json', 'tools/audit.mjs'];
+    write(origin, { 'tools/new-project.mjs': fake, 'tools/hooks/engine-proof.json': '{"engine":"new","tests":2}\n', ...Object.fromEntries(five.map(f => [f, fs.readFileSync(path.join(p, f), 'utf8')])) });
+    og('add', '-A'); og('commit', '-q', '--no-verify', '-m', 'release');
+    const clone = path.join(mkd('clone'), 'starter'); spawnSync('git', ['clone', '-q', origin, clone], { encoding: 'utf8' });
+    // (the project holds the clone's files byte for byte, line endings too, as after a real upgrade from it)
+    for (const f of [...five, 'tools/new-project.mjs']) fs.copyFileSync(path.join(clone, f), path.join(p, f));
+    write(p, { 'tools/starter.local.json': JSON.stringify({ path: clone }) });
+    const r = spawnSync(process.execPath, ['tools/starter.mjs', 'update'], { cwd: p, encoding: 'utf8' }); // (the fake upgrade only prints)
+    report(r.status === 0 && /UPGRADE ARGS/.test(r.stdout) && !/nothing to upgrade/.test(r.stdout),
+      'starter: update upgrades when the starter\'s release proof differs, even with the compared engine files equal and no new commits', `${r.status} ${(r.stdout || '').slice(0, 200)} ${(r.stderr || '').slice(0, 200)}`);
+  } finally { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
   // REQ: upgrade-kept-quiet. A file the project edited is named in the upgrade review only when the starter changed it
