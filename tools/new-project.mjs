@@ -477,7 +477,12 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // stops before changing anything; --allow-dirty goes ahead and ends with the engine's files to commit apart. Lesson
   // (a project, 2026-11-12): an upgrade over a day's uncommitted work mixed the two, and only the owner could sort them)
   const dirtyNow = () => { const r = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: dest, encoding: 'utf8' }); return r.status === 0 ? (r.stdout || '').split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, '')) : []; };
-  const dirty0 = dry ? [] : dirtyNow();
+  // (what the engine itself wrote, by an earlier install or upgrade, or its wiring, is not the project's own work)
+  // (only while the file is as the engine left it, by its recorded time: a later edit by the owner is their work)
+  const ew = (() => { try { return JSON.parse(fs.readFileSync(path.join(dest, 'tools/hooks/state/engine-writes.json'), 'utf8')); } catch { return {}; } })();
+  const engineWrote = f => { try { return ew[f] != null && Math.abs(fs.statSync(path.join(dest, f)).mtimeMs - ew[f]) < 2000; } catch { return false; } };
+  const WIRING = /^(\.gitignore|\.claude\/settings\.json|\.codex\/hooks\.json|CLAUDE\.md|DIRECTORY\.md|\.claude\/skills\/|\.agents\/skills\/)/;
+  const dirty0 = dry ? [] : dirtyNow().filter(f => !engineWrote(f) && !WIRING.test(f));
   if (dirty0.length && !flag('--allow-dirty')) { console.error(`not upgraded: ${dirty0.length} file(s) have uncommitted changes (${dirty0.slice(0, 5).join(', ')}${dirty0.length > 5 ? ', ...' : ''}). Commit the project's own work first, or ask the owner and run again with --allow-dirty (the upgrade then lists its own files to commit apart).`); process.exit(1); }
   if (dirty0.length) process.on('exit', () => { const now = dirtyNow().filter(f => !dirty0.includes(f)); if (now.length) console.log(`the engine's files (commit them apart): git add ${now.map(f => /\s/.test(f) ? `"${f}"` : f).join(' ')}`); });
   // Never worse: audit and time the project before, so the result can be compared after.
