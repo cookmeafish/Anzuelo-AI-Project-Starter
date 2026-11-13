@@ -9535,11 +9535,14 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
     const g = (...a) => spawnSync('git', a, { cwd: proj, encoding: 'utf8' });
     g('init', '-q'); g('config', 'user.email', 't@example.com'); g('config', 'user.name', 't'); g('add', '-A', '--', '.', ':!.anzuelo'); g('commit', '-q', '-m', 'project');
     const wireRun = () => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/wire.mjs')], { cwd: proj, encoding: 'utf8', timeout: 120000 });
-    const w1 = wireRun(), status1 = (g('status', '--porcelain').stdout || '').trim(), gi1 = fs.readFileSync(path.join(proj, '.gitignore'), 'utf8');
-    const w2 = wireRun(), status2 = (g('status', '--porcelain').stdout || '').trim(), gi2 = fs.readFileSync(path.join(proj, '.gitignore'), 'utf8');
+    // (the ignore block goes in git's own exclude file, so the project's .gitignore is untouched and status is clean.
+    // The user's rule, 2026-11-12: nothing of the starter outside .anzuelo/ but the wiring)
+    const exf = () => { try { return fs.readFileSync(path.resolve(proj, (g('rev-parse', '--git-path', 'info/exclude').stdout || '').trim()), 'utf8'); } catch { return ''; } };
+    const w1 = wireRun(), status1 = (g('status', '--porcelain').stdout || '').trim(), gi1 = exf();
+    const w2 = wireRun(), status2 = (g('status', '--porcelain').stdout || '').trim(), gi2 = exf();
     const local = (() => { try { return JSON.parse(fs.readFileSync(path.join(proj, '.claude/settings.local.json'), 'utf8')); } catch { return {}; } })();
     const claudeLocal = (() => { try { return fs.readFileSync(path.join(proj, 'CLAUDE.local.md'), 'utf8'); } catch { return ''; } })();
-    report(w1.status === 0 && w2.status === 0 && status1 === 'M .gitignore' && status2 === 'M .gitignore' && gi1 === gi2 && /^\.anzuelo\/$/m.test(gi1)
+    report(w1.status === 0 && w2.status === 0 && status1 === '' && status2 === '' && gi1 === gi2 && /^\.anzuelo\/$/m.test(gi1)
       && (local.hooks?.Stop || []).some(m => (m.hooks || []).some(h => /\.anzuelo\/engine\/tools\/hooks\/hooks\.mjs" stop$/.test(h.command || ''))) && JSON.stringify(JSON.parse(fs.readFileSync(path.join(proj, '.claude/settings.json'), 'utf8'))) === JSON.stringify(own)
       && /^@\.anzuelo\/engine\/AGENTS\.md$/m.test(claudeLocal) && !fs.existsSync(path.join(proj, 'CLAUDE.md')),
       'layout: wiring a project with the engine in .anzuelo/engine leaves git status at the .gitignore block alone: hooks in settings.local.json, rules through CLAUDE.local.md, the project\'s own settings untouched, a second run changes nothing',
@@ -9651,8 +9654,9 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
     const upg = st('upgrade'), after = hashAll();
     const plan = fs.readFileSync(planL, 'utf8'), agents = fs.readFileSync(agL, 'utf8'), b = (() => { try { return JSON.parse(fs.readFileSync(path.join(loc, 'based-on.json'), 'utf8')); } catch { return {}; } })();
     report(ins.status === 0 && /engine-readonly[\s\S]*override docs\/playbooks\/plan\.md/.test(guard) && o1.status === 0 && o2.status === 0
-      && upg.status === 0 && (g(eng, 'rev-parse', 'HEAD').stdout || '').trim() === newHead && diffs(before, after).join() === 'docs/DECISIONS.md'
-      && new RegExp(`^- \\d{4}-\\d\\d-\\d\\d: engine upgraded to ${newHead.slice(0, 7)} \\(from ${oldHead.slice(0, 7)}\\)`, 'm').test(fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8'))
+      // (the decisions record lives in .anzuelo/local since 2026-11-12: nothing of the starter outside .anzuelo/)
+      && upg.status === 0 && (g(eng, 'rev-parse', 'HEAD').stdout || '').trim() === newHead && diffs(before, after).join() === '.anzuelo/local/docs/DECISIONS.md'
+      && new RegExp(`^- \\d{4}-\\d\\d-\\d\\d: engine upgraded to ${newHead.slice(0, 7)} \\(from ${oldHead.slice(0, 7)}\\)`, 'm').test(fs.readFileSync(path.join(proj, '.anzuelo/local/docs/DECISIONS.md'), 'utf8'))
       && /the project's own lesson/.test(plan) && /An invoice line the default added\./.test(plan) && /^# Our own title/.test(agents) && /AGENTS\.md \(both changed/.test(upg.stdout)
       && fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md')) && b.at === newHead && b.files?.['docs/playbooks/plan.md'] === newHead && b.files?.['AGENTS.md'] === oldHead,
       'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged but for its dated line in docs/DECISIONS.md; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',

@@ -51,9 +51,7 @@ export function wire(dir, { dry = false } = {}) {
   const eh = path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks'), split = fs.existsSync(eh), { where } = resolver(split ? roots(eh, {}) : { ENGINE: dir, PROJECT: dir, LOCAL: dir });
   const log = [], at = (...p) => path.join(dir, ...p), eng = (...p) => where(path.join(...p)), write = (p, text) => { if (!dry) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text); } };
   const HOOKS_REL = split ? '.anzuelo/engine/tools/hooks/hooks.mjs' : 'tools/hooks/hooks.mjs', GITHOOKS = split ? '.anzuelo/engine/.githooks' : '.githooks';
-  // (the block goes in git's own exclude file, no project file: .gitignore only when the user agreed at install
-  // (config "gitignore": true) or an older install already put it there. The user's rule, 2026-11-12: nothing of the
-  // starter outside .anzuelo/ but the wiring)
+  // (in git's own exclude file; .gitignore only if agreed at install ("gitignore": true) or already there. 2026-11-12)
   if (split) {
     const gi = at('.gitignore'), have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
     let agreed = false; try { agreed = JSON.parse(fs.readFileSync(eng('tools', 'hooks', 'config.json'), 'utf8')).gitignore === true; } catch { }

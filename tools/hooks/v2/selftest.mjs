@@ -3768,8 +3768,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const r = resolver?.({ ENGINE, PROJECT: proj, LOCAL }), one = resolver?.({ ENGINE: proj, PROJECT: proj, LOCAL: proj });
   const ok = !!r
     && r.where('tools/hooks/hooks.mjs') === path.join(ENGINE, 'tools', 'hooks', 'hooks.mjs')
-    && r.where('docs/CHANGELOG.md') === path.join(proj, 'docs', 'CHANGELOG.md') && r.where('docs/knowledge/recipes.md') === path.join(proj, 'docs', 'knowledge', 'recipes.md')
-    && r.where('docs/security.md') === path.join(proj, 'docs', 'security.md') && r.where('docs/plans/a.md') === path.join(LOCAL, 'docs', 'plans', 'a.md') &&r.where('src/app.js') === path.join(proj, 'src', 'app.js')
+    && r.where('docs/CHANGELOG.md') === path.join(LOCAL, 'docs', 'CHANGELOG.md') && r.where('docs/knowledge/recipes.md') === path.join(proj, 'docs', 'knowledge', 'recipes.md')
+    && r.where('docs/security.md') === path.join(LOCAL, 'docs', 'security.md') && r.where('docs/plans/a.md') === path.join(LOCAL, 'docs', 'plans', 'a.md') &&r.where('src/app.js') === path.join(proj, 'src', 'app.js')
     && r.where('docs/STATUS.md') === path.join(LOCAL, 'docs', 'STATUS.md') && r.where('tools/hooks/config.json') === path.join(LOCAL, 'tools', 'hooks', 'config.json')
     && r.where('docs/playbooks/shared.md') === path.join(LOCAL, 'docs', 'playbooks', 'shared.md') && r.where('docs/playbooks/core.md') === path.join(ENGINE, 'docs', 'playbooks', 'core.md')
     && r.whereWrite('docs/playbooks/core.md') === path.join(LOCAL, 'docs', 'playbooks', 'core.md') && r.where('docs/playbooks/new.md') === path.join(LOCAL, 'docs', 'playbooks', 'new.md')
@@ -3782,6 +3782,13 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const keptOk = !!k && k.where('docs/playbooks/own.md') === path.join(proj, 'docs', 'playbooks', 'own.md') && k.where('docs/playbooks/core.md') === path.join(ENGINE, 'docs', 'playbooks', 'core.md')
     && k.whereWrite('docs/playbooks/core.md') === path.join(proj, 'docs', 'playbooks', 'core.md') && k.where('docs/STATUS.md') === path.join(proj, 'docs', 'STATUS.md')
     && k.where('docs/plans/a.md') === path.join(LOCAL, 'docs', 'plans', 'a.md') && k.listAll('docs/playbooks').sort().join() === 'core.md,own.md,shared.md';
+  // (the records go local (the user's rule, 2026-11-12); an older install's own copy is still used, and recordPaths points
+  // a record at the project's own file, which reads back under the record's name)
+  put(path.join(proj, 'docs/BRIEF.md')); put(path.join(proj, 'CHANGES.md'));
+  const rm = resolver?.({ ENGINE, PROJECT: proj, LOCAL, records: { 'docs/CHANGELOG.md': 'CHANGES.md' } });
+  const recOk = !!rm && rm.where('docs/BRIEF.md') === path.join(proj, 'docs', 'BRIEF.md') && rm.where('docs/DECISIONS.md') === path.join(LOCAL, 'docs', 'DECISIONS.md')
+    && rm.whereWrite('docs/CHANGELOG.md') === path.join(proj, 'CHANGES.md') && rm.relOf(path.join(proj, 'CHANGES.md')) === 'docs/CHANGELOG.md';
+  report(recOk, 'paths: the records are local, an older install\'s own copy is still used, and recordPaths maps a record to the project\'s own file', rm && { brief: rm.where('docs/BRIEF.md'), ch: rm.whereWrite('docs/CHANGELOG.md'), rel: rm.relOf(path.join(proj, 'CHANGES.md')) });
   report(keptOk, 'paths: keepInProject keeps runbooks and status the project\'s own code reads by path in the project, falling back to the engine\'s defaults', k && { own: k.where('docs/playbooks/own.md'), list: k.listAll('docs/playbooks') });
   report(ok, 'paths: each file resolves to its root (engine code, project records, local records); runbooks read local then engine, written locally; in one folder nothing moves',
     r && { hooks: r.where('tools/hooks/hooks.mjs'), core: r.where('docs/playbooks/core.md'), write: r.whereWrite('docs/playbooks/core.md'), list: r.listAll('docs/playbooks') });

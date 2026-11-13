@@ -19,21 +19,16 @@ export function roots(hooksDir, env = process.env) {
 // it, and a test copy it spawns would otherwise read that project's files)
 export const { ENGINE, PROJECT, LOCAL, split } = roots(path.dirname(fileURLToPath(import.meta.url)), {});
 
-// Which root a project-relative path lives under. In the starter all three are one folder, so this changes nothing
-// there. The records that describe the project (changelog, brief, decisions) and anything unknown (the project's code)
-// stay in the project; the engine's code is the engine's; what the engine makes for this project is local; runbooks,
-// skills, checklists and the rules exist in both, the local copy winning and every new or changed one going local.
+// Which root a project-relative path lives under (in the starter all three are one folder): the engine's code is the
+// engine's, all it makes for the project is local (its notes and records too: the user's rule, 2026-11-12, nothing of
+// the starter outside .anzuelo/), runbooks, skills and rules are in both (local wins), anything else is the project's.
 const ENGINE_ONLY = /^(tools|packs|library|\.githooks)(\/|$)/;
 // (tools/screenshot.mjs comes from a pack and is installed for this project)
 const LOCAL_ALWAYS = /^(tools\/hooks\/state|tools\/hooks\/config\.json|tools\/screenshot\.mjs|\.cache|\.starter|DIRECTORY\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)(\/|$)/;
 const BOTH = /^(skills|docs\/playbooks|docs\/checks|tools\/starter\/runbooks|AGENTS\.md|tools\/hooks\/requirements\.json|tools\/packs-registry\.json)(\/|$)/;
-// (only the engine's working notes leave the project's docs/: its knowledge, specs, releases, security baseline and
-// anything else it keeps there stay in its git)
 const ENGINE_NOTES = /^docs\/(STATUS\.md|plans|glossary\.md|reviews|MENU\.md|names\.json|recommended-tools\.md|starter-feedback\.md|fit-checklist\.md|lessons\.md|routines\.md)(\/|$)/;
 const norm = p => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '');
-// (the project records the starter makes go local too, so an established app's own CHANGELOG or docs never collide or
-// mix with them. The user's rule, 2026-11-12: everything of the starter for a project lives under .anzuelo/. An older
-// install that has them in the project keeps using those; "recordPaths" maps one to the project's own equivalent)
+// (the records: local, so an app's own CHANGELOG or docs never mix with them; an older install's copies stay in use)
 export const RECORDS = /^docs\/(BRIEF|CHANGELOG|DECISIONS|security|foundation)\.md$/;
 export function kind(p) {
   const r = norm(p);
@@ -43,14 +38,10 @@ export function kind(p) {
   return 'project';
 }
 const exists = f => { try { fs.statSync(f); return true; } catch { return false; } };
-// Paths the project keeps in its own folder although the engine would put them in .anzuelo/local: "keepInProject" in
-// .anzuelo/local/config.json, each a file or a folder ("docs/playbooks"). The project's own code may read them by path.
-// A kept runbook or checklist is read from the project, else from the engine, and written in the project.
-// Lesson (a field report): a project's own scripts read its runbooks, checklists and status by path, so moving them
-// to .anzuelo/local would have broken every one of those readers.
+// Paths the project keeps in its own folder ("keepInProject" in .anzuelo/local/config.json, files or folders): read
+// there, else from the engine, and written there. Lesson (a field report): its own scripts read them by path.
 export const keepList = local => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).keepInProject || []).map(s => norm(s).replace(/\/+$/, '')).filter(Boolean); } catch { return []; } };
-// The records the project keeps in its own equivalent: "recordPaths" in .anzuelo/local/config.json, such as
-// { "docs/CHANGELOG.md": "CHANGELOG.md" }, proposed by the adoption review when the project has one.
+// A record kept in the project's own equivalent ("recordPaths", { "docs/CHANGELOG.md": "CHANGELOG.md" }), per the adoption review.
 export const recordMap = local => { try { const m = JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).recordPaths || {}; return Object.fromEntries(Object.entries(m).filter(([k, v]) => RECORDS.test(norm(k)) && v).map(([k, v]) => [norm(k), norm(v)])); } catch { return {}; } };
 // resolver(r) gives where(p) (to read: local copy, else engine copy, else local) and whereWrite(p) (always local for
 // engine-made files, so an upgrade never meets a change of the project's).
@@ -58,10 +49,8 @@ export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
   const at = (root, p) => path.resolve(root, norm(p));
   const keep = r.keep || (r.LOCAL !== r.PROJECT ? keepList(r.LOCAL) : []);
   const kept = p => { const q = norm(p); return keep.some(k => q === k || q.startsWith(k + '/')); };
-  // (a record: mapped to the project's own equivalent, else the project's copy an older install has, else local)
   const recs = r.LOCAL !== r.PROJECT ? (r.records || recordMap(r.LOCAL)) : {}, back = Object.fromEntries(Object.entries(recs).map(([k, v]) => [v, k]));
-  const record = p => { const q = norm(p); if (r.LOCAL === r.PROJECT || !RECORDS.test(q)) return null;
-    return recs[q] ? at(r.PROJECT, recs[q]) : !exists(at(r.LOCAL, q)) && exists(at(r.PROJECT, q)) ? at(r.PROJECT, q) : null; };
+  const record = p => { const q = norm(p); if (r.LOCAL === r.PROJECT || !RECORDS.test(q)) return null; return recs[q] ? at(r.PROJECT, recs[q]) : !exists(at(r.LOCAL, q)) && exists(at(r.PROJECT, q)) ? at(r.PROJECT, q) : null; }; // (mapped, an older install's copy, else local)
   const where = p => {
     if (path.isAbsolute(String(p))) return path.resolve(String(p));
     const rec = record(p); if (rec) return rec;
