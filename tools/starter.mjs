@@ -567,6 +567,20 @@ if (cmd === 'link') {
   // package its own folder in ways the engine can't foresee. Oversight's decision, 2026-11-13; a fresh project keeps it inside)
   if (had.length) try { const lc = path.join(loc, 'config.json'), was = (() => { try { return JSON.parse(fs.readFileSync(lc, 'utf8')); } catch { return {}; } })();
     if (was.stateOutside === undefined) fs.writeFileSync(lc, JSON.stringify({ ...was, stateOutside: true }, null, 2) + '\n'); } catch (e) { console.error(`config: ${e.message}`); }
+  // (and the adopted app's own way of working, as defaults the install sets, so the engine never makes the agent's work
+  // there worse. Oversight, 2026-11-13: light mode when its own rules are large; no record asks when it keeps none;
+  // its own gates (test, build, its review script) declared, and no screen items when it reviews its screens itself)
+  if (had.length) try {
+    const cf = path.join(loc, 'tools', 'hooks', 'config.json'), cur = JSON.parse(fs.readFileSync(cf, 'utf8')), size = f => { try { return fs.statSync(path.join(dest, f)).size; } catch { return 0; } };
+    const scripts = (() => { try { return JSON.parse(fs.readFileSync(path.join(dest, 'package.json'), 'utf8')).scripts || {}; } catch { return {}; } })();
+    const gate = rx => Object.keys(scripts).find(k => rx.test(k)), review = gate(/e2e|drive|playwright|cypress|screenshot|visual/i);
+    const add = { ...(Math.max(size('CLAUDE.md'), size('AGENTS.md')) > 40 * 1024 ? { light: true } : {}),
+      ...(['docs/CHANGELOG.md', 'CHANGELOG.md', 'docs/STATUS.md', 'docs/DECISIONS.md'].some(f => size(f) > 0) ? {} : { records: false }),
+      ...(Object.keys(scripts).length ? { appGates: Object.fromEntries([['test', gate(/^test$|^test:/)], ['build', gate(/^build$|^build:/)], ['review', review]].filter(([, v]) => v).map(([k, v]) => [k, `npm run ${v}`])) } : {}),
+      ...(review && !(cur.packs || []).includes('gui') ? { suspended: [...(cur.suspended || []), { item: 'check:a11y-checked', reason: `the app reviews its own screens (npm run ${review}); the gui pack is off`, at: new Date().toISOString().slice(0, 10) }] } : {}) };
+    const keys = Object.keys(add).filter(k => cur[k] === undefined || k === 'suspended');
+    if (keys.length) { fs.writeFileSync(cf, JSON.stringify({ ...cur, ...Object.fromEntries(keys.map(k => [k, add[k]])) }, null, 2) + '\n'); console.log(`Adopted-app defaults: ${keys.map(k => k === 'suspended' ? 'screen items off (its own review script)' : k === 'appGates' ? `its gates ${Object.values(add.appGates).join(', ')}` : `${k}: ${add[k]}`).join('; ')}.`); }
+  } catch (e) { console.error(`config: ${e.message}`); }
   const w = spawnSync(process.execPath, [path.join(eng, 'tools', 'hooks', 'wire.mjs')], { cwd: dest, encoding: 'utf8' });
   process.stdout.write(w.stdout || ''); if (w.status !== 0) { process.stderr.write(w.stderr || ''); process.exit(1); }
   noteEngineChange(dest, `${moved ? 'moved' : 'installed'} into .anzuelo/engine at ${(g(['rev-parse', '--short', 'HEAD'], eng).stdout || '').trim()}`);

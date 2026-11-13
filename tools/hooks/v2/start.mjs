@@ -353,6 +353,6 @@ export function onPrompt(data) {
     const q = !open ? W.queueOpen(f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } })[0] : null;
     if (q) stillOpen = [stillOpen, `Next in the project's queue (${q.file}): ${q.text.slice(0, 160)}`].filter(Boolean).join('\n'); } catch { }
   // (last: what the reminder leads with, a question to answer or the runbook to open, stays first)
-  const all = [text, stillOpen, fit, digest].filter(Boolean).join('\n');
+  const all = [text, stillOpen, fit, digest].filter(Boolean).join('\n').split('\n').slice(0, projectConfig().light ? 3 : Infinity).join('\n'); // (light mode: at most 3 lines. Oversight, 2026-11-13)
   return all ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: all } } : null;
 }

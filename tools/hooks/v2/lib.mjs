@@ -602,7 +602,7 @@ export function met(item, acts) {
   if (item.kind === 'file') {
     const since = Date.parse(acts.at || '') || 0;
     // ("a|b": either path or glob)
-    const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]);
+    const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]); if (projectConfig().records === false && args.every(a => /^docs\/(CHANGELOG|STATUS|DECISIONS)\.md$/i.test(a))) return true; // ("records": false, an adopted app without its own: no record asks. Oversight, 2026-11-13)
     // (a runbook or skill changed only in its triggers line is no change: new routing words, the same procedure. Lesson
     // (the old engine): a question taught a runbook its Spanish wording, and the sweeps for changed runbooks held it)
     const ro = { has: f => routingWordsOnly(acts, f) };
@@ -693,7 +693,7 @@ const walkedAll = new WeakMap(), gitSame = (fs2, since) => { if (!fs2.length) re
 export function touchedSince(acts, any = false) {
   const since = Date.parse(acts.at || '') || 0;
   if (!since) return [];
-  const all = () => { if (!walkedAll.has(acts)) { const w = filesMatching('**/*').map(f => ({ f, t: mtime(f) })).filter(x => x.t > since), same = gitSame(w.map(x => x.f).slice(0, 400), since); walkedAll.set(acts, w.filter(x => !same.has(x.f))); } return walkedAll.get(acts); };
+  const all = () => { if (!walkedAll.has(acts)) { const ign = (projectConfig().ignoreForChanges || []).map(globRx), w = filesMatching('**/*').filter(f => !ign.some(r => r.test(f))).map(f => ({ f, t: mtime(f) })).filter(x => x.t > since), same = gitSame(w.map(x => x.f).slice(0, 400), since); walkedAll.set(acts, w.filter(x => !same.has(x.f))); } return walkedAll.get(acts); };
   if (any) return all();
   if (!walked.has(acts)) walked.set(acts, acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : all().filter(x => ranAt(acts, x.t, x.f)));
   return walked.get(acts);

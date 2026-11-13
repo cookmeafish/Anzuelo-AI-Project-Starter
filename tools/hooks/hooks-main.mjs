@@ -2099,7 +2099,7 @@ function notices(cfg) {
   if (up.length) out.push(`UPGRADE REVIEW PENDING: the engine was upgraded and ${up.length} item(s) still need a decision (docs/DECISIONS.md "## Upgrade review"). ${cfg.autonomy === 'auto' ? 'Decide each one yourself by the same weighing and list the decisions in your answer:' : 'Decide them yourself before other work, asking the user only about money, privacy or outward actions, then show the one-line summary:'} adopt what makes this project better (Worth it: <gain> / <cost>), decline the rest with the reason.`);
   if (!template) { const fl = fitLaterNotice(); if (fl) out.push(fl); }
   // REQ: plan-open. A plan with unticked steps is announced at every session start until it is done or dropped.
-  const plans = openPlans();
+  const plans = cfg.light ? [] : openPlans(); // (light mode: no open-plan list at the start)
   if (plans.length) out.push(`OPEN PLANS: ${plans.map(x => `${x.p} (${x.left} of ${x.left + x.done} steps left)`).join(', ')}. When the request continues it, resume it without telling the user it is open (node skills/plan/scripts/plan-tasks.mjs status <plan>), or close it with "status: done" or "status: dropped - <why>".`);
   const susp = suspendedItems();
   if (susp.length) out.push(`SUSPENDED FOR FRUSTRATING THE USER: ${susp.map(s => `${s.item} (${s.at}: ${s.why})`).join('; ')}. They don't route or block. Fix each one and restore it (node tools/hooks/hooks.mjs restore <item>), or retire it with the user's OK (skill-curate).`);
@@ -2143,7 +2143,8 @@ function cmdSession(data) {
   if (exists('.starter-dev')) parts.push(DEV_EDIT_LINE);
   // (the prompt's rules digest says the same in short: this session has the whole checklist, so the prompts skip it)
   if (SID && parts[0] && !seen) writeState('checklist.json', { at: new Date().toISOString() });
-  const status = read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
+  // (light mode, a project whose own rules are already large: no status dump at the start. Oversight, 2026-11-13)
+  const status = cfg.light ? '' : read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
   if (status) parts.push('--- docs/STATUS.md (where things stand) ---\n' + status);
   // (a resumed conversation already saw this session's reminders: only new ones are shown. Lesson (probe): every resume
   // showed the user the same six reminders again)

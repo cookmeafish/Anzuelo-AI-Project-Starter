@@ -358,10 +358,13 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const ownSkill = '---\nname: release-notes\ndescription: Write the release notes\n---\n# Release notes\nRun `node .claude/skills/release-notes/make.js`.\n';
   const ownDebug = '---\nname: debug\ndescription: The project\'s own debugging steps\n---\n# Debug\nOpen the "logs" panel first.\n';
   const ownLocal = { permissions: { allow: ['Bash(yarn test:*)'], deny: ['Bash(rm -rf:*)'] }, env: { APP_MODE: 'dev' }, hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'node scripts/own-lint.js' }] }] } };
+  // (its own large rules files, for two tools, and its own scripts: the install sets light mode, no record asks, its
+  // gates, and no screen items; the rules files are never written. Oversight, 2026-11-13)
+  const bigRules = `# Project rules\n${'- Keep the "garden" logic in src/core; never call the network from a component.\n'.repeat(700)}`;
   // (a tracked app doc that happens to hold a name marker: the engine never rewrites it)
   const guideText = '# Guide\nWelcome to <!--name:PROJECT_NAME-->Garden App<!--/name-->, version 2.\n';
   // (no .gitignore of its own, and its own app data tracked in .cache/: neither is the engine's business)
-  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug, '.cache/app-data.json': '{"items":3}\n', 'docs/guide.md': guideText }); gitRepo(dir);
+  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug, '.cache/app-data.json': '{"items":3}\n', 'docs/guide.md': guideText, 'CLAUDE.md': bigRules, 'AGENTS.md': '# Rules for another tool\nKeep answers short.\n', 'package.json': JSON.stringify({ name: 'garden', version: '1.0.0', scripts: { test: 'node -e 0', build: 'node -e 0', 'e2e:drive': 'node -e 0' } }, null, 2) + '\n' }); gitRepo(dir);
   const ownLocalRules = '# My notes for this machine\nAnswer in short paragraphs; the "staging" server is down on Fridays.\n';
   write(dir, { '.claude/settings.local.json': JSON.stringify(ownLocal, null, 2) + '\n', 'CLAUDE.local.md': ownLocalRules });
   // (an adopted project keeps the engine's state in the user's profile: a test profile here, never the real one)
@@ -413,6 +416,14 @@ for (const [name, s] of Object.entries(SAMPLES)) {
       !!told && path.relative(dir, path.resolve(dir, told)).startsWith('..') && !/(?<![\w./-])\.cache\/turn-notes\.md/.test(session + hint) && /acknowledged: the export dropped the \\?"notes\\?" column/.test(ack) && !fs.existsSync(path.join(dir, '.cache/turn-notes.md')),
       JSON.stringify({ session: session.slice(-300), hint: hint.slice(0, 300), ack: ack.slice(0, 300) }));
     check(name, 'a tracked app doc holding a name marker is never rewritten by the engine\'s name sync (install and a session start)', rd('docs/guide.md') === guideText, JSON.stringify(rd('docs/guide.md')));
+    // (the adopted-app defaults: light mode for its large rules, no record asks, its gates declared, screen items off;
+    // its rules files untouched; the reminder at most 3 lines and no status dump at the start)
+    let lc = {}; try { lc = JSON.parse(rd('.anzuelo/local/tools/hooks/config.json') || '{}'); } catch { }
+    const hintLines = (() => { try { return String(JSON.parse(hint).hookSpecificOutput?.additionalContext || '').split('\n').length; } catch { return hint.trim() ? hint.split('\n').length : 0; } })();
+    check(name, 'adopted-app defaults: light mode for its large rules (the reminder at most 3 lines, no status dump at the start), no record asks when it keeps no records, its own gates declared from package.json, screen items off for its own review script; its CLAUDE.md and AGENTS.md are never written',
+      lc.light === true && lc.records === false && lc.appGates?.test === 'npm run test' && lc.appGates?.review === 'npm run e2e:drive' && (lc.suspended || []).some(s => s.item === 'check:a11y-checked')
+        && hintLines <= 3 && !/docs\/STATUS\.md \(where things stand\)/.test(session) && rd('CLAUDE.md') === bigRules && rd('AGENTS.md') === '# Rules for another tool\nKeep answers short.\n',
+      JSON.stringify({ light: lc.light, records: lc.records, appGates: lc.appGates, suspended: lc.suspended, hintLines, claude: rd('CLAUDE.md') === bigRules }));
   }
   // (its own .claude/settings.local.json merged: every key of the user's kept, the engine's hooks added)
   let local = {}; try { local = JSON.parse(rd('.claude/settings.local.json') || '{}'); } catch { }

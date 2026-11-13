@@ -532,14 +532,36 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
     const { slowerThan, machineId } = await import('../selftest-cache.mjs');
     const promptInput = JSON.stringify({ session_id: 'speedp', transcript_path: tq, prompt: 'fix the label on the builder page' });
     HOOK_TIMES = { machine: machineId(), prompt: Math.round(prompt + bare), pretool: Math.round(pretool + bare) };
-    const lastProof = (() => { try { return JSON.parse(fs.readFileSync(path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), 'tools/hooks/engine-proof.json'), 'utf8')).speed?.times || null; } catch { return null; } })();
-    const slower = slowerThan(lastProof, HOOK_TIMES);
-    report(timeVerdict(!slower.length, 'speed: against the last release', JSON.stringify({ last: lastProof, now: HOOK_TIMES })),
-      'speed: the prompt and pretool hooks are no more than 15% slower than the last released proof on this machine', JSON.stringify({ last: lastProof, now: HOOK_TIMES, slower }));
-    const slowed = Math.round(best(['--import', 'data:text/javascript,const t=Date.now();while(Date.now()-t<40);', path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], promptInput));
-    const caught = slowerThan(HOOK_TIMES, { ...HOOK_TIMES, prompt: slowed }), same = slowerThan(HOOK_TIMES, HOOK_TIMES), other = slowerThan(HOOK_TIMES, { ...HOOK_TIMES, machine: 'elsewhere', prompt: slowed });
+    // (against the released hooks timed in this same run, interleaved round by round, never a number stored at another
+    // time and load: slower only when both the fastest and the median are over 15% above the release's. Lesson (three
+    // release chains, 2026-11-13): the stored number from a quiet machine failed equal code whenever the machine was busy)
+    const repoR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), relRef = (spawnSync('git', ['rev-parse', '-q', '--verify', 'origin/main'], { cwd: repoR, encoding: 'utf8' }).stdout || '').trim();
+    // (slower only when both the fastest and the median are over 15% above the release's, in the same run)
+    const rule = (rel, now) => { const f = a => Math.min(...a), m = a => [...a].sort((x, y) => x - y)[a.length >> 1]; return f(now) > f(rel) * 1.15 && m(now) > m(rel) * 1.15; };
+    let vsRelease = null;
+    if (relRef) { const rel = testDir('anzuelo-v2-rel-'), ar = spawnSync('git', ['archive', relRef, 'tools/hooks'], { cwd: repoR, maxBuffer: 1 << 28 });
+      // (-f -, and run inside the folder: Windows' own tar reads stdin only when told, and Git's GNU tar takes "C:" in a
+      // folder name for a remote host; without both the copy was never made)
+      if (ar.status === 0 && spawnSync('tar', ['-x', '-f', '-'], { cwd: rel, input: ar.stdout }).status === 0 && fs.existsSync(path.join(rel, 'tools/hooks/hooks.mjs'))) {
+        fs.mkdirSync(path.join(rel, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(rel, '.cache'), { recursive: true }); fs.copyFileSync(tq, path.join(rel, 'tq.jsonl'));
+        // (V2_SPEED_SLOW_MS: a busy wait added to this run's hooks only, to prove a real slowdown is still caught)
+        const slowMs = Number(process.env.V2_SPEED_SLOW_MS || 0), slowArg = root => root !== rel && slowMs > 0 ? ['--import', `data:text/javascript,const t=Date.now();while(Date.now()-t<${slowMs});`] : [];
+        const relEnv = { ...env, ANZUELO_ROOT: rel, CLAUDE_PROJECT_DIR: rel }, one = (root, e, cmd, input) => { const t0 = performance.now(); spawnSync(process.execPath, [...slowArg(root), path.join(root, 'tools/hooks/hooks.mjs'), cmd], { cwd: root, encoding: 'utf8', input, env: e }); return performance.now() - t0; };
+        const t = { rel: { prompt: [], pretool: [] }, now: { prompt: [], pretool: [] } }, preIn = r => JSON.stringify({ session_id: 'speedt', transcript_path: path.join(r, r === rel ? 'tq.jsonl' : path.basename(tq)), tool_name: 'Bash', tool_input: { command: 'git status' } });
+        for (let i = 0; i < 9; i++) for (const [k, root, e] of [['rel', rel, relEnv], ['now', c, env]]) { t[k].prompt.push(one(root, e, 'prompt', promptInput.replace(JSON.stringify(tq).slice(1, -1), JSON.stringify(path.join(root, root === rel ? 'tq.jsonl' : path.basename(tq))).slice(1, -1)))); t[k].pretool.push(one(root, e, 'pretool', preIn(root))); }
+        const fast = a => Math.round(Math.min(...a)), mid = a => Math.round([...a].sort((x, y) => x - y)[a.length >> 1]);
+        vsRelease = { ref: relRef.slice(0, 7), ...Object.fromEntries(['prompt', 'pretool'].map(h => [h, { release: [fast(t.rel[h]), mid(t.rel[h])], now: [fast(t.now[h]), mid(t.now[h])] }])) };
+        vsRelease.slower = ['prompt', 'pretool'].filter(h => rule(t.rel[h], t.now[h]));
+      }
+      fs.rmSync(rel, { recursive: true, force: true }); }
+    console.log(`speed vs release: ${vsRelease ? JSON.stringify(vsRelease) : relRef ? 'the released copy could not be made' : 'no released copy here'}`);
+    report(!vsRelease ? !(STARTER_REPO && relRef) : timeVerdict(!vsRelease.slower.length, 'speed: against the release, same run', JSON.stringify(vsRelease)),
+      `speed: the prompt and pretool hooks are no more than 15% slower than the released ones timed in the same run, interleaved (fastest and median)${vsRelease ? '' : ' (no released copy here: not compared)'}`, JSON.stringify(vsRelease));
+    // (the same-run rule on set timings, whatever the machine's load: equal code and one slow sample are not slower; 30%
+    // more at both the fastest and the median is. A live slowdown under load is proven with V2_SPEED_SLOW_MS)
+    const R = [100, 102, 104, 106, 108, 110, 112, 114, 116], caught = rule(R, R.map(x => x * 1.3)) ? ['prompt'] : [], same = rule(R, R) ? ['same'] : [], other = rule(R, [...R.slice(0, 8), 400]) ? ['one slow sample'] : [];
     report(/^[0-9a-f]{12}$/.test(HOOK_TIMES.machine) && !HOOK_TIMES.machine.includes(os.hostname()) && machineId() === HOOK_TIMES.machine, 'speed: the proof names the machine by a short hash, never the computer\'s name (the proof is published)', HOOK_TIMES.machine);
-    report(caught.length === 1 && !same.length && !other.length, 'speed: a hook slowed on purpose (40 ms) is caught as slower than the last release; the same times, or another machine, are not', JSON.stringify({ now: HOOK_TIMES.prompt, slowed, caught, other }));
+    report(caught.length === 1 && !same.length && !other.length, 'speed: the same-run rule flags a hook 30% slower at both the fastest and the median; equal timings, or one slow sample, are not flagged', JSON.stringify({ caught, same, other }));
     // (the entry, hooks.mjs, turns on Node's compile cache before loading the body, in Node's default temp folder and
     // never in the project; a cache folder that is broken or unwritable, or a Node without the cache, still runs the
     // hook. Oversight, 2026-11-11: the hooks spent most of their time compiling the body)
@@ -1136,6 +1158,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           const seen = L.touchedSince(rb, true).map(x => x.f).filter(f => f.startsWith('web/'));
           if (!hadGit) fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true }); fs.rmSync(path.join(dir, 'web'), { recursive: true, force: true });
           report(JSON.stringify(seen) === '["web/edited.html"]', 'end: a tracked file a command rewrote byte for byte (git sees it unchanged) is no change; one it really changed is', JSON.stringify(seen));
+          // (folders the settings ignore for changes (git's own ignore list: generated and data folders) are never
+          // "changed files" for the checks. Oversight, 2026-11-13)
+          { const cf = path.join(dir, 'tools/hooks/config.json'), keepCf = fs.existsSync(cf) ? fs.readFileSync(cf, 'utf8') : null; let c0 = {}; try { c0 = JSON.parse(keepCf || '{}'); } catch { }
+            fs.writeFileSync(cf, JSON.stringify({ ...c0, ignoreForChanges: [...(c0.ignoreForChanges || []), 'gen-out/**'] }));
+            const at1 = new Date(Date.now() - 5000).toISOString(); put('gen-out/data.json', '{}'); put('appsrc2/main.js', 'x');
+            const gb = acts([user('build it'), call('Bash', { command: 'node build.mjs' }, 'built'), say('Built.')]); gb.at = at1;
+            const got = L.touchedSince(gb, true).map(x => x.f);
+            if (keepCf === null) fs.rmSync(cf, { force: true }); else fs.writeFileSync(cf, keepCf); for (const d of ['gen-out', 'appsrc2']) fs.rmSync(path.join(dir, d), { recursive: true, force: true });
+            report(got.includes('appsrc2/main.js') && !got.some(f => f.startsWith('gen-out/')), 'end: a folder the settings ignore for changes (git\'s ignore list: generated and data folders) holds no "changed files"; the app\'s own source still does', JSON.stringify(got.filter(f => /gen-out|appsrc2/.test(f)))); }
         }
         report(sp.question === 0 && sp.ran === 3000 && sp.cat && sp.helper && timeVerdict(sp.qMs < 30, 'speed: a question turn\'s end check', `${sp.qMs} ms`), 'speed: a question turn in a 3,000-file project walks no files and its end checks take under 30 ms; a turn that ran any shell command (even cat) or a helper walks once and finds what was written', JSON.stringify(sp));
       }
