@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
+import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split, resolver } from './paths.mjs';
 import { withOwnTemp } from './testtmp.mjs';
 import { runText, gitPush, outwardCommand, sedInPlaceFiles } from './shell.mjs';
 import { VERBATIM_ENGINE } from './settings.mjs';
@@ -2026,7 +2026,7 @@ export function dueRoutines(text, now = today()) {
 // rollback left no trace, so the project's main session never knew its engine had changed.
 export const ENGINE_CHANGE = /^- \d{4}-\d\d-\d\d: engine (installed|moved|upgraded|rolled back|removed)\b.*$/;
 export function noteEngineChange(dir, text) {
-  const f = path.join(dir, 'docs', 'DECISIONS.md');
+  const e = path.join(dir, '.anzuelo', 'engine'), f = fs.existsSync(e) ? resolver({ ENGINE: e, PROJECT: dir, LOCAL: path.join(dir, '.anzuelo', 'local') }).whereWrite('docs/DECISIONS.md') : path.join(dir, 'docs', 'DECISIONS.md'); // (the record's place, .anzuelo/local in a project)
   // (the same line on the same day is written once. Lesson (a field report): three refused upgrades wrote three
   // identical rolled-back lines)
   try { fs.mkdirSync(path.dirname(f), { recursive: true }); const t = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '# Decisions\n', line = `- ${today()}: engine ${text}`; if (t.split(/\r?\n/).includes(line)) return; fs.writeFileSync(f, `${t}${t.endsWith('\n') ? '' : '\n'}${line}\n`); } catch { }

@@ -541,7 +541,9 @@ if (cmd === 'link') {
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   if (priv) console.log(setLocalRepo(loc, priv === 'yes'));
   // (.gitignore is touched only when the user agrees: else git's local exclude file keeps .anzuelo/ out of git)
-  if (gign === 'yes') try { const cf = path.join(loc, 'tools', 'hooks', 'config.json'); fs.writeFileSync(cf, JSON.stringify({ ...JSON.parse(fs.readFileSync(cf, 'utf8')), gitignore: true }, null, 2) + '\n'); } catch (e) { console.error(`--gitignore yes: ${e.message}`); }
+  // (and a folder that had files is adopted: setup runs the adoption review, surgery, not replacement. Lesson (an
+  // adoption trial, 2026-11-12): install made the files in an empty scratch folder, so the review never ran)
+  if (gign === 'yes' || had.length) try { const cf = path.join(loc, 'tools', 'hooks', 'config.json'); fs.writeFileSync(cf, JSON.stringify({ ...JSON.parse(fs.readFileSync(cf, 'utf8')), ...(gign === 'yes' ? { gitignore: true } : {}), ...(had.length ? { adopted: new Date().toISOString().slice(0, 10) } : {}) }, null, 2) + '\n'); } catch (e) { console.error(`config: ${e.message}`); }
   const w = spawnSync(process.execPath, [path.join(eng, 'tools', 'hooks', 'wire.mjs')], { cwd: dest, encoding: 'utf8' });
   process.stdout.write(w.stdout || ''); if (w.status !== 0) { process.stderr.write(w.stderr || ''); process.exit(1); }
   noteEngineChange(dest, `${moved ? 'moved' : 'installed'} into .anzuelo/engine at ${(g(['rev-parse', '--short', 'HEAD'], eng).stdout || '').trim()}`);
