@@ -1894,6 +1894,15 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   const routedAs = (rows, routes) => { const a = acts(rows); a.complaint = false; a.routes = routes; return fixGaps(a); };
   const plainReport = routedAs([user('the export button does nothing'), fix, say('Fixed.')], ['skills/debug/SKILL.md']);
   const feature = routedAs([user('add a dark mode toggle'), fix, say('Added.')], ['docs/playbooks/feature.md']);
+  // (a patch: a condition keyed on the report's quoted example, or only a bare catch/retry/timeout; a general fix that
+  // names the example only in a test or comment is not)
+  const ed = (ns, os = 'run()') => call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: os, new_string: ns }), base = [dbg, failRun];
+  const keyedP = fx([user('exporting "Q3 report.pdf" crashes'), ...base, ed('if (name === "Q3 report.pdf") return;\nrun()'), passRun, say('Fixed.')]);
+  const bareP = fx([user('the export times out'), ...base, ed('try {\nrun()\n} catch { }'), passRun, say('Fixed.')]);
+  const causeP = fx([user('the export times out'), ...base, ed('try {\nrun()\n} catch { }'), passRun, say('Fixed. The root cause is a closed stream the library throws on after the save, and nothing else uses it.')]);
+  const general = fx([user('exporting "Q3 report.pdf" crashes'), ...base, ed('run(sanitize(name))'), call('Edit', { file_path: path.join(dir, 'test/export.test.js'), old_string: 'x', new_string: 'test("Q3 report.pdf", () => {})' }), passRun, say('Fixed.')]);
+  report(keyedP.length === 1 && /keys on the report's own example \("Q3 report\.pdf"\)/.test(keyedP[0]) && bareP.length === 1 && /only catches, retries or waits/.test(bareP[0]) && causeP.length === 0 && general.length === 0,
+    'end: a fix keyed on the report\'s own example, or only a bare catch, retry or timeout, is named as a patch; the root cause in the answer releases the second, and a general fix that names the example only in a test is not', JSON.stringify({ keyedP, bareP, causeP, general }));
   report(plainReport.length === 2 && feature.length === 0, 'end: a turn routed to a fix runbook with a code edit and no test run is asked for the debug skill and the before-and-after proof; a feature request with code edits is not', JSON.stringify({ plainReport, feature }));
   report(proven.length === 0 && noDebug.length === 1 && /debug skill/.test(noDebug[0]) && afterOnly.length === 1 && /fail, then the same command/.test(afterOnly[0]) && otherCmd.length === 1 && notVerified.length === 0 && notFix.length === 0,
     'end: a fix turn is proven by the same command failing before the code change and passing after, through the debug skill; pass-only or another command is held, NOT VERIFIED and a non-fix turn are not', JSON.stringify({ proven, noDebug, afterOnly, otherCmd, notVerified, notFix }));

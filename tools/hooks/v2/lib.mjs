@@ -63,15 +63,10 @@ const RUNBOOK_DIRS = ['docs/playbooks', 'tools/starter/runbooks'];
 const read = f => { try { return fs.readFileSync(at(f), 'utf8').replace(/\r\n?/g, '\n'); } catch { return ''; } };
 
 // "## Done when" items. A checkable item ends with one of:
-//   (file: <path or glob>)   the turn changed that file (Edit, Write, or a command that names it as its output)
-//   (ran: <regex>)           the turn ran a command matching it, and the run did not fail
-//                            ("<regex> => <output regex>": and it printed that, e.g. a test's pass line)
-//   (answer: <regex>)        the turn's final answer matches it
-//   (prompt: <regex>)        what the user typed this turn matches it (mid-turn messages too)
-//   (tool: <regex>)          a tool call's name and input match it
-//   (evidence)               the answer is backed by sources read this turn (evidenceGaps)
-// Each kind also works as a condition, "(when answer: <regex>)"; several conditions must all hold.
-// Anything else is shown at the start and not checked at the end.
+//   (file: <path or glob>) the turn changed it (Edit, Write, or a command naming it as output); (answer: <regex>) the answer
+//   (ran: <regex>) a command matching it ran and did not fail ("<regex> => <output regex>": and printed that)
+//   (prompt: <regex>) what the user typed this turn; (tool: <regex>) a call's name and input; (evidence) evidenceGaps
+// Each kind also works as a condition, "(when answer: <regex>)", all must hold; anything else is only shown at the start.
 // The project's own standing rules that belong to no single runbook live in ALWAYS's "## Done when", checked every
 // turn. Lesson (a field report): a project's rule kept in requirements.json looked enforced and was not read by v2.
 export const ALWAYS = 'docs/checks/always.md';
@@ -1251,8 +1246,7 @@ export function holdsReq(c, acts, x) {
     answerFiguresComputed: () => (acts.detail = figureProblemsOf({ answer: acts.answer, prompt: acts.heard, results: acts.calls.filter(k => !/^(Bash|PowerShell)$/.test(k.name)).map(k => k.out || '').join('\n'),
       runs: acts.calls.filter(k => /^(Bash|PowerShell)$/.test(k.name)).map(k => ({ cmd: String(k.input.command || ''), out: k.out || '', error: !!k.error })), toolsKnown: true },
     { neverRan: r => !!r.error && REFUSED_RUN.test(r.out || ''), cmdHead: c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g, '<<$2') }).join('; ')) === '',
-    // (a run the host refused never ran: it failed nothing. Lesson (the v2 re-sweep): a test run held for approval was
-    // taken for a failing one, and the turn was asked for a root cause)
+    // (a run the host refused never ran, so it failed nothing: one held for approval was asked for a root cause)
     // (as the old engine: a failure line counts like an error exit, a missing tool does not; the failure was found, not
     // caused (no edit before the run), or the request reports a problem; a self-test run after editing the project's own
     // checks is that work in progress. Lesson (the old suite under v2): a failed test then fixed was never asked why)
@@ -1877,8 +1871,15 @@ export function fixGaps(acts) {
   if (!code.length || !(acts.complaint || debug || routed) ||/\bNOT VERIFIED\b/.test(String(acts.answer || ''))) return [];
   const runs = proofTurn(acts).runs, n = r => r.editedBefore.filter(f => FIX_CODE.test(f)).length, key = r => r.cmd.replace(/\s+/g, ' ').trim(), bad = r => r.error || RUN_FAILED.test(r.out);
   const failedBefore = new Set(runs.filter(r => n(r) === 0 && bad(r)).map(key)), shown = runs.some(r => n(r) >= code.length && !bad(r) && failedBefore.has(key(r)));
+  // (a patch, not a fix: added code that keys a condition on the report's own quoted example, or that only adds a bare
+  // catch, a retry or a longer timeout; the answer naming the root cause releases the second. Oversight, 2026-11-12)
+  const added = code.map(c => { const o = String(c.input?.old_string || ''); return String(c.input?.new_string ?? c.input?.content ?? (c.input?.edits || []).map(e => e.new_string).join('\n')).split('\n').filter(l => l.trim() && !o.includes(l) && !/^\s*(\/\/|#|\*|\/\*)/.test(l)); }).flat();
+  const keyed = [...`${acts.heard || ''}\n${acts.said || ''}`.matchAll(/["“'`]([^"”'`\n]{6,80})["”'`]/g)].map(m => m[1]).find(e => added.some(l => l.includes(e) && /\bif\b|[!=]==?|\.includes\(|\.test\(|\bcase\b|\?\s/.test(l)));
+  const bare = added.length > 0 && added.every(l => /^\s*(try\s*\{|\}?\s*catch\b|\}\s*$|(for|while)\s*\(.*(retr|attempt|tries)|.*\b(timeout|retries|attempts)\w*\s*[:=]\s*\d)/i.test(l)) && !/\broot cause\b|\bthe cause (is|was)\b/i.test(String(acts.answer || ''));
   return [!debug && 'This turn fixed a problem without the debug skill: open skills/debug/SKILL.md and follow its phases (the cause first, a test that fails without the fix).',
-    !shown && 'Show the fix on the failure itself: run the reproduction or test before changing the code and see it fail, then the same command after the last change and see it pass. If it cannot run, say so ("NOT VERIFIED: <what> - <why>").'].filter(Boolean);
+    !shown && 'Show the fix on the failure itself: run the reproduction or test before changing the code and see it fail, then the same command after the last change and see it pass. If it cannot run, say so ("NOT VERIFIED: <what> - <why>").',
+    keyed && `The fix keys on the report's own example ("${keyed.slice(0, 40)}"): it hides this case and not the next. Fix the cause, so every case like it works.`,
+    bare && 'The change only catches, retries or waits longer: that hides the failure. Find the cause and fix it there, or say in the answer what the root cause is and why this is the fix.'].filter(Boolean);
 }
 export function proofGaps(acts) {
   // (the claim patterns need no io: built once, and the turn's io only when the answer has a claim)
