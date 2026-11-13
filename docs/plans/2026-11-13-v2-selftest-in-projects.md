@@ -35,3 +35,7 @@ without its run outputs when it has no commit), the current engine put on it, an
 - [ ] The release chain passes; the projects upgrade and run it for real.
 - [ ] An adopted project with the engine in `.anzuelo/engine` joins the trial's samples, so that layout is proven by
       every release too.
+- [ ] Open, not understood yet: `check --answer-file` after `begin`, in a copy of two sample projects (empty folder,
+      notes and data), did not ask for the self-tests after an engine hook file changed; in a copy of the python sample
+      it did. The test is starter-only now (in a project the engine-readonly guard refuses that edit), but an agent
+      without hooks in such a project may get no hooks-tested ask for its own hook changes. Find why before closing.

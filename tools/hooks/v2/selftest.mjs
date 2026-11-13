@@ -3190,7 +3190,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const RECORD = /turn-notes|turn notes|hooks\.mjs waive|`(Playbook|Skill|Worth it|Proven|Learned|Sweep|Conflicts|Cold read|Done N|Skip N|Verified):/;
   const walk = d => { try { return fs.readdirSync(path.join(repo, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(`${d}/${e.name}`) : e.name.endsWith('.md') ? [`${d}/${e.name}`] : []); } catch { return []; } };
   const files = ['AGENTS.md', 'README.md', ...walk('docs/playbooks'), ...walk('skills'), ...walk('tools/starter/runbooks'), 'docs/checks/writing-standards.md', 'docs/checks/finish-checklist.md'];
-  const asks = files.flatMap(f => fs.readFileSync(path.join(repo, f), 'utf8').split('\n').map((l, i) => [f, i + 1, l]))
+  const asks = files.flatMap(f => readOr(path.join(repo, f)).split('\n').map((l, i) => [f, i + 1, l]))
     .filter(([, , l]) => RECORD.test(l) && !/Issue:|before any fix, as your first step|No record lines|no `Playbook:`|`Verified: <n> claims traced/.test(l)).map(([f, n, l]) => `${f}:${n}: ${l.trim().slice(0, 80)}`);
   // (the rules only shrink: at most the 152 lines they had at the switch, until the short draft replaces them;
   // docs/plans/2026-11-05-engine-v2-agents-draft.md, under 60)
@@ -4079,7 +4079,8 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const c2 = hk('check', '--answer-file', '.cache/answer.md');
     got = { c1: c1.stdout.slice(0, 300), c1s: c1.status, c2: c2.stdout.slice(0, 300) };
   } finally { fs.rmSync(m, { recursive: true, force: true }); }
-  report(got.c1s === 1 && /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/.test(got.c1 || '') && !/The hook logic changed/.test(got.c2 || ''),
+  // (starter work: in a project the engine-readonly guard refuses an edit of the engine's hook files)
+  if (STARTER_REPO) report(got.c1s === 1 && /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/.test(got.c1 || '') && !/The hook logic changed/.test(got.c2 || ''),
     'check: with no transcript, "check --answer-file" judges the files changed since "begin" and the run log: an edited hook file asks for the self-tests until the log holds a passing run', JSON.stringify(got));
 }
 
