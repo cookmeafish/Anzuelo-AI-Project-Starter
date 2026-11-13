@@ -110,3 +110,12 @@ The gaps:
       or an asserting flow ran in this turn and passed. Nothing is shown to the user unless it really failed.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`, then `node tools/audit.mjs`. Expected: ALL PASS and audit PASS. Then use
       it on one real project's GUI and report what it found.
+
+## Task 7: an app opened for the user outlives the agent's call (oversight, 2026-11-12)
+On Windows a process started from the tool's shell belongs to that call's process tree and can die with it: a
+project's local helper server, started for the user, stopped answering partway through a later run.
+**Files:** packs/app runbooks, packs/gui/files/docs/playbooks/gui.md, the step that opens an app for the user
+- [ ] The app and gui runbooks, and the step that opens an app for the user, launch it detached: through Explorer
+      (`Start-Process explorer.exe -ArgumentList '"<launcher>.cmd"'`) or a start fully outside the tool's job, never as
+      a child of the agent's shell. Servers that tests start and stop themselves keep their current start.
+- [ ] Test: a server launched this way still answers after the call that started it has ended.
