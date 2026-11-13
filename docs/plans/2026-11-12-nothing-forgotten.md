@@ -40,6 +40,12 @@ What the engine does today (tools/hooks/v2/midturn.mjs, late.mjs, end.mjs):
 ## Constraints for every task
 - The user's rule: verify first, show only what's proven, drop the rest.
 - No new interruptions during work: the ledger shows in the reminder and at the end only.
+- The agent is pointed to the log and helped by it, never slowed by it:
+  - The session-start text and the rules say in two lines what the log is and that it's read at "finished".
+  - The engine fills it itself from the user's messages, the agent's promises and the plans, with no bookkeeping steps
+    required.
+  - One short command (`node tools/hooks/hooks.mjs log add|done|wait "<item>"`) lets the agent add, close or park an item
+    when it wants to.
 - Writing standards: docs/checks/writing-standards.md.
 
 ## Checks for this project
