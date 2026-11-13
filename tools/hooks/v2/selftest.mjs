@@ -3064,6 +3064,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       'pretool: a push goes after a "yes" to the agent\'s own push question or a standing OK earlier in the session, however long the session; with neither, or a "yes" to another question, it is refused', JSON.stringify(Object.fromEntries(Object.entries(ok).map(([k, v]) => [k, v.slice(0, 60)]))));
   }
   const R = ROOT.replace(/\\/g, '/') + '/', g = 'gi' + 't ', base = { ...config(), engine: 'v2' };
+  // (a protected file this test makes itself, so it exists in any project; removed at exit)
+  const protName = `protected-sample-${process.pid}.md`; fs.writeFileSync(path.join(ROOT, protName), 'x\n'); process.on('exit', () => { try { fs.rmSync(path.join(ROOT, protName), { force: true }); } catch { } });
   const prot = { ...base, protectedOriginals: ['originals/**'] };
   const bash = command => ({ tool_name: 'Bash', tool_input: { command } });
   const refuse = [
@@ -3074,7 +3076,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     ['browser-guard', bash('start ' + 'chrome --remote-debugging-port=9222'), base],
     ['skill-mirror', { tool_name: 'Edit', tool_input: { file_path: R + '.claude/skills/plan/SKILL.md', old_string: 'a', new_string: 'b' } }, base],
     ['protect-originals', bash('rm -' + 'rf originals/2024'), prot],
-    ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + 'AGENTS.md', old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: ['AGENTS.md'] }], // (a file every project has)
+    ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + protName, old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: [protName] }],
   ];
   // (under v2, a delete of a file this turn created in an originals folder goes through; one there before is refused.
   // Lesson (2026-11-12): broken downloads the turn's helpers had just made could not be removed)
@@ -4063,7 +4065,9 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   const m = testDir('anzuelo-v2-manual-');
   let got = {};
   try {
-    for (const d of ['tools', 'docs', 'skills', 'AGENTS.md']) fs.cpSync(path.join(repoRoot, d), path.join(m, d), { recursive: true, filter: s => !/[\\/](state|\.cache)([\\/]|$)/.test(s) });
+    for (const d of ['tools', 'docs', 'skills', 'AGENTS.md']) if (fs.existsSync(path.join(repoRoot, d))) fs.cpSync(path.join(repoRoot, d), path.join(m, d), { recursive: true, filter: s => !/[\\/](state|\.cache)([\\/]|$)/.test(s) });
+    fixtureCopy(repoRoot, 'config.json', path.join(m, 'tools/hooks/config.json')); // (the engine's settings, not the host project's)
+    fs.writeFileSync(path.join(m, 'tools/hooks/requirements.json'), JSON.stringify({ requirements: [] }));
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_SESSION_GATE: 'off', STARTER_MEMORY_DIR: path.join(m, '.memtest') };
     delete env.CLAUDE_CODE_SESSION_ID; delete env.ANZUELO_ROOT; delete env.CLAUDE_PROJECT_DIR;
     const hk = (...a) => spawnSync(process.execPath, [path.join(m, 'tools/hooks/hooks.mjs'), ...a], { cwd: m, encoding: 'utf8', env });
