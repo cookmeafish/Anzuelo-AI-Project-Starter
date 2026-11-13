@@ -3,19 +3,13 @@ bench-caches: a timing run keeps the caches it rebuilt and writes no session sta
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
 engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set (once a day), and runs everything with --full or a changed engine file
 friction-suspend: 3 frustrated turns of 6 suspend a check, a safeguard stays and is flagged, 1 of 6 changes nothing, restore undoes it
-host-fixtures: in a host project the engine's scenarios run without its own runbooks, skills, triggers, checks and hook files ("externalHooks"); its own scenarios keep them
 notice replies: a short reply to a task notice after a clean end gets no new stop list; new work after it does
 notice-answer: a headless reply to a notice after a clean end is asked once to carry the whole answer; a full reply and an interactive short one pass
-other session: code another session edited in the same project during the turn does not hold this turn to the security review (alone, the same change does)
-own-scenarios-run: a project's "must block" scenarios run against its own checks; a check that does not block, or does not exist, FAILs the self-test
 pretool: overlap: a sweep started while another sweep runs in the background gets a heads-up, and still runs
 pretool: runbook-ledger: a helper launched after a runbook checklist was handed over gets it, with one evidence line per item
 pretool: scope-change: a user message while a helper launched before it runs gets a heads-up to stop the obsolete ones
-prompt: QA routes to the qa runbook
 prompt: debug skill routes on its own
 prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to the review
-prompt: fit-checklist: a request a deferred library skill is for asks to decide it again
-prompt: fit-checklist: one trigger plus a word of the condition asks to decide it again
 prompt: goal-loop: "keep improving it until the tests never flake" routes to the loop
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
@@ -36,9 +30,6 @@ runbook-ledger: a notes file rewritten with other line endings during the turn c
 runbook-ledger: new records inserted above an earlier turn's lines count alone; the earlier lines stay out
 self-improve: an engine check that annoys a project is reported to the starter and announced there
 self-sent-prompt: a wakeup firing mid-turn keeps the request, its start and its snapshot, marked or not; a prompt the user types starts a new turn
-stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new
-stop-budget: over its budget the verdict names the 3 slowest checks
-stop-budget: the Stop hook stays within its 500 ms budget on a realistic work turn
 stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: GUI reviewed but no Visual review verdict: blocked
@@ -55,7 +46,6 @@ stop: check-proven: good samples with no edge case from the project's own words:
 stop: check-proven: the existing files covered but no count in the "Proven:" line: blocked
 stop: crash blocks once, then releases
 stop: debug skill matched but not opened: blocked
-stop: fit-checklist: a turn adds a data file that a decided skip never answered: blocked
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: image + text prompt is a real prompt
