@@ -10,7 +10,7 @@
 // (its hook promises were written for the old engine, v1, so it pins v1; the default engine, v2, has its own self-test)
 process.env.STARTER_ENGINE ||= 'v1';
 import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
-import { testDir, TEST_ROOT, cleanOld, cleanDead, watchStop } from './hooks/testtmp.mjs'; // fixtures under one temp root, removed at exit
+import { testDir, TEST_ROOT, cleanOld, cleanDead, watchStop, keepFailed } from './hooks/testtmp.mjs'; // fixtures under one temp root, removed at exit
 cleanDead(); watchStop(); // (what a killed run left first: its process is gone; a STOP file ends this run)
 import fs from 'node:fs';
 import os from 'node:os';
@@ -192,7 +192,7 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     fs.appendFileSync(path.join(dir, 'docs/checks/evidence-standards.md'), '\n- Our own rule: two sources for every price.\n');
     // a file the enabled skill gained after this project got it (its SKILL.md links it)
     fs.rmSync(path.join(dir, 'skills/frontend-design/templates.md'), { force: true });
-    const dp = path.join(dir, 'docs/DECISIONS.md'), hp = path.join(dir, 'tools/hooks/hooks-main.mjs');
+    const dp = path.join(dir, 'docs/DECISIONS.md'), hp = path.join(dir, 'tools/hooks/setupinfo.mjs'); // (where the questions live)
     fs.writeFileSync(dp, fs.readFileSync(dp, 'utf8').replace(/^- Involvement:.*\n/m, ''));
     fs.writeFileSync(hp, fs.readFileSync(hp, 'utf8').replace("export const INTERVIEW = ['Involvement', ", 'export const INTERVIEW = ['));
   }
@@ -381,5 +381,5 @@ const COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = s => COLOR ? `\x1b[${s === 'PASS' ? 32 : 31}m${s}\x1b[0m` : s;
 for (const r of bad) console.log(`${paint('FAIL')}  [${r.project}] ${r.promise}${r.detail ? `: ${r.detail.replace(/\s+/g, ' ').slice(0, 300)}` : ''}`);
 console.log(`\nTRIAL: ${paint(bad.length ? 'FAIL' : 'PASS')} (${results.length - bad.length} of ${results.length} promises kept across ${Object.keys(SAMPLES).length} sample projects)`);
-if (!bad.length) fs.rmSync(WORK, { recursive: true, force: true }); else console.log(`Sample projects kept for a look: ${WORK}`);
+if (!bad.length) fs.rmSync(WORK, { recursive: true, force: true }); else console.log(`Sample projects kept for a look: ${keepFailed(WORK, 'trial')}`);
 process.exit(bad.length ? 1 : 0);

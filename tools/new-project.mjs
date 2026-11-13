@@ -484,8 +484,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const prevShipped = (() => { try { return JSON.parse(fs.readFileSync(path.join(dest, 'tools', 'hooks', 'engine-checks.json'), 'utf8')).requirements || null; } catch { return null; } })();
   const keptChecks = [], addedChecks = [];
   // the setup questions this project's engine asked, read before it is replaced: only questions added since are new
-  // (the engine body: hooks-main.mjs since hooks.mjs became a small entry, hooks.mjs before that)
-  const prevHooks = (() => { for (const n of ['hooks-main.mjs', 'hooks.mjs']) { try { return fs.readFileSync(path.join(dest, 'tools', 'hooks', n), 'utf8').replace(/\r\n/g, '\n'); } catch { } } return ''; })();
+  // (the engine body: hooks-main.mjs since hooks.mjs became a small entry, hooks.mjs before that; the questions sit in
+  // setupinfo.mjs since the body was split, 2026-11-12, so every file that may hold them is read)
+  const prevHooks = ['setupinfo.mjs', 'hooks-main.mjs', 'hooks.mjs'].map(n => { try { return fs.readFileSync(path.join(dest, 'tools', 'hooks', n), 'utf8').replace(/\r\n/g, '\n'); } catch { return ''; } }).join('\n');
   const prevQuestions = [...prevHooks.matchAll(/export const INTERVIEW\w* = \[([^\]]*)\]/g)].flatMap(m => [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
   // the starter commit this project last took its engine from (its hooks.mjs as shipped then), or null when unknown
   const gitAt = (c, rel) => spawnSync('git', ['show', `${c}:${rel}`], { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 }).stdout || '';

@@ -4082,6 +4082,16 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const agent = 'I will redo the export check once the tests pass and send the numbers.';
   const quoted = met(redo, { heard: `> ${agent}\nthanks, looks fine`, agentAll: agent, calls: [] }), copied = met(redo, { heard: `${agent}\nok`, agentAll: agent, calls: [] }), pasted = met(redo, { heard: '<pasted_content>redo it all</pasted_content> fine', calls: [] }), own = met(redo, { heard: 'please redo the export', calls: [] });
   report(!quoted && !copied && !pasted && own, 'prompt checks read only the user\'s own words: a quoted, copied or pasted line asks nothing', JSON.stringify({ quoted, copied, pasted, own })); }
+// (a failed run's folder kept for a look outlives its process and two later runs' cleanups; the newest 3 are kept.
+// Lesson (2026-11-12): a failing trial's sample, said to be kept, was gone before it could be read)
+{ const tt = new URL('../testtmp.mjs', import.meta.url).href;
+  const child = code => spawnSync(process.execPath, ['--input-type=module', '-e', `import * as t from ${JSON.stringify(tt)}; ${code}`], { encoding: 'utf8' }).stdout.trim();
+  const kept = child(`const d = t.testDir('kf-'); (await import('node:fs')).writeFileSync(d + '/x.txt', 'x'); console.log(t.keepFailed(d, 'kftest'));`);
+  child('t.cleanDead(0);'); child('t.cleanDead(0);');
+  const survived = !!kept && fs.existsSync(path.join(kept, 'x.txt'));
+  for (let i = 0; i < 4; i++) child(`const d = t.testDir('kf-'); console.log(t.keepFailed(d, 'kfcap'));`);
+  const left = fs.readdirSync(path.join(TEST_ROOT, 'failed'));
+  report(survived && left.length <= 3 && !fs.existsSync(kept), 'testtmp: a failed run\'s folder kept for a look survives its exit and later cleanups; only the newest 3 stay', { kept, survived, left }); }
 // (a turn that only edited a scratch notes file outside the project and sent messages shows no ✅: nothing was checked.
 // Oversight, 2026-11-12: the released engine showed "checks passed" for it)
 { const scratch = path.join(os.tmpdir(), `notes-${process.pid}.md`);

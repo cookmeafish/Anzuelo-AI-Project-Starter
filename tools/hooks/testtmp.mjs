@@ -1,6 +1,5 @@
-// Test folders: every fixture lives under one root, <temp>/anzuelo-tests, removed when its process ends; what a killed run
-// leaves goes with "starter.mjs clean-tests" and each new suite run. Lesson (2026-11-11): about 11,000 left folders, nearly
-// 2 million files, held kernel memory until a restart, and the machine lagged.
+// Test folders: all under <temp>/anzuelo-tests, removed when their process ends or by the next run. Lesson (2026-11-11):
+// about 11,000 left folders held kernel memory until a restart.
 import './hidewin.mjs'; // child processes start hidden (no console windows)
 import fs from 'node:fs';
 import os from 'node:os';
@@ -18,14 +17,12 @@ const hook = () => {
   process.on('exit', cleanMade);
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) try { process.once(sig, () => { cleanMade(); process.exit(130); }); } catch { }
 };
-// Cooperative stop ("starter.mjs stop-tests" writes <root>/STOP): runs started before it exit within a second, folders
-// removed, nothing killed. Lesson (2026-11-12): killing a chain left running on a failed commit was refused.
+// Cooperative stop ("starter.mjs stop-tests" writes <root>/STOP): runs started before it exit within a second.
 export const STOP_FILE = path.join(TEST_ROOT, 'STOP'), requestStop = () => { fs.mkdirSync(TEST_ROOT, { recursive: true }); fs.writeFileSync(STOP_FILE, `${new Date().toISOString()}\n`); return STOP_FILE; };
 const STARTED = Date.now(); let stopSeen = 0; export const watchStop = () => { const t = setInterval(stopIfAsked, 1000); t.unref?.(); return t; };
 export function stopIfAsked() { const t = Date.now(); if (t - stopSeen < 500) return; stopSeen = t; let m = 0; try { m = fs.statSync(STOP_FILE).mtimeMs; } catch { return; }
   if (m >= STARTED - 1000) { try { process.stderr.write(`stopped: ${STOP_FILE}\n`); } catch { } cleanMade(); process.exit(3); } }
-// A new folder under the root, removed when this process ends (keep: true leaves it, for a folder another process uses)
-// (its name carries the process that made it, <prefix><pid>-XXXXXX, so the next run removes what a killed one left: cleanDead)
+// A new folder <prefix><pid>-XXXXXX, removed at exit (keep: true leaves it), or by cleanDead once its process is gone
 const owned = (dir, prefix) => fs.mkdtempSync(path.join(dir, `${String(prefix).replace(/[\\/]/g, '-')}${process.pid}-`));
 export function testDir(prefix = 'tmp-', { keep = false } = {}) {
   fs.mkdirSync(TEST_ROOT, { recursive: true });
@@ -33,16 +30,27 @@ export function testDir(prefix = 'tmp-', { keep = false } = {}) {
   if (!keep) { MADE.add(d); hook(); }
   return d;
 }
-// Leftovers older than maxAgeMs (1 hour) under the root and each projects/<name>/. Returns how many were removed.
+// A failed run's folder kept for a look, in <root>/failed/ (neither cleanup touches it), the newest `cap` kept. Lesson
+// (2026-11-12): a failing trial's sample was gone before it could be read.
+export const FAILED_ROOT = path.join(TEST_ROOT, 'failed');
+export function keepFailed(dir, label, cap = 3) {
+  fs.mkdirSync(FAILED_ROOT, { recursive: true });
+  const to = path.join(FAILED_ROOT, `${String(label).replace(/[^\w-]/g, '-')}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+  try { fs.renameSync(dir, to); } catch { try { fs.cpSync(dir, to, { recursive: true }); rm(dir); } catch { return dir; } }
+  MADE.delete(dir);
+  const all = fs.readdirSync(FAILED_ROOT).map(n => path.join(FAILED_ROOT, n)).sort((a, b) => { try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch { return 0; } });
+  for (const old of all.slice(cap)) rm(old);
+  return to;
+}
+// Leftovers older than maxAgeMs (1 hour) under the root and each projects/<name>/ (not failed/). Returns how many were removed.
 export function cleanOld(maxAgeMs = 3600_000) { let n = 0;
-  const sweep = (dir, skip = '') => { try { for (const e of fs.readdirSync(dir)) { if (e === skip) continue; const p = path.join(dir, e); try { if (Date.now() - fs.statSync(p).mtimeMs > maxAgeMs) { rm(p); n++; } } catch { } } } catch { } };
+  const sweep = (dir, skip = '') => { try { for (const e of fs.readdirSync(dir)) { if (e === skip || e === 'failed') continue; const p = path.join(dir, e); try { if (Date.now() - fs.statSync(p).mtimeMs > maxAgeMs) { rm(p); n++; } } catch { } } } catch { } };
   sweep(TEST_ROOT, 'projects');
   try { for (const p of fs.readdirSync(path.join(TEST_ROOT, 'projects'))) sweep(path.join(TEST_ROOT, 'projects', p)); } catch { }
   return n;
 }
 
-// What killed runs left: folders whose making process is gone, a minute old at least; run first by every suite.
-// Lesson (2026-11-12): four suite runs killed by a time limit left 432 fixture folders.
+// What killed runs left (their process gone, a minute old at least), run first by every suite.
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 export function cleanDead(minAgeMs = 60_000) {
   let n = 0;
@@ -52,14 +60,12 @@ export function cleanDead(minAgeMs = 60_000) {
   sweep(TEST_ROOT);
   try { for (const p of fs.readdirSync(path.join(TEST_ROOT, 'projects'))) sweep(path.join(TEST_ROOT, 'projects', p)); } catch { }
   pruneCompileCache(); return n; }
-// The hooks' compile cache (hooks.mjs) stays bounded: other Node versions' folders go, and past `cap` files it is
-// emptied (it refills on the next hooks). Returns the files kept. Lesson (2026-11-12): an unpruned cache grew to 22 GB.
+// The hooks' compile cache stays bounded (other Node versions' folders go; past `cap` files emptied). Lesson: 22 GB.
 export function pruneCompileCache(cap = 4000, dir = path.join(os.tmpdir(), 'anzuelo-compile-cache')) { let n = 0;
   try { for (const v of fs.readdirSync(dir)) { if (!v.startsWith(`v${process.versions.node}-`)) { rm(path.join(dir, v)); continue; } n += fs.readdirSync(path.join(dir, v)).length; } } catch { return 0; }
   if (n > cap) { rm(dir); return 0; } return n; }
-// A project's own test runs: <temp>/anzuelo-tests/projects/<name>, the name from docs/names.json (PROJECT_NAME) or the
-// folder's name. Lesson (oversight, 2026-11-11): about 15,000 folders, nearly 2 million files, that projects' own test
-// suites (and the browsers they started) left in the temp folder; anything that walks the temp folder pays for each.
+// A project's own test runs: <temp>/anzuelo-tests/projects/<name> (PROJECT_NAME or the folder's name). Lesson
+// (2026-11-11): projects' own suites left about 15,000 folders in the temp folder.
 export function projectSlug(root = process.cwd()) {
   let n = '';
   try { n = JSON.parse(fs.readFileSync(path.join(root, 'docs/names.json'), 'utf8')).PROJECT_NAME || ''; } catch { }
@@ -96,12 +102,8 @@ export function runIsolated(cmd, { root = process.cwd(), stdio = 'inherit', env 
   const added = [...ls()].filter(n => !before.has(n) && n !== 'anzuelo-tests').sort();
   return { status: r.status ?? (r.error ? 127 : 1), timedOut: r.error?.code === 'ETIMEDOUT', dir, added, left: leftInOwn, stdout: r.stdout, stderr: r.stderr };
 }
-// The upgrade's one plain line for a project whose own tests leave temp folders: each test command the user approved for
-// the end check (tools/hooks/config.json "selfCommands", up to 3) runs once in a temp folder of its own; what it leaves
-// there or in the real temp folder makes the line, said once in the upgrade report, never at session start. '' when
-// nothing is left or no test command is known. Oversight, 2026-11-12: projects' own suites left about 15,000 folders.
-// (cheap only: a command whose last recorded run took over a minute is skipped, each gets a minute at most, and one that
-// does not finish says nothing. Oversight, 2026-11-12: some suites take minutes, and an upgrade must not wait on them)
+// The upgrade's one plain line for a project whose own approved test commands (selfCommands, up to 3) leave temp
+// folders, said once in the upgrade report. Cheap only: a command that took over a minute is skipped, each gets a minute.
 export const HINT_LIMIT_MS = 60_000;
 const timesFile = root => path.join(root, 'tools/hooks/state/selfcmd-times.json');
 // How long each test command the engine ran for the project took last time, in ms (the end check's self-runs record it)
@@ -116,10 +118,7 @@ export function tempHint(root, { timeout = HINT_LIMIT_MS, under } = {}) {
     .filter(({ r }) => !r.timedOut).map(({ c, r }) => ({ c, n: r.left.length + r.added.length })).filter(x => x.n > 0);
   return leaky.length ? `Your tests leave temp folders (${leaky.map(x => `${x.c}: ${x.n} left`).join('; ')}): run them with node tools/starter.mjs test-run -- <your test command>` : '';
 }
-// The same check in its own process, started now and collected later: collect() gives the line when the check has
-// finished, and otherwise stops it and gives '' (the upgrade never waits on it).
-// (the result goes to a file, read when collected: the upgrade waits on its own self-test meanwhile with spawnSync, so
-// no event of this process is seen until then; one still running is stopped with its whole process tree)
+// The same check in its own process, started now; collect() gives its line from a file, or stops its tree and gives ''.
 export function startTempHint(root, { timeout = HINT_LIMIT_MS } = {}) {
   let res = null;
   try { const base = path.join(TEST_ROOT, 'projects', projectSlug(root)); fs.mkdirSync(base, { recursive: true }); res = path.join(owned(base, 'hint-'), 'result.json'); } catch { return { collect: () => '' }; }
