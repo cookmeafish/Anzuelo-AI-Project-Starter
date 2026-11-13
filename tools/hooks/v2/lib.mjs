@@ -892,14 +892,11 @@ export function healthGaps(acts, { run = true } = {}) {
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
   const lastWrite = Math.max(0, ...changedSince(acts, { test: own }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
-  // (a run that sent its output to a file, "> .cache/audit.txt" or a background job's log, is judged on that file when
-  // the file was written this turn; an older file is not this run's output. Lesson (the old suite under v2, REQ
-  // gate-redirect): a background audit whose log said PASS was run again and held on the rerun's result)
+  // (output sent to a file this turn is judged on that file: a background audit's PASS log was rerun (gate-redirect))
   const since = Date.parse(acts.at || '') || 0;
   const auditOut = c => [c.out || '', ...redirectedTo(c.input.command).map(f => { try { return fs.statSync(at(f)).mtimeMs >= since - 1000 ? fs.readFileSync(at(f), 'utf8') : ''; } catch { return ''; } })].join('\n');
   if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(auditOut(c)) && !/audit: FAIL/.test(auditOut(c)) && (!lastWrite || !c.done || c.done > lastWrite))) return [];
-  // (the agent's own audit run after the last change that printed a failure is the result: it is not run again. Lesson
-  // (the old suite under v2): the rerun hit its time limit and a failing new runbook passed, and a rerun costs seconds)
+  // (the agent's own failing run after the last change is the result: a rerun timed out and let a failure pass)
   const ownFail = i.filter(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && /audit\.mjs/.test(String(c.input.command || '')) && /audit: FAIL/.test(auditOut(c)) && (!lastWrite || !c.done || c.done > lastWrite)).pop()?.[0];
   if (!run && !ownFail) return ['(the health check would run here)'];
   // (a hard limit: a slow audit never holds the end of a turn. Its time is kept, to see what it costs)
@@ -917,8 +914,7 @@ export function healthGaps(acts, { run = true } = {}) {
   const was = pre && Date.parse(pre.at) < since ? new Set(pre.fails || []) : null, known = new Set([...(loadTurn('health').fails || []), ...(was || [])]), fresh = fails.filter(f => !known.has(f));
   saveTurn('health', { fails, ms });
   if (!fresh.length) return [];
-  // (each failure with its first lines of detail, the files and what is wrong: the agent fixes it without rerunning the
-  // audit to find out. Lesson (the old suite under v2): the step named "relative links resolve" but not the broken link)
+  // (each failure with its first detail lines, so it is fixed without a rerun: "links resolve" alone hid the link)
   const said = mine.filter(b => fresh.includes(title(b))).slice(0, 3).map(b => { const d = [...b.matchAll(/^\s+- (.+)$/gm)].map(m => m[1].trim()).slice(0, 2); return d.length ? `${title(b)} (${d.join('; ')})` : title(b); });
   return [`The project's health check (node tools/audit.mjs) fails${was ? ' after this change' : ''}: ${said.join('; ') || 'see its output'}. Fix it and run it again.`];
 }
@@ -1871,6 +1867,19 @@ export function proofTurn(acts) {
   const entries = (acts.calls || []).map(c => ({ type: 'assistant', message: { content: [{ type: 'tool_use', name: c.name, input: c.input || {} }] } }));
   return { answer: String(acts.answer || ''), said: String(acts.said || acts.answer || ''), notes: '', since, runs, cmds: runs.map(r => r.cmd), entries, changed: changedOf(acts) };
 }
+// REQ: fix-proven. A fix turn (a complaint taken on with a code change, or the debug skill opened) follows the debug skill
+// and shows the failure fixed: one command failed before the first code edit and passed, the same, after the last.
+// Oversight, 2026-11-12: fixes were patches tested only on the moment shown. "NOT VERIFIED: ..." says why it can't run
+const FIX_CODE = /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|sh|ps1)$/i, RUN_FAILED = /\b(FAIL(?:ED|S)?|failing|not ok|AssertionError|Traceback|Error:)/;
+export function fixGaps(acts) {
+  const calls = acts.calls || [], code = calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && FIX_CODE.test(String(c.input?.file_path || '')) && !/(^|[\\/])(tests?|__tests__)[\\/]|\.test\.|selftest|selfcheck/i.test(String(c.input?.file_path || '')));
+  const debug = calls.some(c => c.name === 'Read' && /[\\/]debug[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || '')));
+  if (!code.length || !(acts.complaint || debug) || /\bNOT VERIFIED\b/.test(String(acts.answer || ''))) return [];
+  const runs = proofTurn(acts).runs, n = r => r.editedBefore.filter(f => FIX_CODE.test(f)).length, key = r => r.cmd.replace(/\s+/g, ' ').trim(), bad = r => r.error || RUN_FAILED.test(r.out);
+  const failedBefore = new Set(runs.filter(r => n(r) === 0 && bad(r)).map(key)), shown = runs.some(r => n(r) >= code.length && !bad(r) && failedBefore.has(key(r)));
+  return [!debug && 'This turn fixed a problem without the debug skill: open skills/debug/SKILL.md and follow its phases (the cause first, a test that fails without the fix).',
+    !shown && 'Show the fix on the failure itself: run the reproduction or test before changing the code and see it fail, then the same command after the last change and see it pass. If it cannot run, say so ("NOT VERIFIED: <what> - <why>").'].filter(Boolean);
+}
 export function proofGaps(acts) {
   // (the claim patterns need no io: built once, and the turn's io only when the answer has a claim)
   const a = String(acts.answer || ''), R = proofPure ||= makeProof({});
@@ -1900,10 +1909,8 @@ export function proofGaps(acts) {
   return out;
 }
 
-// REQ: answer-traced, under v2: the shared tools/hooks/trace.mjs, as the old engine judges it ("Did I make that up?"),
-// from v2's turn record. The session's tool results and the agent's own writes stay apart: a figure written into a note
-// never traces to its own write. The path the prompt's words started (a question about the project's numbers) is left
-// out: no check starts from the user's words (retired 2026-11-07).
+// REQ: answer-traced, under v2: the shared trace.mjs ("Did I make that up?") on v2's turn record; a figure never traces to
+// the agent's own write, and nothing starts from the user's words (retired 2026-11-07).
 let traceMemo = null;
 // (a tool result's content may itself be a list of text parts: read those too. Lesson (the answer-figure replay): figures
 // read in earlier turns of the session were "found in nothing read", because their results came as part lists)

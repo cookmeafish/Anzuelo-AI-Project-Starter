@@ -1877,6 +1877,21 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
     'end: a health failure the last run before the turn had is already there (not held); with no earlier run it is named without "after this change"; one a passing run before lacked is "after this change"; each run is recorded', JSON.stringify({ already, noRecord, proven }));
   fs.rmSync(rec, { force: true });
 }
+{ // REQ: fix-proven. A fix turn follows the debug skill and shows the same command failing before the code change and
+  // passing after it (oversight, 2026-11-12: fix proof)
+  const { fixGaps } = await import('./lib.mjs');
+  const dbg = call('Read', { file_path: path.join(dir, 'skills/debug/SKILL.md') }, 'debug'), fix = call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' });
+  const failRun = call('Bash', { command: 'node --test test/export.test.js' }, 'not ok 1 - exports the label\n# fail 1'), passRun = call('Bash', { command: 'node --test test/export.test.js' }, '# pass 1\n# fail 0');
+  const fx = (rows, complaint = true) => { const a = acts(rows); a.complaint = complaint; return fixGaps(a); };
+  const proven = fx([user('the export is broken'), dbg, failRun, fix, passRun, say('Fixed: the label was dropped.')]);
+  const noDebug = fx([user('the export is broken'), failRun, fix, passRun, say('Fixed.')]);
+  const afterOnly = fx([user('the export is broken'), dbg, fix, passRun, say('Fixed.')]);
+  const otherCmd = fx([user('the export is broken'), dbg, call('Bash', { command: 'node --test test/other.test.js' }, 'not ok 1'), fix, passRun, say('Fixed.')]);
+  const notVerified = fx([user('the export is broken'), dbg, fix, say('Changed it. NOT VERIFIED: the export - it needs the live account.')]);
+  const notFix = fx([user('rename the export button'), fix, say('Renamed.')], false);
+  report(proven.length === 0 && noDebug.length === 1 && /debug skill/.test(noDebug[0]) && afterOnly.length === 1 && /fail, then the same command/.test(afterOnly[0]) && otherCmd.length === 1 && notVerified.length === 0 && notFix.length === 0,
+    'end: a fix turn is proven by the same command failing before the code change and passing after, through the debug skill; pass-only or another command is held, NOT VERIFIED and a non-fix turn are not', JSON.stringify({ proven, noDebug, afterOnly, otherCmd, notVerified, notFix }));
+}
 fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
 { // (the starter's dev check: a run of the self-test counts, a look at one scenario (--explain, --route) does not)

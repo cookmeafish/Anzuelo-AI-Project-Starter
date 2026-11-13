@@ -35,7 +35,7 @@ import { frictionGaps } from './friction.mjs';
 import { VERBATIM_ENGINE } from './verbatim.mjs';
 import { NAMES_FILE, NAME_FILES, namesIn, nameProblems, headsOf, newLinesOf } from '../names.mjs';
 import { rootToolchainFile } from '../rootfiles.mjs';
-import { waivedTag, gitClaimGaps, notesOf, ownWords } from './lib.mjs';
+import { waivedTag, gitClaimGaps, notesOf, ownWords, fixGaps } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft, wakeupsPending } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
@@ -468,32 +468,26 @@ export function ruleGaps(acts, cfg = null) {
   return out;
 }
 export function upsetGaps(turn, acts) {
-  // (what the user typed this turn, messages typed mid-turn included; a message relayed from another session or a helper
-  // is not theirs. Lesson (replay of real sessions): a helper's report was read as the user's complaint)
-  // (nor is a summary of an earlier conversation, or the engine's own status lines quoted back. Lesson (replay): a
-  // resumed session's summary named the starter, and every complaint after it read as about the engine)
+  // (what the user typed, mid-turn too; never a relayed message, a resumed session's summary or the engine's own lines.
+  // Lessons (replays): a helper's report, and a summary naming the starter, were read as the user's complaint)
   const said = String(acts.heard || '').replace(/<(cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1>|$(?![\s\S]))/gi, ' ')
     .split(/^\s*Another Claude session sent a message/m)[0].split(/This session is being continued from a previous conversation/)[0]
     .split('\n').filter(l => !/⚓|^\s*(?:Stop hook feedback|PreToolUse|PostToolUse|UserPromptSubmit)\b/i.test(l)).join('\n');
-  // (the trigger is the agent's own judgment, never the user's words: an Issue line it wrote this turn (rule 3), or the
-  // learn-from-upset skill it opened. Words in the request only feed the reminder's hint. Lesson (a peer's review,
-  // citing the retirement of keyword-forced handling on 2026-11-07): a word match misread shouted rules and requests)
+  // (the trigger is the agent's own judgment (an Issue line, learn-from-upset opened), never the user's words: a word
+  // match misread shouted rules and requests (keyword handling retired 2026-11-07))
   const notes = turnNotes(acts);
   if (ISSUE_NONE.test(notes)) return []; // (the agent's own call: a false alarm, said with why)
   // (an Issue line the agent wrote in its own text counts as one in the notes: the note check asks it to move it there)
   const inText = /^\W*Issue:\s*(?!none\b|<)[^\n]*\|\s*runbook:/im.test(acts.said || '');
   if (!(ISSUE.test(notes) || inText || acts.calls.some(issueWritten) || acts.calls.some(c => c.name === 'Read' && /learn-from-upset[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))))) return [];
   const changed = changedOf(acts, true);
-  // (a turn that changed nothing owes it too once the agent wrote an Issue line: it took the complaint on, and "sorry, I'll
-  // be careful" is no fix and no verdict. Only the skill opened, on a turn of no work, is a look at it. Lesson (the old
-  // suite under v2): an apology with "Learned (none)" and no verdict passed)
+  // (an Issue line written owes a verdict even with no change: an apology with "Learned (none)" passed (old suite))
   if (!worked(acts) && !changed.length && !(ISSUE.test(notes) || acts.calls.some(issueWritten))) return [];
   const ans = String(acts.answer || ''), lead = ans.slice(0, 400), both = `${ans}\n${notes}`;
   // (the answer or the notes saying it did not hold, in words: a bare "Learned (none)" says nothing about it)
   if (NOT_HELD.test(both)) return [];
   const out = [];
-  // (a standing rule said with emphasis, "UPDATE THE PROJECT TO NEVER ...", "... MUST ...", is a rule request, which the
-  // project-rule skill handles: no verdict on a complaint is owed. Lesson (replay of real sessions))
+  // (a rule said with emphasis ("... MUST ...") is a rule request for project-rule: no verdict owed (replay))
   const ruleAsk = /\b(?:update the project to|from now on|going forward|make (?:it|this) a rule|(?:always|never) (?:do|name|use|make|put|add|ask|check)|must (?:always|never)?\s*\w+)\b/i.test(said);
   if (PARTLY.test(lead) || LEAD_CHECKED.test(lead) || ruleAsk) { /* a verdict with its evidence, or a rule request */ }
   else if (!HELD.test(lead)) out.push('Say first whether it holds: the complaint in full, in part, or not. Agreeing: "You\'re right: <what was wrong>". Not agreeing: in your own words and with no concession ("Checked: <what you opened> - <what it showed>"); never blame files the user doesn\'t see.');
@@ -739,7 +733,7 @@ function judge(data, { shadow = false } = {}) {
     return q ? [`Next in the queue (${q.file}): "${q.text.slice(0, 160)}". Give the user a one-line update and start it now, unless it waits on the user (then say so).`] : []; });
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...logOpen, ...nextUp, ...autos, ...wakes,...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...logOpen, ...nextUp, ...autos, ...wakes,...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...fixGaps(acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (format items never hold: the Finished section, plain-writing reflows, a runbook item asking for the Finished section.
   // The reminder asks for them up front. The user, 2026-11-12: a hold for format splits the answer into fragments)
   const fmt = engineChecks().filter(r => ['finished-summary', 'plain-writing'].includes(r?.tag)).map(r => `Check: ${r.message}`.slice(0, 60));

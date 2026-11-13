@@ -1,6 +1,5 @@
-// Engine v2: the work log, one per session: the user's asks (every typed message) and the agent's promises ("I'll ..."),
-// filled by the engine, closed on evidence (a later text naming it, or `hooks.mjs log done|wait`). User rule, 2026-11-12:
-// nothing asked or promised is dropped. Lesson: of four messages typed in a minute, three were never mentioned again.
+// Engine v2: the work log per session: the user's asks and the agent's promises, closed on evidence (a later text naming
+// it, or `hooks.mjs log done|wait`). User rule, 2026-11-12: nothing asked or promised is dropped.
 import fs from 'node:fs';
 import path from 'node:path';
 import { at } from './lib.mjs';
@@ -21,8 +20,7 @@ export function asksIn(msg) {
   const bits = t.split(/\n+|(?<=[.!?])\s+(?=[A-Z¿¡])/).map(s => s.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(s => s.length > 3 && !CHAT.test(s) && keys(s).length);
   return (bits.length > 6 ? [t.replace(/\s+/g, ' ')] : bits).map(s => s.slice(0, 300));
 }
-// A later text of the agent's names the item: half its key words, at least one (two once it has four or more), in a
-// sentence that is not a promise ("I'll add it next" names it, but nothing is done yet). Oversight, 2026-11-12
+// A later text names the item: half its key words (min 1, 2 from four), in a sentence that is no promise (oversight)
 const FUTURE = /\b(?:I'll|I will|will|going to|next|later|after (?:this|that)|then I)\b/i;
 const named = (item, text) => { const w = keys(item); if (!w.length) return false; const need = Math.max(w.length >= 4 ? 2 : 1, Math.round(w.length / 2));
   return String(text).split(/(?<=[.!?\n])\s+/).filter(s => !FUTURE.test(s)).some(s => { const k = new Set(keys(s)); return w.filter(x => k.has(x)).length >= need; }); };
