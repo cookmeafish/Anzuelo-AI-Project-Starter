@@ -173,6 +173,19 @@ tools/hooks/v2/lib.mjs (walks), tools/starter/trials/adopt-large.mjs (the sample
 - [ ] Run `node tools/trial.mjs` with two more shapes (an app reading an engine-made doc; app content in a folder a
       pack made). Expected: TRIAL: PASS.
 
+## Task 5e: help AI-first apps build their own guardrails, inside the app
+**Files:** a new skill (skills/app-ai-guardrails/SKILL.md) with its runbook entry and check
+**Uses / provides:** uses Task 4's classification.
+- [ ] When the app itself runs an AI (it creates content, grades answers, edits user data), the coding agent can build
+      the app's own version of what the engine does: routing a request to the app's procedure, the procedure's checklist,
+      checks on the AI's output before it's saved or shown, and logs of what the AI did. The skill gives patterns
+      inspired by the engine (rules as data, evidence-based checks, one guard place, tests from real cases).
+- [ ] Everything it produces lives in the app's own folders, in the app's language and stack, is tracked, and imports
+      nothing from the engine's folder. It ships to the app's users and works without the engine.
+- [ ] Run `node tools/hooks/v2/selftest.mjs` and `node tools/audit.mjs`. Expected: on a sample AI app, the skill's output
+      passes the app's own tests with the engine's folder deleted, and the audit finds no reference from it to the
+      engine; ALL PASS and audit PASS.
+
 ## Task 6: the audit keeps it true
 **Files:** tools/audit.mjs
 **Uses / provides:** uses Tasks 2 and 4.
