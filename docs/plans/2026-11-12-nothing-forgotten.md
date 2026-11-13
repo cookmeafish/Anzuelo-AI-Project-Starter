@@ -39,6 +39,8 @@ What the engine does today (tools/hooks/v2/midturn.mjs, late.mjs, end.mjs):
 
 ## Constraints for every task
 - The user's rule: verify first, show only what's proven, drop the rest.
+- On by default in every project and in the starter (the user, 2026-11-12): it's core, not an optional pack or check,
+  so every session tracks everything the user asks without anyone keeping a list for it.
 - No new interruptions during work: the ledger shows in the reminder and at the end only.
 - The agent is pointed to the log and helped by it, never slowed by it:
   - The session-start text and the rules say in two lines what the log is and that it's read at "finished".
