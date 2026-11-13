@@ -1227,6 +1227,8 @@ export function syncSkills(cfg = config()) {
   const names = list(cfg.skillsDir).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`));
   for (const m of cfg.skillMirrors) {
     for (const n of names) {
+      // (a folder there without the copy marker is the project's own skill, never overwritten. Oversight, 2026-11-13)
+      if (exists(`${m}/${n}`) && !exists(`${m}/${n}/.mirror`)) continue;
       const copy = d => { for (const f of list(`${cfg.skillsDir}/${n}${d}`)) { const src = `${cfg.skillsDir}/${n}${d}/${f}`; if (fs.statSync(abs(src)).isDirectory()) copy(`${d}/${f}`);
         else if (mirrorFresh(src, `${m}/${n}${d}/${f}`)) continue;
         else {
@@ -1245,8 +1247,21 @@ export function syncSkills(cfg = config()) {
     }
     for (const n of list(m)) if (!names.includes(n) && exists(`${m}/${n}/.mirror`)) fs.rmSync(absw(`${m}/${n}`), { recursive: true, force: true });
   }
+  if (split) excludeCopies(PROJECT, cfg.skillMirrors.flatMap(m => list(m).filter(n => exists(`${m}/${n}/.mirror`)).map(n => `/${m}/${n}/`)));
   saveStamps();
   return changed;
+}
+// With the engine in .anzuelo/engine, git's local exclude file lists each engine skill copy on its own (never the skill
+// folders whole), in one marked block kept current: the project's own skills there stay visible to git.
+const COPIES_MARK = '# The engine\'s skill copies (made on each machine; the project\'s own skills stay in git)', COPIES_END = '# end of the engine\'s skill copies';
+const gitExcludeFile = dir => { const g = path.join(dir, '.git'); try { if (fs.statSync(g).isDirectory()) return path.join(g, 'info', 'exclude');
+  const gd = path.resolve(dir, /gitdir:\s*(.+)/.exec(fs.readFileSync(g, 'utf8'))[1].trim()), cd = path.join(gd, 'commondir');
+  return path.join(fs.existsSync(cd) ? path.resolve(gd, fs.readFileSync(cd, 'utf8').trim()) : gd, 'info', 'exclude'); } catch { return null; } };
+export function excludeCopies(dir, lines) {
+  const f = gitExcludeFile(dir); if (!f) return; let t = ''; try { t = fs.readFileSync(f, 'utf8'); } catch { }
+  const block = lines.length ? `${COPIES_MARK}\n${[...new Set(lines)].sort().join('\n')}\n${COPIES_END}\n` : '', rx = new RegExp(`${esc(COPIES_MARK)}\\r?\\n[\\s\\S]*?${esc(COPIES_END)}\\r?\\n?`);
+  const next = rx.test(t) ? t.replace(rx, block) : block ? `${t}${t && !t.endsWith('\n') ? '\n' : ''}${t ? '\n' : ''}${block}` : t;
+  if (next !== t) try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, next); } catch { }
 }
 
 // The size of DIRECTORY.md's section 5 (the packs and library the starter can add), which only the starter writes.

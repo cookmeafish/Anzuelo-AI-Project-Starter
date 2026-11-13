@@ -15,7 +15,11 @@ import { roots, resolver } from './paths.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const GITIGNORE_MARK = '# The project engine and its wiring (made on each machine, never committed)';
-export const GITIGNORE_BLOCK = `${GITIGNORE_MARK}\n.anzuelo/\nCLAUDE.local.md\n.claude/settings.local.json\n.claude/skills/\n.agents/skills/\n.codex/hooks.json\n`;
+// (the skill folders are not in it whole: a project's own new skill there must show in git. Each engine skill copy is
+// listed on its own by the mirror sync (hooks-main.mjs excludeCopies). Lesson (oversight, 2026-11-13): a project with
+// its own skill under .claude/skills/ would have had every new skill hidden from git)
+export const GITIGNORE_BLOCK = `${GITIGNORE_MARK}\n.anzuelo/\nCLAUDE.local.md\n.claude/settings.local.json\n.codex/hooks.json\n`;
+const WHOLE_SKILL_DIRS = /^(\.claude\/skills\/|\.agents\/skills\/)\r?\n/gm;
 
 const HOOK_FILES = ['pre-commit', 'commit-msg', 'pre-push'];
 // The script files a hook command runs: a quoted path, or a bare word, ending in a script extension ("$CLAUDE_PROJECT_DIR/"
@@ -58,6 +62,9 @@ export function wire(dir, { dry = false } = {}) {
     const ex = (spawnSync('git', ['rev-parse', '--git-path', 'info/exclude'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim();
     const target = agreed || have.includes(GITIGNORE_MARK) || !ex ? gi : path.resolve(dir, ex), now = target === gi ? have : (() => { try { return fs.readFileSync(target, 'utf8'); } catch { return ''; } })();
     if (!now.includes(GITIGNORE_MARK)) { write(target, `${now}${now && !now.endsWith('\n') ? '\n' : ''}${now ? '\n' : ''}${GITIGNORE_BLOCK}`); log.push(`updated  ${target === gi ? '.gitignore' : "git's local exclude file"} (the engine and its wiring stay out of git)`); }
+    // (an earlier install's block hid the skill folders whole: narrowed to the engine's own copies, listed one by one)
+    else { const i = now.indexOf(GITIGNORE_MARK), head = now.slice(0, i), blk = now.slice(i).split(/\n(?=\s*\n)/)[0], rest = now.slice(i + blk.length);
+      if (WHOLE_SKILL_DIRS.test(blk)) { write(target, head + blk.replace(WHOLE_SKILL_DIRS, '') + rest); log.push(`updated  ${target === gi ? '.gitignore' : "git's local exclude file"} (the skill folders no longer hidden whole; the engine's copies are listed one by one)`); } WHOLE_SKILL_DIRS.lastIndex = 0; }
   }
   // Which agents to wire on this project: "wireAgents" in tools/hooks/config.json (default: all). Lesson: a Codex-only
   // user got CLAUDE.md and .claude/ back on every upgrade, with no way to say no.

@@ -353,7 +353,13 @@ for (const [name, s] of Object.entries(SAMPLES)) {
 // beside itself. Lesson (a project, 2026-11-13): every commit failed with "Cannot find module .../tools/hooks/git-guard.mjs")
 {
   const name = 'adopted project with the engine in .anzuelo/engine', dir = path.join(WORK, 'engine-in-anzuelo');
-  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n' }); gitRepo(dir);
+  // (as the established app it stands for: its own tracked skills under .claude/skills/, one named like an engine skill,
+  // and its own .claude/settings.local.json with the user's permissions, environment and a hook. Oversight, 2026-11-13)
+  const ownSkill = '---\nname: release-notes\ndescription: Write the release notes\n---\n# Release notes\nRun `node .claude/skills/release-notes/make.js`.\n';
+  const ownDebug = '---\nname: debug\ndescription: The project\'s own debugging steps\n---\n# Debug\nOpen the "logs" panel first.\n';
+  const ownLocal = { permissions: { allow: ['Bash(yarn test:*)'], deny: ['Bash(rm -rf:*)'] }, env: { APP_MODE: 'dev' }, hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'node scripts/own-lint.js' }] }] } };
+  write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug }); gitRepo(dir);
+  write(dir, { '.claude/settings.local.json': JSON.stringify(ownLocal, null, 2) + '\n' });
   const genv = { ...env, ANZUELO_SESSION_GATE: 'off' }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
   const inst = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dir], { cwd: STARTER, encoding: 'utf8', env: genv, timeout: 300000 });
   const hooksPath = git(['config', '--get', 'core.hooksPath'], dir).stdout.trim();
@@ -362,6 +368,20 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   check(name, 'a commit runs the engine\'s git guard from .anzuelo/engine and goes through; one crediting an AI is refused by it',
     inst.status === 0 && /\.anzuelo\/engine\/\.githooks$/.test(hooksPath.replace(/\\/g, '/')) && ok.status === 0 && credit.status !== 0 && !/Cannot find module/.test(`${ok.stderr}${credit.stderr}`),
     JSON.stringify({ inst: inst.status, err: (inst.stderr || '').slice(0, 200), hooksPath, ok: [ok.status, (ok.stderr || '').slice(0, 200)], credit: [credit.status, (credit.stderr || '').slice(0, 200)] }));
+  // (its own skills untouched, the engine's copies hidden from git one by one, and a new skill of its own visible)
+  const rd = f => { try { return fs.readFileSync(path.join(dir, f), 'utf8'); } catch { return null; } };
+  write(dir, { '.claude/skills/garden-plan/SKILL.md': '---\nname: garden-plan\ndescription: Plan the beds\n---\n# Garden plan\n' });
+  const st = git(['status', '--porcelain', '-uall'], dir).stdout, copies = fs.existsSync(path.join(dir, '.claude/skills/plan/.mirror'));
+  check(name, 'its own skills under .claude/skills/ are kept as they were (one named like an engine skill too), the engine\'s skill copies stay out of git, and a new skill of its own shows in git status',
+    rd('.claude/skills/release-notes/SKILL.md') === ownSkill && rd('.claude/skills/debug/SKILL.md') === ownDebug && !fs.existsSync(path.join(dir, '.claude/skills/debug/.mirror'))
+      && copies && !/\.claude\/skills\/plan\//.test(st) && /\?\? \.claude\/skills\/garden-plan\/SKILL\.md/.test(st),
+    JSON.stringify({ copies, status: st.split('\n').filter(l => /skills/.test(l)).slice(0, 6), ownDebugKept: rd('.claude/skills/debug/SKILL.md') === ownDebug }));
+  // (its own .claude/settings.local.json merged: every key of the user's kept, the engine's hooks added)
+  let local = {}; try { local = JSON.parse(rd('.claude/settings.local.json') || '{}'); } catch { }
+  const hooksTxt = JSON.stringify(local.hooks || {});
+  check(name, 'its own .claude/settings.local.json is merged, never replaced: the user\'s permissions, environment and own hook stay, and the engine\'s hooks are added',
+    JSON.stringify(local.permissions) === JSON.stringify(ownLocal.permissions) && JSON.stringify(local.env) === JSON.stringify(ownLocal.env) && /own-lint\.js/.test(hooksTxt) && /\.anzuelo\/engine\/tools\/hooks\/hooks\.mjs/.test(hooksTxt),
+    JSON.stringify({ permissions: local.permissions, env: local.env, hooks: Object.keys(local.hooks || {}) }));
 }
 
 if (deep) {
