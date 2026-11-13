@@ -572,10 +572,10 @@ const STOP = [
     expect: { block: true, tags: ['runbook-exists'] } },
   // the Stop hook's form per host: calm feedback where the host supports it (Claude Code sets CLAUDE_PROJECT_DIR for its
   // hooks), the classic block for any other host (Codex, unknown), and stopStyle forces either
-  { name: 'stop form: a host that supports feedback gets it, with no "decision" and a one-line note for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
+  { name: 'stop form: a host that supports feedback gets it, with no "decision" and no second copy for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     host: { CLAUDE_PROJECT_DIR: '.' }, expect: { block: true, tags: ['runbook-exists'] },
     after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /Names: [^\n]*runbook-exists/.test(d.hookSpecificOutput.additionalContext || '')
-      && userNote(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}`,
+      && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}`,
     // (v2: a turn it holds (a real gap: the new note links to nothing; format items never hold since 2026-11-12), in its
     // own form: the short text, no separate note for the user (the answer goes out once))
     v2: { answer: 'The rota is ready, one line per week.' + FIN, expect: { block: true, tags: ['note-linked'] }, after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /^⚓ [^\n]* left before this is done\n- /.test(d.hookSpecificOutput.additionalContext || '') && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },

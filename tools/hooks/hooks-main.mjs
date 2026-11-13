@@ -2095,7 +2095,7 @@ function notices(cfg) {
 export const V2_SESSION = '# How this project\'s engine works (full rules in AGENTS.md / CLAUDE.md)\n' +
   '- Reminder, before each request: a short note names the runbook that fits and its "Done when" list. Open it and follow it. Nothing named and it is real work: pick the fitting runbook in DIRECTORY.md.\n' +
   '- Guard, during the work: the only kind that stops you. It refuses one unsafe action as you try it (secrets, AI credit in git, protected files, forbidden words, outward actions, risky git, other people\'s data). Nothing else speaks.\n' +
-  '- Check, after the work: it lists anything really missing, and the runbook items to verify yourself, and asks again (at most 3 times) until each is done or the answer says plainly why not. No record lines are needed.\n' +
+  '- Check, after the work: it lists anything really missing, and the runbook items to verify yourself, and asks again (at most 3 times) until each is done or the answer says plainly why not. No record lines are needed. Its full steps, with paths and what meets each: node tools/hooks/hooks.mjs why (the user sees only the plain list).\n' +
   '- Work log: the engine keeps, by itself, what the user asked (every message, mid-task ones too) and what you promised. When you think you are finished, what is still open is listed: do it, or say it is declined (why) or waits on the user. Optional: node tools/hooks/hooks.mjs log add|done|wait "<item>".';
 export const DEV_EDIT_LINE = 'File changes: Edit/Write only; never sed, heredoc or shell redirection on source files.';
 function cmdSession(data) {
@@ -5007,7 +5007,9 @@ export function stopOutput(d, cfg = config(), host = HOST) {
   const line = userLine(d, cfg);
   // the agent's copy also stays within what the host shows it; the full steps are in "hooks.mjs why"
   if (d.reason && d.reason.length > HOOK_OUTPUT_MAX) d = { ...d, reason: d.reason.slice(0, HOOK_OUTPUT_MAX - 200).replace(/\n[^\n]*$/, '') + '\n(cut to fit: node tools/hooks/hooks.mjs why prints every step in full)' };
-  if (style === 'feedback') return { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: d.reason }, systemMessage: line };
+  // (feedback is shown to the user already: no second copy as a systemMessage, as v2. Text audit, 2026-11-12: the same
+  // block showed twice at the same second in 432 of 968 Stop moments)
+  if (style === 'feedback') return { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: d.reason } };
   // Codex documents systemMessage next to a block, so its user gets the same short line; unknown hosts get the bare block
   return host === 'codex' ? { decision: 'block', reason: d.reason, systemMessage: line } : { decision: 'block', reason: d.reason };
 }
@@ -5051,7 +5053,9 @@ export function shortStop(full, where = 'tools/hooks/state/stop-details.md') {
   const shown = items.slice(0, items.length > 3 ? 2 : 3).map(s => `- ${plain(s)}`);
   if (items.length > 3) shown.push(`- and ${items.length - 2} more`);
   if (!items.length) shown.push(`- ${plain(text.split('\n')[0] || 'see the details')}`);
-  return `⚓ ${names().STARTER_NAME || 'Project checks'}: ${n} thing${n === 1 ? '' : 's'} left before this is done${last ? ' (last check: say plainly what is not done)' : ''}\n${shown.join('\n')}\n(details: ${where})`;
+  // (only the plain items: the details file's path is for the agent, which the session context points to `hooks.mjs why`.
+  // Text audit, 2026-11-12: agent-only text, paths and commands, showed to the user in 626 rows)
+  return `⚓ ${names().STARTER_NAME || 'Project checks'}: ${n} thing${n === 1 ? '' : 's'} left before this is done${last ? ' (last check: say plainly what is not done)' : ''}\n${shown.join('\n')}`;
 }
 // Session and prompt notices: kept out of the visible chat where the host documents a way (Claude Code's
 // additionalContext); plain text elsewhere, which Codex documents as added to the agent's context.

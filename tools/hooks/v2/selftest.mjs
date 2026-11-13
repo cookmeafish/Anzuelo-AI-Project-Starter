@@ -3292,9 +3292,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // to the agent. The full steps and instructions are in tools/hooks/state/stop-details.md. Lesson (the user,
     // 2026-11-10, many times): the instruction block shown there read as noise, and Claude Code cannot hide it)
     const shown = [ctx, cx.j.reason || ''];
-    report(shown.every(t => t.split('\n').length <= 5 && /^⚓ [^\n]* left before this is done\n- /.test(t) && !/\bitem \d+:/.test(t) && t.split('\n').slice(1, -1).every(l => l.length <= 82) && /\(details: tools\/hooks\/state\/stop-details\.mark-c[cx]\.md\)$/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
-      && /docs\/playbooks\/export\.md/.test(cc.details) && /Fix what isn't done/.test(cc.details),
-      'stop: the text the user sees is at most 5 short lines with no instructions to the agent; the full steps are in the details file', JSON.stringify({ shown, details: cc.details.slice(0, 300) }));
+    // (no path or command for the agent either: the session context points it to `hooks.mjs why`. Text audit, 2026-11-12)
+    const { V2_SESSION } = await import((await import('node:url')).pathToFileURL(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', 'hooks-main.mjs')).href);
+    report(shown.every(t => t.split('\n').length <= 4 && /^⚓ [^\n]* left before this is done\n- /.test(t) && !/\bitem \d+:/.test(t) && t.split('\n').slice(1).every(l => l.length <= 82) && !/\(details:|stop-details|tools\/hooks|hooks\.mjs/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
+      && /docs\/playbooks\/export\.md/.test(cc.details) && /Fix what isn't done/.test(cc.details) && /node tools\/hooks\/hooks\.mjs why/.test(V2_SESSION),
+      'stop: the text the user sees is at most 4 short lines, with no path, command or instruction for the agent; the full steps are in the details file, which the session context names', JSON.stringify({ shown, details: cc.details.slice(0, 300) }));
   }
   // (a new session never shows an "acknowledged" line from another session's old note; its own new one still shows.
   // Lesson (the user, in the desktop app): a plain question's first tool call showed another session's old issue)
