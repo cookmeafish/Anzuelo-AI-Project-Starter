@@ -364,7 +364,9 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   write(dir, { 'README.md': '# Garden log\n', 'notes/plants.md': 'Tomatoes by the fence.\n', '.claude/skills/release-notes/SKILL.md': ownSkill, '.claude/skills/release-notes/make.js': 'console.log("notes");\n', '.claude/skills/debug/SKILL.md': ownDebug, '.cache/app-data.json': '{"items":3}\n', 'docs/guide.md': guideText }); gitRepo(dir);
   const ownLocalRules = '# My notes for this machine\nAnswer in short paragraphs; the "staging" server is down on Fridays.\n';
   write(dir, { '.claude/settings.local.json': JSON.stringify(ownLocal, null, 2) + '\n', 'CLAUDE.local.md': ownLocalRules });
-  const genv = { ...env, ANZUELO_SESSION_GATE: 'off' }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
+  // (an adopted project keeps the engine's state in the user's profile: a test profile here, never the real one)
+  const thome = path.join(WORK, `home-${name.replace(/\W+/g, '-').slice(0, 40)}`); fs.mkdirSync(thome, { recursive: true });
+  const genv = { ...env, ANZUELO_SESSION_GATE: 'off', USERPROFILE: thome, HOME: thome }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
   const inst = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dir], { cwd: STARTER, encoding: 'utf8', env: genv, timeout: 300000 });
   const hooksPath = git(['config', '--get', 'core.hooksPath'], dir).stdout.trim();
   const commit = (file, msg) => { write(dir, { [file]: 'x\n' }); spawnSync('git', ['add', file], { cwd: dir, env: genv }); return spawnSync('git', ['commit', '-q', '-m', msg], { cwd: dir, encoding: 'utf8', env: genv }); };
@@ -402,12 +404,13 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     const session = hook('session', { source: 'startup' });
     row({ type: 'user', message: { role: 'user', content: 'WHY DID THE EXPORT DROP THE "NOTES" COLUMN AGAIN' } });
     const hint = hook('prompt', { prompt: 'WHY DID THE EXPORT DROP THE "NOTES" COLUMN AGAIN' });
-    const notes = path.join(dir, '.anzuelo/local/.cache/turn-notes.md'), line = 'Issue: the export dropped the "notes" column | runbook: learn-from-upset | fixed when: every column is in the export';
+    // (where the session note sends the engine's scratch: the agent writes its Issue line there, as told)
+    const told = /use (.+?)\/, never the app's own \.cache\//.exec(session)?.[1] || '', notes = path.resolve(dir, told || '.anzuelo/local/.cache', 'turn-notes.md'), line = 'Issue: the export dropped the "notes" column | runbook: learn-from-upset | fixed when: every column is in the export';
     const input = { file_path: notes, old_string: '', new_string: `${line}\n` };
     row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'n1', name: 'Edit', input }] } }); fs.mkdirSync(path.dirname(notes), { recursive: true }); fs.appendFileSync(notes, `${line}\n`);
     const ack = hook('posttool', { tool_name: 'Edit', tool_input: input, tool_response: {} });
-    check(name, 'the acknowledgement works with the engine in .anzuelo/: the session note sends the engine\'s scratch to .anzuelo/local/.cache/, no hook text names the app\'s own .cache/turn-notes.md, and a quoted Issue line written there shows "acknowledged"',
-      /\.anzuelo\/local\/\.cache\//.test(session) && !/(?<![\w./-])\.cache\/turn-notes\.md/.test(session + hint) && /acknowledged: the export dropped the \\?"notes\\?" column/.test(ack) && !fs.existsSync(path.join(dir, '.cache/turn-notes.md')),
+    check(name, 'the acknowledgement works with the engine in .anzuelo/: the session note sends the engine\'s scratch outside the app\'s folders (an adopted project: the user\'s profile), no hook text names the app\'s own .cache/turn-notes.md, and a quoted Issue line written there shows "acknowledged"',
+      !!told && path.relative(dir, path.resolve(dir, told)).startsWith('..') && !/(?<![\w./-])\.cache\/turn-notes\.md/.test(session + hint) && /acknowledged: the export dropped the \\?"notes\\?" column/.test(ack) && !fs.existsSync(path.join(dir, '.cache/turn-notes.md')),
       JSON.stringify({ session: session.slice(-300), hint: hint.slice(0, 300), ack: ack.slice(0, 300) }));
     check(name, 'a tracked app doc holding a name marker is never rewritten by the engine\'s name sync (install and a session start)', rd('docs/guide.md') === guideText, JSON.stringify(rd('docs/guide.md')));
   }
@@ -422,7 +425,9 @@ for (const [name, s] of Object.entries(SAMPLES)) {
 // (a repository with worktrees, or its own git LFS set up, keeps git's hooks path as it is after the install)
 {
   const name = 'adopted project with worktrees or git LFS, engine in .anzuelo/engine';
-  const genv = { ...env, ANZUELO_SESSION_GATE: 'off' }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
+  // (an adopted project keeps the engine's state in the user's profile: a test profile here, never the real one)
+  const thome = path.join(WORK, `home-${name.replace(/\W+/g, '-').slice(0, 40)}`); fs.mkdirSync(thome, { recursive: true });
+  const genv = { ...env, ANZUELO_SESSION_GATE: 'off', USERPROFILE: thome, HOME: thome }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
   const make = (sub, setup) => { const d = path.join(WORK, sub); write(d, { 'README.md': '# Shapes\n' }); gitRepo(d); setup(d);
     const r = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', d], { cwd: STARTER, encoding: 'utf8', env: genv, timeout: 300000 });
     return { inst: r.status, hp: git(['config', '--get', 'core.hooksPath'], d).stdout.trim() }; };

@@ -98,7 +98,9 @@ const out = path.join(STARTER, '.cache', 'trials', `adopt-large-${Date.now().toS
 fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify(rec, null, 2));
 for (const [what, ok, why] of checks) console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}${!ok && why ? `: ${why}` : ''}`);
 console.log(`wiring outside .anzuelo/: ${wiring.join(', ') || 'none'}, and ${mirrors} skill copies git ignores (.claude/skills, .agents/skills); ${files0} tracked files; ${rec.minutes} min; record: ${out}`);
-if (!args.includes('--keep')) fs.rmSync(dir, { recursive: true, force: true }); else console.log(`kept: ${dir}`);
+// (an adopted project's state sits in the user's profile: the trial copy's goes with the copy, never left behind)
+const { stateOutside } = await import('../../hooks/paths.mjs'), so = stateOutside(path.join(dir, '.anzuelo', 'local'), dir);
+if (!args.includes('--keep')) { fs.rmSync(dir, { recursive: true, force: true }); if (so) fs.rmSync(so, { recursive: true, force: true }); } else console.log(`kept: ${dir}${so ? ` (its state: ${so})` : ''}`);
 const bad = checks.filter(c => !c[1]).length;
 console.log(`ADOPT-LARGE: ${bad ? 'FAIL' : 'PASS'} (${checks.length - bad} of ${checks.length})`);
 process.exit(bad ? 1 : 0);

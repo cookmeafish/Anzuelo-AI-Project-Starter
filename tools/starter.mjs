@@ -47,7 +47,7 @@ import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf, noteEngineChange } from './hooks/hooks-main.mjs';
 import { registry } from './packs.mjs';
 import { behindUpstream } from './hooks/repo.mjs';
-import { where, whereWrite, split, kind, keepList, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
+import { where, whereWrite, split, kind, keepList, stateOutside, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
 import { scriptsIn } from './hooks/wire.mjs';
 import { carryRunEach } from './hooks/selfcmds.mjs';
 
@@ -563,10 +563,15 @@ if (cmd === 'link') {
   // (and a folder that had files is adopted: setup runs the adoption review, surgery, not replacement. Lesson (an
   // adoption trial, 2026-11-12): install made the files in an empty scratch folder, so the review never ran)
   if (gign === 'yes' || had.length) try { const cf = path.join(loc, 'tools', 'hooks', 'config.json'); fs.writeFileSync(cf, JSON.stringify({ ...JSON.parse(fs.readFileSync(cf, 'utf8')), ...(gign === 'yes' ? { gitignore: true } : {}), ...(had.length ? { adopted: new Date().toISOString().slice(0, 10) } : {}) }, null, 2) + '\n'); } catch (e) { console.error(`config: ${e.message}`); }
+  // (an adopted project keeps the engine's state outside it from the start: an established app may watch, serve, scan or
+  // package its own folder in ways the engine can't foresee. Oversight's decision, 2026-11-13; a fresh project keeps it inside)
+  if (had.length) try { const lc = path.join(loc, 'config.json'), was = (() => { try { return JSON.parse(fs.readFileSync(lc, 'utf8')); } catch { return {}; } })();
+    if (was.stateOutside === undefined) fs.writeFileSync(lc, JSON.stringify({ ...was, stateOutside: true }, null, 2) + '\n'); } catch (e) { console.error(`config: ${e.message}`); }
   const w = spawnSync(process.execPath, [path.join(eng, 'tools', 'hooks', 'wire.mjs')], { cwd: dest, encoding: 'utf8' });
   process.stdout.write(w.stdout || ''); if (w.status !== 0) { process.stderr.write(w.stderr || ''); process.exit(1); }
   noteEngineChange(dest, `${moved ? 'moved' : 'installed'} into .anzuelo/engine at ${(g(['rev-parse', '--short', 'HEAD'], eng).stdout || '').trim()}`);
   if (!priv) console.log('next: setup asks the user whether .anzuelo/local gets a private git repository of its own (starter.mjs local-repo yes|no)');
+  { const so = stateOutside(loc, dest); if (so) console.log(`The engine's state and scratch are kept outside the project, in ${so} (an adopted project; "stateOutside" in .anzuelo/local/config.json).`); }
   console.log('Claude Code may ask once to allow the CLAUDE.local.md import of .anzuelo/engine/AGENTS.md.');
 } else if (cmd === 'local-repo') {
   if (!split) { console.error('local-repo is for a project with the engine in .anzuelo/engine'); process.exit(1); }
