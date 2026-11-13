@@ -2095,7 +2095,8 @@ function notices(cfg) {
 export const V2_SESSION = '# How this project\'s engine works (full rules in AGENTS.md / CLAUDE.md)\n' +
   '- Reminder, before each request: a short note names the runbook that fits and its "Done when" list. Open it and follow it. Nothing named and it is real work: pick the fitting runbook in DIRECTORY.md.\n' +
   '- Guard, during the work: the only kind that stops you. It refuses one unsafe action as you try it (secrets, AI credit in git, protected files, forbidden words, outward actions, risky git, other people\'s data). Nothing else speaks.\n' +
-  '- Check, after the work: it lists anything really missing, and the runbook items to verify yourself, and asks again (at most 3 times) until each is done or the answer says plainly why not. No record lines are needed.';
+  '- Check, after the work: it lists anything really missing, and the runbook items to verify yourself, and asks again (at most 3 times) until each is done or the answer says plainly why not. No record lines are needed.\n' +
+  '- Work log: the engine keeps, by itself, what the user asked (every message, mid-task ones too) and what you promised. When you think you are finished, what is still open is listed: do it, or say it is declined (why) or waits on the user. Optional: node tools/hooks/hooks.mjs log add|done|wait "<item>".';
 export const DEV_EDIT_LINE = 'File changes: Edit/Write only; never sed, heredoc or shell redirection on source files.';
 function cmdSession(data) {
   const cfg = config();
@@ -5417,6 +5418,10 @@ if (isMain) {
   // (engine v2, for agents without hooks: begin prints the same reminder, check runs the same one end check)
   if ((cmd === 'begin' || cmd === 'check') && engineOf() === 'v2' && !envOf('BENCH')) process.exit(await v2Cli(cmd));
   if (cmd === 'begin') { cmdBegin(); process.exit(0); }
+  // (the work log, by hand: add an item, or close or park the open one the words name. v2/worklog.mjs)
+  if (cmd === 'log') { const [verb, ...w] = process.argv.slice(3), sid = String(process.env.CLAUDE_CODE_SESSION_ID || '').replace(/[^\w-]/g, '');
+    if (!/^(add|done|wait)$/.test(verb || '') || !w.join(' ').trim() || !sid) { console.log('usage: node tools/hooks/hooks.mjs log add|done|wait "<item>" (in a session)'); process.exit(1); }
+    process.env.ANZUELO_ROOT ||= ROOT; console.log((await import('./v2/worklog.mjs')).logCommand(sid, verb, w.join(' ').trim())); process.exit(0); }
   if (cmd === 'check') cmdCheck();
   if (cmd === 'cost') cmdCost();
   if (cmd === 'restore') {

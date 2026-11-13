@@ -4033,6 +4033,49 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     'temp: stop-tests ends the test runs going now within seconds, one busy in sync work too, and they leave no folders; a run started after it goes on', JSON.stringify({ codes, secs: Math.round(secs * 10) / 10, left, out: cmd.stdout.trim().slice(0, 120), err: cmd.stderr.slice(-200) }));
 }
 
+// (the work log: of four messages typed in a minute the agent took up the last, and the first three are named at the end
+// until done, declined or handed back; a picture message is read by its text; a promise made before the final answer
+// and never kept is named too; a one-ask turn ended with a terse "Done." holds nothing. The user, 2026-11-12: nothing
+// asked or promised is dropped. Lesson (a live case): three asks were never mentioned again)
+{
+  const T0 = Date.now() - 60_000, ts = s => new Date(T0 + s * 1000).toISOString(), stampAt = (s, r) => ({ ...r, timestamp: ts(s) });
+  const queued = (s, prompt) => ({ type: 'attachment', timestamp: ts(s), attachment: { type: 'queued_command', prompt } });
+  const rows4 = [stampAt(0, user('choose which account the stats come from')), queued(5, 'progress that updates itself'), queued(10, 'a refresh button on the stats page'),
+    queued(15, [{ type: 'image', source: {} }, { type: 'text', text: 'the coach popup shows on my Claude login screen, hide it there' }]),
+    stampAt(20, call('Edit', { file_path: path.join(dir, 'src/coach.js'), old_string: 'a', new_string: 'b' })), stampAt(25, say('Hid the coach popup on the Claude login screen.'))];
+  const four = onStop({ session_id: 'wlog4', transcript_path: transcript(rows4) })?.reason || '';
+  const log = (await import('./worklog.mjs')).loadLog('wlog4');
+  const promised = onStop({ session_id: 'wlogp', transcript_path: transcript([stampAt(0, user('fix the totals and the date column')), stampAt(5, say('Fixing the totals first; I\'ll fix the date column format right after that.')),
+    stampAt(10, call('Edit', { file_path: path.join(dir, 'src/totals.js'), old_string: 'a', new_string: 'b' })), stampAt(15, say('The totals are fixed.'))]) })?.reason || '';
+  const terse = onStop({ session_id: 'wlog1', transcript_path: transcript([stampAt(0, user('add a csv export')), stampAt(5, call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' })), stampAt(10, say('Done.'))]) })?.reason || '';
+  for (const s of ['wlog4', 'wlogp', 'wlog1']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+  report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
+    && !log.some(i => /object Object/.test(i.text)) && log.some(i => /coach popup/.test(i.text) && i.status === 'done')
+    && /Still open: "fix the date column format right after that \(your promise\)"/.test(promised) && !/Still open/.test(terse),
+    'worklog: asks the agent skipped while taking up a later one are named at the end; a picture message is read by its text; an unkept promise is named; a one-ask turn ended "Done." holds nothing', JSON.stringify({ four: four.slice(0, 500), promised: promised.slice(0, 300), terse: terse.slice(0, 200), log }));
+}
+// (keep working: a turn that ticked a box of the project's queue is told the next open one, never one waiting on the
+// user; a turn that ticked nothing is not. The user, 2026-11-12: the user shouldn't have to slow down for the agent)
+{ const qf = path.join(dir, 'docs/STATUS.md'), q0 = fs.existsSync(qf) ? fs.readFileSync(qf, 'utf8') : null;
+  put('docs/STATUS.md', '# Status\n\n## Queue\n- [x] 1. the export page\n- [ ] 2. waiting on the user: the logo choice\n- [ ] 3. the import page\n\n## Next\n- [ ] not a queue item\n');
+  const tick = call('Edit', { file_path: qf, old_string: '- [ ] 1. the export page', new_string: '- [x] 1. the export page' });
+  const ticked = onStop({ session_id: 'q1', transcript_path: transcript([user('do the export page from the queue'), edit, tick, say('Export page done. Runbook: export.md')]) })?.reason || '';
+  const other = onStop({ session_id: 'q2', transcript_path: transcript([user('rename the export button'), edit, say('Renamed.')]) })?.reason || '';
+  q0 === null ? fs.rmSync(qf, { force: true }) : fs.writeFileSync(qf, q0); for (const s of ['q1', 'q2']) fs.rmSync(path.join(dir, `tools/hooks/state/v2-turn.${s}.json`), { force: true });
+  report(/Next in the queue \(docs\/STATUS\.md\): "3\. the import page"/.test(ticked) && !/logo/.test(ticked) && !/Next in the queue/.test(other),
+    'worklog: a turn that ticked a queue box is told the next open one (not one waiting on the user); a turn that ticked none is not', JSON.stringify({ ticked: ticked.slice(0, 300), other: other.slice(0, 200) })); }
+// (the user's own words only: a quoted line, a pasted block, or a line copied from the agent's answer asks nothing.
+// Lesson (2026-11-12): a message quoting the agent's own answer read as asking for a redo)
+{ const { met } = await import('./lib.mjs'), redo = { kind: 'prompt', arg: '\\bredo\\b' };
+  const agent = 'I will redo the export check once the tests pass and send the numbers.';
+  const quoted = met(redo, { heard: `> ${agent}\nthanks, looks fine`, agentAll: agent, calls: [] }), copied = met(redo, { heard: `${agent}\nok`, agentAll: agent, calls: [] }), pasted = met(redo, { heard: '<pasted_content>redo it all</pasted_content> fine', calls: [] }), own = met(redo, { heard: 'please redo the export', calls: [] });
+  report(!quoted && !copied && !pasted && own, 'prompt checks read only the user\'s own words: a quoted, copied or pasted line asks nothing', JSON.stringify({ quoted, copied, pasted, own })); }
+// (format items never hold a turn: real work with no Finished section passes. The user, 2026-11-12: a hold for format
+// only splits the answer into fragments)
+{ const plain = onStop({ session_id: 'nofin', transcript_path: transcript([user('rename the export button'), read, edit, call('Bash', { command: 'npm test' }, 'Tests: 4 passed'), log, say('Renamed the button. How it was checked: npm test, 4 pass.')]) });
+  fs.rmSync(path.join(dir, 'tools/hooks/state/v2-turn.nofin.json'), { force: true });
+  report(!/Finished/.test(plain?.reason || ''), 'end: format items never hold: a work turn with no Finished section is not held for it', plain?.reason?.slice(0, 300)); }
+
 // (no leaks that slow the computer: the hooks' compile cache is on only for an installed engine, never in a temp copy,
 // in its own folder; the suites prune it; the leak check names each count that rose past its budget. User rule,
 // 2026-11-12: Node's default compile cache held about 2.65 million files from test copies, never pruned)

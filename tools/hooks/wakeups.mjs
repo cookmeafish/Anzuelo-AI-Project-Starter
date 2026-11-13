@@ -62,16 +62,13 @@ export function wakeupsPending(rows, now = Date.now()) {
 // REQ: wakeup-left. The end check's step: once the turn's own work is done, a wakeup or job the session scheduled for
 // itself is cancelled, or the answer says what it will do (its id, or the words wakeup, reminder, cron, scheduled). In
 // a headless run saying so is not enough (the run does not end while it is pending), unless the request asked for a
-// reminder, a loop or a schedule. A recurring job that has fired already is a standing schedule, kept on purpose.
-// (or says that it stays on and when it runs: "stays on", "keeps running", "every half hour", "every 30 minutes", "next
-// run 11:58", "sigue activo", "cada 30 minutos". Lesson (a live false hold, 2026-11-10): "checks on the work every half
-// hour; next run 11:58" was held twice, though it said what the job does and when, as the message asks)
-// (and "the 15-minute check-ins are back on", "every quarter hour": a check-in is a scheduled check. Lesson (oversight's
-// session, 2026-11-11): "the check-ins are back on" was held)
+// reminder, a loop or a schedule. A recurring schedule stands on purpose and never holds an interactive turn.
+// (or says that it stays on and when it runs: "stays on", "every half hour", "next run 11:58", "the check-ins are back
+// on", "cada 30 minutos". Lessons (live false holds, 2026-11-10 and 11): each was held though it said what and when)
 export const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|check-?ins?|recordatorios?|programad[oa]s?)\b|\b(stays? on|keeps? (running|going|checking)|next (run|check)|runs? again|(?:is|are) back on|\d+-(?:minute|min|hour|day)|every (quarter( of an)? hour|half (an )?hour|hour|day|week|\d+\s*(min(ute)?s?|h(ours?)?|days?))|sigue (activ[oa]|corriendo)|cada (cuarto de hora|media hora|hora|d[ií]a|\d+\s*(min(utos)?|horas?)))\b/i;
 export function wakeGaps(rows, answer = '', prompt = '', now = Date.now()) {
   const headless = rows.some(r => /^sdk/.test(String(r?.entrypoint || ''))), forced = headless && !WAKE_ASK.test(prompt);
-  const left = wakeupsPending(rows, now).filter(w => forced || (!(w.recurring && w.fired) && !((w.id && answer.includes(w.id)) || WAKE_SAID.test(answer))));
+  const left = wakeupsPending(rows, now).filter(w => forced || (!w.recurring && !((w.id && answer.includes(w.id)) || WAKE_SAID.test(answer))));
   if (!left.length) return [];
   const hhmm = ms => { const d = new Date(ms); return Number.isNaN(+d) ? '' : d.toTimeString().slice(0, 5); };
   return [`${left.length > 1 ? `${left.length} wakeups you scheduled are` : 'A wakeup you scheduled is'} still pending: ` +

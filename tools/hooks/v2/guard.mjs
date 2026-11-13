@@ -56,11 +56,13 @@ export function pretoolDecision(data, cfg = config()) {
 export { pretoolDecision as guard };
 
 // Every path a delete names in originals folder d is new this turn (not in the turn-start snapshot, not in git).
+// When this turn began (v2's record of the session, else the old engine's; v2Only: v2's alone), in ms, or 0
+const turnStartMs = (v2Only = false) => Date.parse(readJSON(abs(`tools/hooks/state/v2-turn.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`), {}).at || '') || (v2Only ? 0 : Date.parse(readJSON(stateFile('turn.json'), {}).at || '') || 0);
 export function deletesOnlyNewFiles(cmd, d) {
   const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   // (under v2, whose record is its own: a file created after its turn began. Lesson (2026-11-12): broken downloads the
   // turn's helpers had just made were refused, as only the old engine's record was read)
-  const v2At = Date.parse(readJSON(abs(`tools/hooks/state/v2-turn.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`), {}).at || '');
+  const v2At = turnStartMs(true);
   const old = !!(snap?.files && turnAt && Date.parse(snap.at) >= turnAt - 5000);
   if (!old && !v2At) return false;
   const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
@@ -281,6 +283,9 @@ export function pretoolHits(data, cfg) {
     return why.length ? { any: why.some(w => !peopleIn(w, ppl).length), people: why.flatMap(w => peopleIn(w, ppl)) } : null;
   };
   const scopeCheck = (persons, writing) => {
+    // (a person's folder this turn created is the turn's own, to change or remove. Lesson (2026-11-12): a folder the
+    // turn's own test run had just made could not be removed)
+    persons = persons.filter(x => { const t0 = turnStartMs(); try { return !(t0 && fs.statSync(abs(`${cfg.scopesRoot}/${x}`)).birthtimeMs >= t0 - 1000); } catch { return true; } });
     // setup creates everyone's folder at once; there is no one else's data yet
     if (!ppl.length || !persons.length || settingUp()) return null;
     let named = peopleFor(req(), t().allPrompts, ppl);

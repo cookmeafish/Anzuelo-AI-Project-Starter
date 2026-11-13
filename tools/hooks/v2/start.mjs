@@ -51,6 +51,7 @@ import { BASE_REQUIREMENTS } from '../base-checks.mjs';
 import { frictionHint } from './friction.mjs';
 import { esLabelList } from '../labels.mjs';
 import { fitDueByRequest } from '../fit.mjs';
+import * as WORKLOG from './worklog.mjs'; const LOG = () => WORKLOG;
 
 // REQ: question-answered (as it arrives). A message that only asks is answered first, in plain words; one typed while a
 // turn runs is answered in the very next message and starts no work of its own. Lesson (a study of 117 real questions):
@@ -338,7 +339,14 @@ export function onPrompt(data) {
   // for was answered without it)
   const fits = !relayedRx.test(String(data.prompt || '')) ? (() => { try { return fitDueByRequest(String(userWords(data.prompt || ''))); } catch { return []; } })() : [];
   const fit = fits.map(d => `FIT: this request is what the ${d.item} library skill is for (matched: ${d.hits.join(', ')}), and docs/fit-checklist.md decided it "${d.decision}". Decide it again now: enable it (node tools/skills.mjs enable ${d.item}) and use it, or update its row with why it still does not help.`).join('\n');
+  // (the work log: this message's asks join it; what earlier messages asked and is still open is shown, only when any)
+  let stillOpen = ''; if (sid && (real || process.env.V2_LOG_TEST)) try { const now = new Date().toISOString(), W = LOG();
+    const left = W.update(sid, { msgs: [{ text: data.prompt || '', at: now }] }).filter(i => i.at < now);
+    if (left.length) stillOpen = `Still open from earlier in this session (do these too, or say they are declined or wait on the user):\n${W.openLines(left)}`;
+    // (and on a new turn, the project's queue: its next open item, one line)
+    const q = !open ? W.queueOpen(f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } })[0] : null;
+    if (q) stillOpen = [stillOpen, `Next in the project's queue (${q.file}): ${q.text.slice(0, 160)}`].filter(Boolean).join('\n'); } catch { }
   // (last: what the reminder leads with, a question to answer or the runbook to open, stays first)
-  const all = [text, fit, digest].filter(Boolean).join('\n');
+  const all = [text, stillOpen, fit, digest].filter(Boolean).join('\n');
   return all ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: all } } : null;
 }

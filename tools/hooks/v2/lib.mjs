@@ -83,10 +83,8 @@ export function alwaysGaps(acts) {
   acts.detail = '';
   return out;
 }
-// (an item set off by reading a runbook or skill (the convert's "used" marker) is off when the turn edited that same
-// file: reading it to change it is maintenance, not following it, unless the answer names it as followed ("Playbook:
-// x.md", "Skill: x"), as the old engine judged it. Lesson (the old suite under v2): fixing a typo in a runbook was held
-// to that runbook's own answer check)
+// (an item set off by reading a runbook or skill is off when the turn edited that file: maintenance, not following it,
+// unless the answer names it as followed. Lesson: fixing a typo in a runbook was held to its answer check)
 const maintained = (it, acts) => {
   const edited = [...new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input?.file_path || '')).filter(p => /^docs\/playbooks\/[^/]+\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(p)))];
   if (!edited.length) return false;
@@ -109,12 +107,8 @@ export function doneWhen(text) {
     else if (items.length && /^\s+\S/.test(l)) items[items.length - 1] += ' ' + l.trim();
   }
   return items.map((raw, i) => {
-    // (a marker's value may hold one level of brackets, such as a regex group. Lesson (a project's report): a ")" in
-    // the value cut the marker short)
-    // (the last marker anywhere in the item. Lesson (a field report): a marker on the first line of a two-line item
-    // was not read)
-    // (three levels: a "not this" pattern around a group, ^(?![\s\S]*(?:a (b|c))), needs them. Lesson (a project's
-    // converted rules))
+    // (a marker's value may hold brackets three levels deep, a regex group or a "not this" pattern; the last marker in the
+    // item counts, wherever it is. Lessons (project reports): a ")" cut a marker short; a first-line marker went unread)
     const VAL = String.raw`((?:[^()]|\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))+)`;
     const c = [...raw.matchAll(new RegExp(String.raw`\((file|ran|answer|prompt|tool):\s*${VAL}\)`, 'gi'))].at(-1);
     // (an item that fits one branch of a runbook says when: "(when ran: <regex>)" and the like. On a turn where that
@@ -161,12 +155,8 @@ export function runbooks() {
   booksMemo = { sig, out };
   return out.map(b => ({ ...b }));
 }
-// The skills with a route of their own (skills/<name>/SKILL.md with triggers): not a runbook's mirror, not generated,
-// not a part of a runbook ("runbook:"). Lesson (trial v44): "what was our best week, and what drove it?" matched the
-// data-analysis skill's own triggers, and the reminder named nothing, as v2 read only the runbooks.
-// ({ parts: true }: also a skill that is part of a runbook and has checkable items, for the end check. The agent picks
-// it, and once opened its items hold. Lesson (2026-11-08): the upset and rule skills are parts of a runbook, so once
-// keyword forcing was retired, nothing checked that their lesson or rule was stored)
+// The skills with a route of their own (triggers; not a runbook's mirror, generated, or part of a runbook), and with
+// { parts: true } also a part of a runbook that has checkable items, for the end check. Lessons: trial v44; 2026-11-08.
 export function skillBooks({ parts = false } = {}) {
   const own = new Set(runbooks().map(b => b.name)), out = [];
   let names = []; try { names = listAll('skills'); } catch { return out; }
@@ -185,12 +175,8 @@ export function skillBooks({ parts = false } = {}) {
   return out.sort((a, b) => rank.get(a.name) - rank.get(b.name));
 }
 
-// The runbook whose trigger phrase matches the request best: a phrase that opens the request wins, then the longest
-// whole-phrase match. (Lesson (live v2): a request that opened with its job's name went to another runbook because a
-// longer phrase of a sub-step appeared later in it)
-// (a rule said as an order, "never <do X> again", "de ahora en adelante ...", "nunca más ...", short Spanish ones too,
-// which the language test misses. The reminder's hint only: the end check never starts from these words. Lesson (the
-// old suite under v2): three such rules got no runbook in the reminder)
+// The runbook whose trigger phrase matches the request best: one that opens the request wins, then the longest. A rule
+// said as an order ("never <x> again", "de ahora en adelante") routes to the project runbook, as the reminder's hint only.
 const RULE_CUE = /(?:^|[.!?;¡]\s*)(?:never|don'?t ever|do not ever)\s+\w+\b[^.!?\n]{0,80}\bagain\b|\b(?:de ahora en adelante|a partir de ahora|desde ahora)\b|(?:^|[.!?;¡]\s*)nunca m[aá]s\s/imu;
 const STANDING = /(?:^|[.!?;]\s+)(?:every|each|all|no) (?:new |single )?[\p{L}-]+ (?:links?|has|have|gets?|goes|go|must|should|needs?|stays?|uses?|keeps?|ends?|starts?|names?|includes?|is always|are always|is never|are never)\b/iu,
   // (the same in Spanish: "cada factura debe mostrar ...". Lesson (the old suite under v2): a Spanish standing rule got
@@ -243,10 +229,7 @@ export function route(prompt, books = runbooks()) {
     }
     return best;
   };
-  // (a Spanish request with no trigger of its own routes like its English wording. Lesson (trial v37): Spanish requests
-  // got no runbook under v2, while v1's router translated "agrega una página de índice" to "add a page, index page")
-  // (the better of the two: a trigger found mid-sentence in the Spanish text does not hide a phrase that leads it once in
-  // English. Lesson (the old suite under v2): "de ahora en adelante el playbook de <name> debe..." went to that runbook)
+  // (a Spanish request routes like its English wording too, the better of the two. Lessons (trial v37, the old suite))
   const best = [match(prompt), isSpanish(prompt) ? match(routeEnglish(prompt)) : null].filter(Boolean).sort((a, b) => b.score - a.score)[0] || null;
   // (a standing rule said plainly ("every new note links to", "should never happen again", ", always", ", siempre") is a
   // rule request, ahead of a trigger found mid-sentence. Lessons (trials v38 to v43): each went unrouted or misrouted)
@@ -265,10 +248,8 @@ export function route(prompt, books = runbooks()) {
 const ES_WORDS = /(?<![\p{L}])(el|la|los|las|de|del|en|un|y|es|se|al|lo|que|para|con|por|una|est[aá]|esta|este|mi|tu|todo|pero|como|tiene|quiero|hay|desde|sobre|cada|otra|vez)(?![\p{L}])/giu;
 const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please|what|from|have|be)\b/gi;
 export const isSpanish = text => { const s = String(text || '').slice(0, 2000), es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2; };
-// A Spanish request's common task words in English, for routing only, so runbooks need no Spanish triggers (the old
-// engine's map, phrases before the words in them; no word with two common senses, like "carta": letter and menu)
-// Built on first use: compiling these Unicode patterns took about 15 ms, paid by every hook run that loads this file
-// (prompt, pretool, stop) though only a Spanish request needs them.
+// A Spanish request's common task words in English, for routing only (the old engine's map, no word with two senses),
+// built on first use: compiling them took about 15 ms in every hook run.
 let routeEs = null;
 export const routeEsBuilt = () => routeEs !== null;
 const ROUTE_ES = () => routeEs ||= [
@@ -406,10 +387,8 @@ export function callerTranscript(main, sid) {
   let best = null; try { for (const f of fs.readdirSync(dir).filter(f => /^agent-[\w-]+\.jsonl$/.test(f))) { const t = mt(path.join(dir, f)); if (!best || t > best.t) best = { f, t }; } } catch { }
   return best && best.t > mt(main) ? { file: path.join(dir, best.f), id: best.f.replace(/^agent-|\.jsonl$/g, '').slice(0, 40) } : { file: main, id: '' };
 }
-// The commands this session's helpers ran since the turn began (their transcripts sit in <session>/subagents), so a
-// test run, build or screenshot a helper made counts for the session's turn. Commands and image reads only: what it edited is
-// seen by its files' times. Lesson (trial v40): setup run in a helper as the engine says, then the end check asked
-// the session for the tests, build and screenshots the helper had already run.
+// The commands this session's helpers ran since the turn began (<session>/subagents): a helper's test run, build or
+// screenshot counts for the turn. Lesson (trial v40): setup run in a helper, then the tests were asked for again.
 export function helperRuns(main, sid, since, until = '') {
   const u = Date.parse(until || '') || Infinity, t = Date.parse(since || ''), dir = path.join(path.dirname(main), sid, 'subagents');
   if (!t || path.basename(main, '.jsonl') !== sid) return [];
@@ -425,10 +404,8 @@ export function helperRuns(main, sid, since, until = '') {
 // notice or the helper's hand-back names its id. Lesson (trial v33): the end check judged a turn while its reviewer
 // was still working, and the agent answered with filler about unfinished work.
 export function helpersRunning(rows) {
-  // (in order: a helper resumed after its report runs again until its next one. Lesson (trial v36): a reviewer resumed
-  // with SendMessage still counted as done from its first report, and the answer went out before its second)
-  // (a launch that printed no id runs until any notice that came after it, as in the old engine. Lesson (the v2
-  // re-sweep): a helper started with no id was taken as done, and the Finished section was asked before its result)
+  // (in order: a helper resumed after its report runs again until its next one; a launch with no id runs until a later
+  // notice. Lessons (trial v36, the v2 re-sweep))
   const runs = new Set();
   for (const r of rows) {
     const s = JSON.stringify(r);
@@ -444,10 +421,8 @@ export function helpersRunning(rows) {
   return [...runs];
 }
 export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)));
-// A command run in the background, or moved there after its time limit, printed only where its output goes: once its
-// notice says it completed, its output file is added to its output, and a non-zero exit code marks it failed, so every
-// check that judges runs reads its real result. Lesson (the old suite under v2): a validator moved to the background
-// that printed "RESULT: FAIL" into its file was never judged by it.
+// A command run in the background: once its notice says it completed, its output file joins its output and a non-zero
+// exit marks it failed. Lesson: a validator's "RESULT: FAIL" in its file was never judged.
 export function withBackgroundOutputs(acts, rows) {
   const file = new Map(), code = new Map(), ended = new Map();
   for (const r of rows) {
@@ -517,11 +492,8 @@ export function turnActs(rows) {
 export function questionGaps(acts) {
   const auto = (() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).autonomy === 'auto'; } catch { return false; } })();
   if (!auto && !/\b(do not|don'?t|never) ask me\b|\bno me preguntes\b/i.test(acts.heard || '')) return [];
-  // (a work answer that ends by asking counts too, as the old engine judged it (tools/hooks/decide.mjs): a closing
-  // question, one after the Finished section, or "reply with a number". Lesson (the old suite under v2): "Which town is
-  // the bed in?" closed a work turn under autonomy auto and passed)
-  // (a labeled question about what stays the user's (an outward action, an install, money, security) is no question to
-  // decide. Lesson (the old suite under v2): "Question for you: shall I deploy it?" was held under autonomy auto)
+  // (a work answer that ends by asking counts too (decide.mjs), but not a labeled question about what stays the user's:
+  // an outward action, an install, money, security. Lessons (the old suite under v2))
   const labeled = [...String(acts.said || acts.answer || '').matchAll(/^\W*(?:Questions? for you|Preguntas? para (?:ti|usted))\b([^\n]*(?:\n(?!\s*\n)[^\n]*)?)/gim)];
   if (!labeled.some(m => !OUTWARD.test(m[1])) && !(auto && worked(acts) && endsAsking(acts.answer))) return [];
   return ['The user asked for no questions: make each choice yourself and note it as "Assumed: <choice> - <why> - <cost if wrong>". A step only the user can take (an install, a sign-in, a name for git) goes under a Heads-up, not a question; ask only what the rules stop for (an outward action, anything irreversible).'];
@@ -588,11 +560,8 @@ export function filesMatching(glob) {
 export const globRx = g => new RegExp('^' + g.replace(/\\/g, '/').replace(/[.+^${}()|[\]]/g, '\\$&').replace(/\*\*\//g, '\u0001').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0001/g, '(?:.*/)?').replace(/\u0000/g, '.*') + '$', 'i');
 const relp = p => relOf(p);
 
-// Whether a checkable item was met by what the turn did. Null means it can't be checked here.
-// The answer drafts "hooks.mjs check --answer-file <f>" passed this turn ("CHECK: PASS"): the text last written to <f>
-// before each passing run, or the file as it is. What the answer must say, a passed draft said: the sent answer may
-// reword it. Lesson (trial round 14, again under v2): a Stop round right after a passing pre-check, only to put a label
-// back into a reworded answer.
+// Whether a checkable item was met (null: can't be checked here). A draft that passed "hooks.mjs check --answer-file"
+// this turn counts for what the answer must say. Lesson (trial 14): a round only to put a label back.
 export function passedDrafts(acts) {
   if (acts._drafts) return acts._drafts;
   const wrote = new Map(), out = [], key = f => path.resolve(ROOT, String(f || '')).toLowerCase();
@@ -603,6 +572,9 @@ export function passedDrafts(acts) {
   }
   return Object.defineProperty(acts, '_drafts', { value: out.filter(Boolean), enumerable: false, configurable: true })._drafts;
 }
+// What the user typed this turn in their own words (ownWords below, with the agent's answers to leave out): every
+// prompt check reads only this. Lesson (2026-11-12): a message quoting the agent's own answer read as asking for a redo
+const heardOwn = acts => ownWords(acts.heard, acts.agentAll || acts.saidAll || acts.said);
 // Whether an item fits this turn: always, or when its "(when ...)" condition held.
 export const applies = (item, acts) => (item.whens || (item.when ? [item.when] : [])).every(w => met(w, acts) === true);
 export function met(item, acts) {
@@ -614,11 +586,8 @@ export function met(item, acts) {
   // (any answer the turn gave counts, the earlier rounds' too: the user read them all. Lesson (2026-11-12): a third round
   // asked again for the Finished section the first round's answer had)
   if (item.kind === 'answer') { const rx = new RegExp(item.arg, 'i'); return rx.test(acts.answer) || rx.test(acts.saidAll || '') || rx.test(inEnglish(acts.answer || '', projectConfig())) || passedDrafts(acts).some(d => rx.test(d)); }
-  // (prompt: what the user typed this turn, mid-turn messages too; tool: a tool call whose name and input match)
-  // (pasted text, relayed messages and notices are someone else's words: only what the user typed counts, as the old
-  // engine's promptMatches judged it. Lesson (the old suite under v2): a pasted note saying "deploy now" set off a
-  // project's deploy item)
-  if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(String(acts.heard || '').replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?(?:<\/\1[^>]*>|$(?![\s\S]))/gi, ' '));
+  // (prompt: what the user typed this turn, their own words only (ownWords); tool: a tool call whose name and input match)
+  if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(heardOwn(acts));
   if (item.kind === 'tool') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => rx.test(`${c.name} ${JSON.stringify(c.input || {})}`)); }
   if (item.kind === 'evidence') return evidenceGaps(acts).length === 0;
   // ("<command> => <output>": the run also printed that, such as a test's pass line)
@@ -626,10 +595,8 @@ export function met(item, acts) {
     // (output sent to a file, "> .cache/t.txt", is read from that file. Replay: a test run redirected that way passed
     // and was still asked for)
     const printed = c => { const f = /(?:^|\s)1?>{1,2}\s*(["']?)([^\s"'&|;<>]+)\1/.exec(String(c.input.command || ''))?.[2]; return `${c.out || ''}\n${f ? read(f) : ''}`; };
-    // (with no pass text, the run's exit code is the verdict, so it must be the command's own: one followed in the same
-    // shell line by "; ..." or "|| ..." reports the later command's code. Run it on its own. "&&" after it keeps its code
-    // (a failure stops the line); a pipe (| tail) is left alone, it is how output is read. Lesson (the old suite under
-    // v2): "npm run build && npm test; echo done" was taken as a passing build)
+    // (with no pass text the exit code is the verdict, so a run followed by "; ..." or "|| ..." must run on its own; "&&"
+    // and a pipe keep it. Lesson: "npm run build && npm test; echo done" passed as a build)
     const hidden = cmdText => { const parts = String(cmdText).split(/(\s*(?:&&|\|\||;|\|)\s*)/), i = parts.findIndex((p, k) => k % 2 === 0 && rx.test(p));
       return i >= 0 && parts.slice(i + 1).some((s, k) => k % 2 === 0 && /;|\|\|/.test(s)); };
     const ok = acts.calls.filter(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error && (!out || new RegExp(out).test(printed(c))));
@@ -706,10 +673,8 @@ const walked = new WeakMap();
 // turn's. A run in the background counts until the turn ends. Lesson (the old engine): a peer session's edits in the
 // same folder were blamed on the turn. Calls with no times, as in hand-made transcripts, keep the whole turn.)
 const RUNNER = /^(Bash|PowerShell|Agent|Task|Skill)$/, BG = /^\s*(Command running in background|Command[^\n]*moved to the background|Async agent launched)/i;
-// (and a shell command only when it can write: a redirect or tee, an in-place edit, a copy, move or delete, a git
-// command that changes files, a package or build tool; or one that names the file or its folder. A read (git log,
-// cat, grep, a script reading a transcript) running while another session in the folder edits is no writer. Lesson (a
-// peer session's live false hold): a turn of git log and a transcript read was held for the other session's edits)
+// (and a shell command only when it can write (a redirect, an in-place edit, cp, mv, rm, a git or build tool) or names
+// the file. Lesson (a peer's live false hold): git log and a transcript read held a turn for a peer's edits)
 const WRITER = /(^|[^<\d&=-])>>?\s*[^\s&]|\btee\b|\bsed\b[^|;&]*\s-i|\b(?:cp|mv|rm|rmdir|mkdir|touch|ln|unzip|tar|wget|Copy-Item|Move-Item|Remove-Item|New-Item|Set-Content|Add-Content|Out-File|Rename-Item)\b|\bcurl\b[^|;&]*\s-[oO]\b|\bgit\s+(?:checkout|switch|merge|pull|reset|stash|apply|am|rebase|restore|clone|cherry-pick|revert|worktree)\b|\b(?:npm|npx|pnpm|yarn|bun|make|cargo|go|gradle|mvn|dotnet|pip|uv|poetry|pytest)\b/i;
 // (a command reads only when every part of it is a known reader and none redirects: anything else, an unknown program,
 // a build script, a PowerShell cmdlet that writes, counts as writing. A script reading a session transcript (.jsonl)
@@ -724,16 +689,11 @@ const ranAt = (acts, t, f) => {
   return runs.some(c => t >= c.at - 2000 && t <= (BG.test(c.out) || !c.done ? Infinity : c.done + 2000)
     && (!/^(Bash|PowerShell)$/.test(c.name) || writes(String(c.input?.command || '')) || namesFile(c.input?.command, f)));
 };
-// The files written since the turn began, each with its time: walked and stat'ed once per turn, however many checks
-// ask. A turn whose calls can't write (reads, searches, questions) skips the walk. Lesson (a project's upgrade): every
-// check walked and stat'ed the whole tree again, and Stop on a plain question took 74 ms more in a large project.
-// (not Skill, which may run its skill in a helper that writes. Messages can't write: a resumed helper's writes show in
-// its own record. Lesson (the v2 re-sweep): a security review run through Skill wrote its report, and it was not counted)
+// The files written since the turn began, with their times, walked once per turn and skipped when no call could write
+// (Skill can: it may run a helper that writes). Lesson: each check walked the tree, 74 ms more per Stop.
 const READ_ONLY = /^(Read|Grep|Glob|LS|WebFetch|WebSearch|ToolSearch|ListAgents|SendMessage|TodoWrite|TaskList|TaskGet|TaskOutput|AskUserQuestion|ScheduleWakeup|CronList)$/;
-// (this turn's work: only what changed while one of its own commands or helpers ran, so another session's edits in the
-// same folder are never this turn's. Lesson (a peer session's live false hold): a turn of git log and messages was held
-// for a Finished section and a changelog line for the other session's edits. any: every file written since the turn
-// began, for what a check requires, so a file that is there always counts)
+// (this turn's work: only what changed while its own commands or helpers ran, never a peer session's edits. any: every
+// file written since the turn began, for what a check requires)
 const walkedAll = new WeakMap();
 export function touchedSince(acts, any = false) {
   const since = Date.parse(acts.at || '') || 0;
@@ -760,11 +720,8 @@ export const scanned = acts => acts.calls.every(c => READ_ONLY.test(c.name)) ? [
 export const generatedCopy = f => [...[].concat(projectConfig().skillMirrors || ['.claude/skills', '.agents/skills']), '.anzuelo/engine'].some(m => f.startsWith(m.replace(/\\/g, '/').replace(/\/+$/, '') + '/')); // (skill copies and the engine's folder: the engine's writes, not the turn's work; rewritten copies held the GUI check)
 const changedSince = (acts, rx) => touchedSince(acts).filter(({ f, t }) => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && !generatedCopy(f) && ranAt(acts, t, f)).map(x => x.f);
 const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0; } };
-// REQ: scope-separate (rule 11). One person's data never mixes with another's: files of someone the request is not
-// about changed this turn, or an answer about one person brings in another's details. A follow-up that names nobody is
-// about the latest request that named someone (acts.earlier: the session's earlier requests). Not in the setup turn,
-// which makes everyone's folder on purpose. Lesson (the old engine): the guards kept another person's folder closed,
-// but nothing stopped their data in the answer.
+// REQ: scope-separate (rule 11): files of someone the request is not about, or another's details in the answer; a
+// follow-up naming nobody is about the latest request that named someone. Not in the setup turn.
 // The session's requests before this turn (the user's typed prompts in the transcript tail), newest last.
 export const earlierPrompts = (text, before) => String(text || '').split('\n').flatMap(l => { let r; try { r = JSON.parse(l); } catch { return []; }
   const c = userText(r); return r.type === 'user' && c !== null && !c.startsWith('<') && (!before || String(r.timestamp || '') < before) ? [c] : []; }).slice(-5);
@@ -863,10 +820,8 @@ export function testGaps(acts, history = '') {
   const passes = i.filter(([c]) => passedRun(c)).map(([, k]) => k);
   const codeWrite = Math.max(0, ...changedSince(acts, CODE).map(mtime));
   const anyRunner = i.some(([c]) => /^(Bash|PowerShell)$/.test(c.name) && isTestRun(String(c.input.command || '')));
-  // (a project has tests when a runner was seen this turn or a test setup exists, not just a build file. Lesson
-  // (review): pyproject.toml and go.mod are in many projects with no tests at all)
-  // (worked out only when code changed: a question turn walks no files for it. Lesson (the speed self-test): a plain
-  // question's end check walked the whole tree for test files it never needed)
+  // (a project has tests when a runner ran or a test setup exists, not a build file alone; worked out only when code
+  // changed. Lessons (a review, the speed self-test))
   const has = f => fs.existsSync(at(f)), pyproject = () => { try { return fs.readFileSync(at('pyproject.toml'), 'utf8'); } catch { return ''; } };
   const hasTests = () => anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
     || /\[tool\.pytest/.test(pyproject()) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
@@ -927,11 +882,8 @@ export function screenGaps(acts) {
     .filter(g => !checkOff(g.tag) && !(g.tag === 'gui-review-report' && acts.calls.some(c => c.name === 'Read' && /docs\/playbooks\/gui\.md$/.test(relp(c.input?.file_path || ''))))).map(g => g.msg);
 }
 
-// Check 4: the project's structure changed (rules, runbooks, checks, skills, hook settings) and no passing health
-// check (tools/audit.mjs) ran after it. The end check runs it itself and asks only when it fails. Replay: the old
-// engine's ask found a real problem in 5 of 8 runs.
-// (DIRECTORY.md too: its generated block is the map every agent reads first, and the audit says when it is lost or old.
-// Lesson (the old suite under v2): a DIRECTORY.md that lost its generated block passed)
+// Check 4: the structure changed (rules, runbooks, checks, skills, settings, DIRECTORY.md) and no passing health check
+// ran after it: the end check runs the audit itself and asks only when it fails (replay: real problems in 5 of 8 runs).
 const STRUCTURE = /^(CLAUDE\.md|AGENTS\.md|DIRECTORY\.md|docs\/MENU\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/hooks\/(requirements|config)\.json$)/;
 export function healthGaps(acts, { run = true } = {}) {
   if (!fs.existsSync(at('tools/audit.mjs'))) return [];
@@ -1074,14 +1026,9 @@ export function knowledgeGaps(acts) {
   return out;
 }
 
-// Check 6: security-sensitive code was written (the project's "security-code" pattern in requirements.json) and the
-// turn neither ran the security review nor wrote its report. Replay: the ask found a real problem in 3 of 4 runs.
-// A check waived outside the answer, for runs with no one to answer to (headless): "N/A(<tag>): <a specific reason>"
-// in .cache/turn-notes.md, written this turn, the reason at least 4 words. Rule 7 keeps waivers out of the answer.
-// (or by the waive command, counted by the confirmation it printed this turn, one per step, so a loop or a chain of
-// waivers counts each, and a refused one none. Lesson (the v2 re-sweep): "hooks.mjs waive <step>" was not read)
-// (also by its record in the run log since the turn began: the waive command logs itself, so its output thrown away
-// still counts, as in the old engine. Lesson (a field report): "waive x ... >/dev/null && git commit" was asked again)
+// Check 6: security-sensitive code written ("security-code" in requirements.json), no review run or report written.
+// A check waived outside the answer: "N/A(<tag>): <a reason of 4+ words>" in the notes this turn, or the waive command
+// (its printed confirmation, or its run-log record, one per step). Lesson: waives sent to /dev/null were asked again
 const waivedByCommand = (tag, acts) => { const rx = new RegExp(`^waived for this turn: ${tag.replace(/[^\w-]/g, '')}\\b`, 'm');
   if (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(c.out || ''))) return true;
   const since = Date.parse(acts.at || '') || 0;
@@ -1182,14 +1129,9 @@ function selfRunOnce(acts, cmd) {
 }
 // The commands the user approved for the end check to run itself (tools/hooks/config.json "selfCommands": selfcmds.mjs).
 export const selfCommands = () => [].concat(projectConfig()[SELF_KEY] || []).map(s => String(s).trim()).filter(Boolean);
-// REQ: self-run. A declared self-test the turn needed and never ran is run by the end check, once, and its result
-// becomes a run of the turn (acts.calls), so the test, gate, engine and always.md checks all judge it by its output, as
-// they would the agent's own run. Declared as requirements.json toolPassed { cmd, pass, selfRun, selfAuto: true }, any
-// tag, a pack check's project override included (whose "when" must hold), or as an always.md item's "(self: <command>)"
-// (when the item applies and is not met). Returns a line for each run that failed. Not in a preview (shadow): only the
-// real end check runs commands. Lesson (a real project, profiled): a project's own app-test-pass with selfRun and
-// selfAuto was never run under v2, because v2 replaced that check with its own and dropped the project's; the unit test
-// had only tried an engine tag.
+// REQ: self-run. A declared self-test the turn needed and never ran (toolPassed with selfRun and selfAuto, a pack
+// override included, or an always.md item's "(self: <command>)") is run once by the end check, never in a preview, and
+// judged as the agent's own run; a failed run is a line. Lesson: a project's own app-test-pass was never run under v2
 export function autoRuns(acts) {
   const j = (() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')); } catch { return {}; } })();
   const x = { changed: changedOf(acts), runbook: acts.runbook || '' }, xr = { ...x, get changed() { return changedOf(acts, true); } };
@@ -1201,12 +1143,8 @@ export function autoRuns(acts) {
     if (applies) want.push({ cmd: v.selfRun, pass: v.pass });
   }
   for (const it of doneWhen(read(ALWAYS))) if (it.self && it.kind && applies(it, acts) && met(it, acts) === false) want.push({ cmd: it.self, pass: it.kind === 'ran' && / => /.test(it.arg) ? it.arg.split(' => ').pop() : null });
-  // (only a command on the user's approved list runs, matched exactly: tools/hooks/config.json "selfCommands", which only
-  // the user adds to (hooks.mjs self-allow, refused to the agent by the guard). Any other is not run, and its check
-  // asks the agent to run it, as before. Lesson (a peer's security review): an always.md line is markdown agents edit,
-  // so injected text could have the end check run any command)
-  // (and on the list as committed before this session began, so nothing added during it, by any route, counts; one the
-  // user took off since, uncommitted, is off at once)
+  // (only a command on the user's approved list, as committed before this session, runs: config "selfCommands", which
+  // only the user adds to. Lesson (a security review): an always.md line could have had the end check run any command)
   const allowed = new Set(want.length ? approvedBefore(at('tools/hooks/config.json'), acts.sessionStart || null).filter(c => selfCommands().includes(c)) : []);
   const out = [];
   for (const w of [...new Map(want.filter(w => allowed.has(w.cmd.trim())).map(w => [w.cmd, w])).values()]) {
@@ -1290,14 +1228,10 @@ export function holdsReq(c, acts, x) {
     filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f)) && !routingWordsOnly(acts, f)),
     filesIgnore: () => true,
     answerMatches: v => reqRe(v).test(acts.answer || ''), answerNotMatches: v => !reqRe(v).test(acts.answer || ''),
-    promptMatches: v => reqRe(v).test(acts.heard || ''), promptNotMatches: v => !reqRe(v).test(acts.heard || ''),
+    promptMatches: v => reqRe(v).test(heardOwn(acts)), promptNotMatches: v => !reqRe(v).test(heardOwn(acts)),
     toolRan: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(ranText(k.input.command))),
-    // (a run whose output went to a file passes by that file; a declared self-test the turn never ran is run here once,
-    // selfRun with selfAuto, except the audit, which the health check runs itself. Lessons (the old suite under v2): an
-    // audit logged to a file by a finished background job was asked for again; a project's own self-test was never run)
-    // (a gate that ran is judged as the old engine judges it, tools/hooks/gates.mjs: its own result, not a later echo or a
-    // part after "||"; a refused or missing program asks once for the honest line. Lesson (the old suite under v2): "git
-    // pull || npm test && echo TESTS-OK" passed the test gate though the tests never ran)
+    // (a run whose output went to a file passes by that file; a declared self-test never run is run here once (selfRun,
+    // selfAuto), not the audit; a gate is judged by its own result (gates.mjs), not a later echo or a part after "||")
     toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; if (!cmd) return false;
       const ok = out => !v?.pass || reqRe(v.pass).test(out || '');
       const tried = acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')));
@@ -1351,13 +1285,9 @@ export function holdsReq(c, acts, x) {
     // backticks or a link, or a web page opened this turn; rules, runbooks, skills and engine files are no sources. A path
     // a command printed was opened by it. The old engine's answerCites)
     answerCites: v => !v || citesOpened(acts, x),
-    // (runEach: a validator run on each changed file that matches, by the end check itself; a crash is a fail. Only a
-    // command the engine ships runs, never one a project file adds or rewrites. Lesson (the old suite under v2): the key
-    // was unknown, so the modularity and backlink checks never ran)
-    // (a project's own command runs too when it is on the user's approved list as committed before this session, the
-    // self-run rule: nothing added during the session counts. Any other is the agent's to run: each matching changed
-    // file's run of it this turn, exit 0, meets the check, and the step names the command. The user, 2026-11-10: "i
-    // just dont wanna restrict the ai agent from doing its best work": the rule limits only what the hook runs itself)
+    // (runEach: a validator on each matching changed file, run by the end check: a command the engine ships, or one on the
+    // user's approved list as committed before the session; any other the agent runs, exit 0 per file. The user, 2026-11-10:
+    // don't restrict the agent; the rule limits only what the hook runs itself)
     runEach: spec => {
       if (!spec?.cmd) return null;
       const files = (x.changed || []).filter(p => inGlobs(p, [].concat(spec.files || [])) && fs.existsSync(at(p)));
@@ -1421,11 +1351,8 @@ export function movedInto(acts) {
   }
   return out;
 }
-// The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
-// writes count too. Walked once per turn.
-// (a file outside the project, Claude's memory folder, a scratchpad, the temp folder, another checkout, is no work of
-// the project: no changelog, status or name marker is asked for it. Lesson (oversight's session, 2026-11-11): a turn
-// that only saved a memory note was held to six project steps)
+// The files this turn changed: by the edit tools, and any written while its own commands ran; none outside the project
+// (memory, scratchpad, temp, another checkout). Lesson (2026-11-11): a memory note held a turn to six project steps.
 const outsideRoot = f => !f || /^\.\.(\/|$)/.test(f) || path.isAbsolute(f);
 export function changedOf(acts, any = false) {
   return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...movedInto(acts), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f) && !generatedCopy(f))])].filter(f => !outsideRoot(f));
@@ -1490,13 +1417,11 @@ export function injectionGaps(acts) {
   return out;
 }
 // REQ: no-verbatim-examples (v2/verbatim.mjs): files changed this turn copy the user's own words or names.
-// The user's own words in what was said: a message relayed from another session, a helper or the host is not theirs.
-// Lesson (the old suite under v2, once the safety checks read every changed file): a helper's sentence written into a
-// note was flagged as the user's words copied.
-// (nor the summary that resumes a session after its context ran out: the host wrote it from the agent's own work, file
-// lists and lessons. Lesson (a live session): engine lesson comments and file lists were called the user's words)
-export const ownWords = s => String(s || '').replace(/<(cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1>|$(?![\s\S]))/gi, ' ').split(/^\s*Another Claude session sent a message/m)[0]
-  .split(/This session is being continued from a previous conversation/)[0];
+// The user's own words: not a relayed message, a resumed session's summary, a pasted block, a quoted line ("> ..."), an
+// engine line (⚓) or a line copied from the agent's answers. Lessons: a helper's sentence and a summary's file lists
+// were called the user's words; (2026-11-12) a message quoting the agent read as asking for a redo
+export const ownWords = (s, agent = '') => String(s || '').replace(/<(pasted_content|cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1[^>]*>|$(?![\s\S]))/gi, ' ').split(/^\s*Another Claude session sent a message/m)[0]
+  .split(/This session is being continued from a previous conversation/)[0].split('\n').filter(l => !/^\s*>|⚓/.test(l) && !(l.trim().length > 20 && String(agent).includes(l.trim()))).join('\n');
 export function verbatimGaps(acts) {
   const hits = verbatimHits({ root: ROOT, cfg: projectConfig(), prompts: [...(acts.earlier || []), acts.heard].filter(Boolean).map(ownWords), changed: scanned(acts), calls: acts.calls });
   return hits.length ? [`These files copy the user's own words: ${hits.slice(0, 5).join('; ')}. Rephrase each as the general principle and why it matters (what goes wrong, for whom), without the user's examples, names or details.`] : [];
@@ -1523,11 +1448,8 @@ export function smallChange(acts, changed) {
   lines += files.filter(p => !viaTools.has(p)).length * 10;
   return lines <= (cfg.smallLines ?? 40);
 }
-// REQ: upgrade-review. After an engine upgrade every item of the latest "## Upgrade review (<date>)" in docs/DECISIONS.md
-// is decided with its reason ("adopted - Worth it: <gain> / <cost>", "fixed - <how>", "declined - <why>", "later - when:
-// <moment>"), and an adopted pack, skill or rule is really in. Held only on a work turn about the project itself (the
-// project runbook, or the decisions file, tools/ or the rules changed), and at most once a day: a pending review never
-// stalls the user's own work. Lesson (the old suite under v2): v2 had no upgrade review at all.
+// REQ: upgrade-review: each item of the latest upgrade review in docs/DECISIONS.md is decided with its reason, and what
+// was adopted is in. Held only on a work turn about the project itself, at most once a day.
 export function upgradeGaps(turn, acts) {
   const text = read('docs/DECISIONS.md'), all = [...text.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)[^\n]*\n((?:(?!## )[^\n]*\n?)*)/gm)], m = all[all.length - 1];
   const changed = m ? changedOf(acts, true) : [];
@@ -1743,12 +1665,8 @@ export function claimGaps(acts, history = '') {
   return out;
 }
 
-// REQ: changelog (rule 12, as the user wrote it: "after real work, a docs/CHANGELOG.md line", a small fix exempt). The
-// shipped check covers rules, runbooks, checks, skills and tools; this covers the rest of the project's work too: past
-// the small-fix size, with no changelog line written this turn. Never for engine state or the engine's own folder
-// (.anzuelo/), for the user's own data (config "dataDirs", folders set at setup or upgrade), or in a project with no
-// docs/CHANGELOG.md. Oversight 2026-11-10, after a replay of real sessions: about 4% of work turns newly held, the
-// clear false asks being engine installs and data edits, both left out here.
+// REQ: changelog (rule 12): work past the small-fix size with no changelog line this turn; never for engine state, the
+// engine's folder, the user's data (dataDirs) or a project with no docs/CHANGELOG.md. Replay: about 4% of work turns held.
 export function workChangelogGaps(acts) {
   if (checkOff('changelog') || waivedTag('changelog', acts) || !fs.existsSync(at('docs/CHANGELOG.md'))) return [];
   const cfg = projectConfig(), data = [].concat(cfg.dataDirs || []).map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/?\**$/, '/'));
@@ -1817,11 +1735,8 @@ const bornIn = acts => {
   return f => { if (/^(Edit|MultiEdit|NotebookEdit)$/.test(first.get(f) || '') || Object.hasOwn(snap, f) || inGitBefore(f, since)) return false;
     try { return fs.statSync(at(f)).birthtimeMs > since - 1000; } catch { return false; } };
 };
-// REQ: skill-reuse, under v2 (rule 2). A new hand-written runbook or skill is made only after looking for an existing
-// skill that already does the job: the skill-finder skill used this turn, or the answer saying where it looked
-// ("Existing skills checked: <where> - <result>"). A procedure only this project can have says so in its frontmatter
-// ("reuse: none - project-specific: <why>"). Not for files the starter or a pack ships, or generated mirrors. Lesson (the
-// old suite under v2): new runbooks were written with no search
+// REQ: skill-reuse (rule 2): a new runbook or skill only after looking for an existing one (skill-finder used, or
+// "Existing skills checked: <where> - <result>"), or "reuse: none - project-specific: <why>" in its frontmatter.
 const procFm = f => /^---\n([\s\S]*?)\n---/.exec(read(f).replace(/\r\n?/g, '\n'))?.[1] || '';
 // The hand-written runbooks and skills this turn created: not files the starter or a pack ships, nor generated mirrors.
 function newProcs(acts) {
@@ -1923,17 +1838,10 @@ export function launchGaps(acts) {
   return [L.launcherMessage(gaps)];
 }
 
-// REQ: claim-checked (never again, enforced) and check-proven, under v2, as the old engine judged them: in a complaint
-// turn (acts.complaint: the agent's Issue line, this turn or earlier this session, never prompt words) a check written
-// this turn is proven, and a promise that the miss can't come back needs that proof; in any turn, a claim that
-// something is enforced automatically names files a check that runs on its own covers. The shared proof code
-// (tools/hooks/proof.mjs) judges it from the turn's runs alone: no record line ("Proven:", "Learned (...)") is asked
-// for. Lesson (the old engine): an answer said "the project now enforces this on its own" about a check that passed the
-// very code the user had complained about. (Parity with the old engine, oversight 2026-11-09: a promise in an ordinary
-// explanation is not judged outside a complaint.)
-// (a file whose first touch this turn was an edit, not a write, was there before the turn, as was one git had in a
-// commit before it or the turn-start snapshot listed. Lesson (the old suite under v2): a fixed file only the old engine's
-// snapshot knew was taken for one born this turn, so no fix was seen and a check tried on made-up junk passed as proven)
+// REQ: claim-checked and check-proven, as the old engine judged them (proof.mjs, from the turn's runs alone, no record
+// lines): in a complaint turn a check written now is proven and a "can't come back" promise needs that proof; in any
+// turn, "enforced automatically" names files a check that runs on its own covers. A file first edited, not written,
+// was there before the turn. Lesson: "the project now enforces this" was said of a check that passed the bad code
 let proofPure = null;
 const proofOf = (acts = {}) => {
   const first = new Map();
@@ -2057,11 +1965,8 @@ export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' &&
 // (an edit counts as the project's work only inside the project folder. Lesson (live): a turn whose one edit was a
 // memory note outside the project was held for every item of its runbook)
 const inRoot = f => { const r = path.relative(ROOT, path.resolve(ROOT, String(f || ''))); return !!f && !r.startsWith('..') && !path.isAbsolute(r); };
-// (edit tools only, for now: counting files a command changed held 24 passing old scenarios whose fixtures change files
-// with no edit call (the old suite under v2, 2026-11-09); open in the triage doc)
-// (an edit only to the status or decisions record, or to the engine's notes and state, is bookkeeping, not work: rule
-// 12 counts them as records. Lesson (the old suite under v2): a question that only updated docs/STATUS.md was held to
-// its runbook's changelog line and Finished section)
+// (edit tools only, inside the project; an edit only to the status or decisions record or the engine's notes and state
+// is bookkeeping, not work (rule 12). Lesson: a question that only updated docs/STATUS.md was held to its runbook)
 const BOOKKEEPING = /^(docs\/(STATUS|DECISIONS)\.md|tools\/starter\/STATUS\.md|\.cache\/.*|tools\/hooks\/state\/.*)$/;
 export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path)
   && !BOOKKEEPING.test(path.relative(ROOT, path.resolve(ROOT, String(c.input?.file_path || c.input?.notebook_path))).replace(/\\/g, '/')));

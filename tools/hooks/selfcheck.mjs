@@ -6874,7 +6874,7 @@ if (mineB()) { // adoption review: an established project's own pieces are liste
     fs.writeFileSync(cfgP, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgP, 'utf8')), adopted: '2026-11-07' }, null, 2));
     const probs = decisions => {
       fs.writeFileSync(path.join(dir, 'docs/DECISIONS.md'), `# Decisions\n${decisions}`);
-      const o = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href)}; console.log(JSON.stringify(setupProblems().filter(p => /Adoption review/.test(p))));`], { cwd: dir, encoding: 'utf8' });
+      const o = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/setup.mjs')).href)}; console.log(JSON.stringify(setupProblems().filter(p => /Adoption review/.test(p))));`], { cwd: dir, encoding: 'utf8' });
       try { return JSON.parse(o.stdout.trim().split('\n').pop()); } catch { return [`(no output) ${o.stderr.slice(0, 200)}`]; }
     };
     const none = probs(''), undecided = probs('## Adoption review\n- keep: its pre-commit lint hook - the engine adds no lint gate\n- improve: add a release runbook | small | adopted - adds only\n- improve: replace its test script with the engine gate | big | ?\n');
@@ -8597,7 +8597,7 @@ if (mineB()) { // setup: a typical request written in the template's quoted styl
   try {
     applyEdits(dir, SETUP_DONE);
     applyEdits(dir, { 'docs/BRIEF.md': s => s.replace(/## Typical requests\n[\s\S]*?\n## /, '## Typical requests\n1. "make a plan for moving the whole office to the new building" → plan\n2. "debug the failing import script that reads the vendor files"\n3. "search the web for standing desk reviews under 500 dollars" → research\n4. "zorbl the quindle with a frobnicated blarnday wibble"\n5. "frobnicate the wibble" while I make a plan for the office move\n## ') });
-    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks-main.mjs')).href);
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/setup.mjs')).href);
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${H}; console.log(setupProblems().filter(p => /typical request/.test(p)).join(' | '))`], { cwd: dir, encoding: 'utf8' });
     const probs = (r.stdout || '').trim();
     report(/zorbl the quindle/.test(probs) && !/make a plan|debug the failing|search the web|frobnicate the wibble/.test(probs), 'setup: quoted typical requests route by the words inside the quotes; one that routes nowhere is still named', `${probs.slice(0, 400)} ${(r.stderr || '').slice(0, 300)}`);

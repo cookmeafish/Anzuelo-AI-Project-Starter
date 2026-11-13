@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { passLine } from './lines.mjs';
+import * as W from './worklog.mjs';
 import { planRequired, OPEN_WORK, planOpen } from '../planreq.mjs';
 import { keyWords, closestRunbook, coreRunbook, userWords as userWordsOf } from '../near.mjs';
 import { appendHistory } from '../history.mjs';
@@ -13,7 +14,10 @@ import { relayedBody } from '../relay.mjs';
 // REQ: plan-open (planreq.mjs), on the plans open when the turn began; asked once. Lesson: plans were left half done
 function planOpenGaps(turn, acts, again) {
   if (again || checkOff('plan-open')) return [];
-  const startPlans = (turn.openPlans || []).filter(p => fs.existsSync(at(p)));
+  // (a plan is the session's that carries it out: one its own earlier calls wrote, edited or ran. Lesson (2026-11-12):
+  // turns were held for plans another session was carrying out)
+  const goOn = /\b(the plan|resume|continue|keep going|carry on|next step)\b/i.test(ownWords(acts.heard, acts.agentAll)); // (or the user's own words ask to go on with one)
+  const startPlans = (turn.openPlans || []).filter(p => fs.existsSync(at(p)) && (goOn || (acts.prior || []).some(c => JSON.stringify(c.input || {}).replace(/\\\\/g, '/').includes(p))));
   if (!startPlans.length) return [];
   const changed = changedOf(acts), cmds = acts.calls.filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => String(c.input?.command || ''));
   const read = p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } };
@@ -31,7 +35,7 @@ import { frictionGaps } from './friction.mjs';
 import { VERBATIM_ENGINE } from './verbatim.mjs';
 import { NAMES_FILE, NAME_FILES, namesIn, nameProblems, headsOf, newLinesOf } from '../names.mjs';
 import { rootToolchainFile } from '../rootfiles.mjs';
-import { waivedTag, gitClaimGaps, notesOf } from './lib.mjs';
+import { waivedTag, gitClaimGaps, notesOf, ownWords } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
@@ -716,13 +720,30 @@ function judge(data, { shadow = false } = {}) {
   const late = (again ? [] : unansweredLate(rows, final)).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const sessionRows = raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  acts.agentAll = W.agentTexts(sessionRows).map(x => x.t).join('\n'); // (a user message quoting the agent is not their words)
   // (REQ: watcher-left, the shared wakeups.mjs: a watcher armed in the session and not ended or named in the answer is
   // stopped before the answer, or its notice's reply replaces it. Lesson (the old suite under v2): v2 let one stay armed)
   const wakes = [...wakeGaps(sessionRows, final || acts.answer || '', acts.heard || ''), ...(checkOff('watcher-left') ? [] : watcherLeft(watchersArmed(sessionRows), final || acts.answer || ''))];
   lap('self-runs, late, session rows, wakeups');
+  // (the work log: what this turn's messages asked, or the agent promised, that no later text of its named yet. The user's
+  // rule, 2026-11-12: nothing asked or promised is dropped; the agent goes on to it, or says it is declined or waits)
+  const logOpen = S('workLog', () => { if (!data.session_id) return [];
+    const texts = [...W.agentTexts(sessionRows), ...(final ? [{ t: final, at: new Date().toISOString() }] : [])];
+    // (proof it was forgotten, not a guess: another ask of this turn was taken up and this one not; a promise made before
+    // the final answer and never named after. A terse "Done." after the work is no proof)
+    const open = W.update(String(data.session_id), { msgs: W.typedMsgs(rows), texts }).filter(i => i.at >= (turn.at || '')), fin = texts.at(-1)?.at || '';
+    const took = W.loadLog(String(data.session_id)).some(i => i.from === 'user' && i.status === 'done' && i.at >= (turn.at || ''));
+    return open.filter(i => i.from === 'user' ? took : i.at < fin).map(i => `Still open: "${i.text}". Do it now, after a one-line update to the user, or say in one line it is declined (why) or waits on the user (what).`); });
+  // (keep working: a turn that ticked a box of the project's queue is told the next open one, once)
+  const nextUp = S('queue', () => { if (again || !W.tickedQueue(acts.calls)) return []; const q = W.queueOpen(f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } })[0];
+    return q ? [`Next in the queue (${q.file}): "${q.text.slice(0, 160)}". Give the user a one-line update and start it now, unless it waits on the user (then say so).`] : []; });
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...logOpen, ...nextUp, ...autos, ...wakes,...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  // (format items never hold: the Finished section, plain-writing reflows, a runbook item asking for the Finished section.
+  // The reminder asks for them up front. The user, 2026-11-12: a hold for format splits the answer into fragments)
+  const fmt = engineChecks().filter(r => ['finished-summary', 'plain-writing'].includes(r?.tag)).map(r => `Check: ${r.message}`.slice(0, 60));
+  { const keep = list.filter(s => !fmt.some(m => s.startsWith(m)) && !/^Make it plain and direct\b/.test(s) && !/ item \d+: [^\n]*\bFinished\b/.test(s)); list.splice(0, list.length, ...keep); }
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));
