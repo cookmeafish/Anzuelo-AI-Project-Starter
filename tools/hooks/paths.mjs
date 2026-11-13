@@ -4,7 +4,9 @@
 //   LOCAL    where engine files made for this project live: .anzuelo/local in a project, the root itself in the starter
 // roots(dir, env): ANZUELO_ROOT in env (tests, the v2 tools run against another folder) names the project outright.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 export function roots(hooksDir, env = process.env) {
@@ -42,6 +44,8 @@ const exists = f => { try { fs.statSync(f); return true; } catch { return false;
 // there, else from the engine, and written there. Lesson (a field report): its own scripts read them by path.
 export const keepList = local => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).keepInProject || []).map(s => norm(s).replace(/\/+$/, '')).filter(Boolean); } catch { return []; } };
 // A record kept in the project's own equivalent ("recordPaths", { "docs/CHANGELOG.md": "CHANGELOG.md" }), per the adoption review.
+export const stateOutside = (local, project) => { try { if (JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).stateOutside !== true) return null; } catch { return null; }
+  return path.join(os.homedir(), '.anzuelo-state', `${path.basename(project).replace(/[^\w.-]+/g, '-')}-${createHash('sha1').update(path.resolve(project).toLowerCase()).digest('hex').slice(0, 8)}`); };
 export const recordMap = local => { try { const m = JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).recordPaths || {}; return Object.fromEntries(Object.entries(m).filter(([k, v]) => RECORDS.test(norm(k)) && v).map(([k, v]) => [norm(k), norm(v)])); } catch { return {}; } };
 // resolver(r) gives where(p) (to read: local copy, else engine copy, else local) and whereWrite(p) (always local for
 // engine-made files, so an upgrade never meets a change of the project's).
@@ -50,9 +54,14 @@ export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
   const keep = r.keep || (r.LOCAL !== r.PROJECT ? keepList(r.LOCAL) : []);
   const kept = p => { const q = norm(p); return keep.some(k => q === k || q.startsWith(k + '/')); };
   const recs = r.LOCAL !== r.PROJECT ? (r.records || recordMap(r.LOCAL)) : {}, back = Object.fromEntries(Object.entries(recs).map(([k, v]) => [v, k]));
+  // (the engine's churn (hook state, caches, notes) outside the project, in the user's profile, for an app whose dev
+  // server watches its own folder: "stateOutside" in .anzuelo/local/config.json, set at adoption. Review of a large app,
+  // 2026-11-13: state written under a polled, served root would reload the app while its owner uses it)
+  const out = r.LOCAL !== r.PROJECT ? stateOutside(r.LOCAL, r.PROJECT) : null, churn = p => !!out && /^(tools\/hooks\/state|\.cache)(\/|$)/.test(norm(p));
   const record = p => { const q = norm(p); if (r.LOCAL === r.PROJECT || !RECORDS.test(q)) return null; return recs[q] ? at(r.PROJECT, recs[q]) : !exists(at(r.LOCAL, q)) && exists(at(r.PROJECT, q)) ? at(r.PROJECT, q) : null; }; // (mapped, an older install's copy, else local)
   const where = p => {
     if (path.isAbsolute(String(p))) return path.resolve(String(p));
+    if (churn(p)) return at(out, p);
     const rec = record(p); if (rec) return rec;
     const k = kind(p);
     if (kept(p) && k !== 'project') return k === 'both' && !exists(at(r.PROJECT, p)) && exists(at(r.ENGINE, p)) ? at(r.ENGINE, p) : at(r.PROJECT, p);
@@ -61,13 +70,13 @@ export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
     if (k === 'both' && r.LOCAL !== r.ENGINE && !exists(at(r.LOCAL, p)) && exists(at(r.ENGINE, p))) return at(r.ENGINE, p);
     return at(r.LOCAL, p);
   };
-  const whereWrite = p => path.isAbsolute(String(p)) ? path.resolve(String(p)) : record(p) || (kind(p) === 'project' || kept(p) ? at(r.PROJECT, p) : kind(p) === 'engine' ? at(r.ENGINE, p) : at(r.LOCAL, p));
+  const whereWrite = p => path.isAbsolute(String(p)) ? path.resolve(String(p)) : churn(p) ? at(out, p) : record(p) || (kind(p) === 'project' || kept(p) ? at(r.PROJECT, p) : kind(p) === 'engine' ? at(r.ENGINE, p) : at(r.LOCAL, p));
   // The project-relative name of an absolute path under any root (the most specific root first: local and engine sit
   // inside the project).
   const relOf = a => {
     const f = path.resolve(r.PROJECT, String(a || ''));
     { const q = path.relative(r.PROJECT, f).split(path.sep).join('/'); if (back[q]) return back[q]; } // (the project's own changelog is "docs/CHANGELOG.md")
-    for (const root of [r.LOCAL, r.ENGINE, r.PROJECT].sort((x, y) => y.length - x.length)) {
+    for (const root of [r.LOCAL, r.ENGINE, r.PROJECT, ...(out ? [out] : [])].sort((x, y) => y.length - x.length)) {
       const q = path.relative(root, f);
       if (q === '' || (!q.startsWith('..') && !path.isAbsolute(q))) return q.split(path.sep).join('/');
     }

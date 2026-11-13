@@ -432,6 +432,30 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     wt.inst === 0 && lfs.inst === 0 && wt.hp === '' && lfs.hp === '', JSON.stringify({ wt, lfs }));
 }
 
+// (an app whose dev server watches its own folder: with "stateOutside", a whole turn of hooks creates or changes no file
+// inside the project; the engine's state goes to the user's profile. And nothing under .anzuelo/ or in the skill copies
+// is a page or a file a test runner collects. Review of a large app, 2026-11-13)
+{
+  const name = 'adopted app that watches its own folder, engine in .anzuelo/engine, state kept outside';
+  const dir = path.join(WORK, 'engine-in-anzuelo-watched'), home = path.join(WORK, 'watched-home');
+  write(dir, { 'README.md': '# Watched app\n', 'src/main.js': 'console.log(1);\n' }); gitRepo(dir); fs.mkdirSync(home, { recursive: true });
+  const genv = { ...env, ANZUELO_SESSION_GATE: 'off', USERPROFILE: home, HOME: home }; delete genv.CLAUDE_CODE_SESSION_ID; delete genv.CLAUDECODE;
+  const inst = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dir], { cwd: STARTER, encoding: 'utf8', env: genv, timeout: 300000 });
+  const cf = path.join(dir, '.anzuelo/local/config.json'); try { fs.writeFileSync(cf, JSON.stringify({ ...JSON.parse(fs.readFileSync(cf, 'utf8')), stateOutside: true }, null, 2)); } catch { }
+  const list = d => { const out = {}; const walk = p => { for (const e of fs.readdirSync(p, { withFileTypes: true })) { const f = path.join(p, e.name); if (e.name === '.git') continue; if (e.isDirectory()) walk(f); else out[path.relative(dir, f)] = fs.statSync(f).mtimeMs; } }; walk(d); return out; };
+  const before = list(dir), hk = path.join(dir, '.anzuelo/engine/tools/hooks/hooks.mjs'), sid = 'watched', tp = path.join(home, `${sid}.jsonl`);
+  fs.writeFileSync(tp, JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'fix the label' } }) + '\n');
+  const henv = { ...genv, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: dir }; delete henv.ANZUELO_ROOT;
+  const hook = (cmd, extra) => spawnSync(process.execPath, [hk, cmd], { cwd: dir, encoding: 'utf8', env: henv, input: JSON.stringify({ session_id: sid, transcript_path: tp, ...extra }) }).stdout || '';
+  const session = hook('session', { source: 'startup' }); hook('prompt', { prompt: 'fix the label' }); hook('pretool', { tool_name: 'Bash', tool_input: { command: 'git status' } }); hook('posttool', { tool_name: 'Bash', tool_input: { command: 'git status' }, tool_response: {} }); hook('stop', {});
+  const after = list(dir), changed = Object.keys(after).filter(f => after[f] !== before[f]);
+  const outside = (() => { try { return fs.readdirSync(path.join(home, '.anzuelo-state')); } catch { return []; } })();
+  const pages = Object.keys(after).filter(f => /^(\.anzuelo|\.claude[\\/]skills|\.agents[\\/]skills)[\\/]/.test(f) && /\.html?$|\.test\.|\.spec\.|(^|[\\/])__tests__[\\/]/i.test(f));
+  check(name, 'with the state kept outside, a whole turn of hooks creates or changes no file inside the project, its state goes to the user\'s profile, and the session note names that place for the engine\'s scratch',
+    inst.status === 0 && !changed.length && outside.length === 1 && session.includes(outside[0]), JSON.stringify({ inst: inst.status, changed: changed.slice(0, 8), outside, session: session.slice(-240) }));
+  check(name, 'nothing under .anzuelo/ or in the skill copies is a page or a file a test runner collects (*.html, *.test.*, *.spec.*, __tests__/)', !pages.length, pages.slice(0, 8).join(', '));
+}
+
 if (deep) {
   const dir = fs.readdirSync(WORK).map(n => path.join(WORK, n)).find(d => fs.existsSync(path.join(d, 'package.json')));
   // mid-setup, like a real project: SETUP-PROMPT.md still there, the fit checklist decided, autonomy on, a plan open.

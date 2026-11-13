@@ -2116,7 +2116,7 @@ export const V2_SESSION = '# How this project\'s engine works (full rules in AGE
   '- Check, after the work: it lists anything really missing, and the runbook items to verify yourself, and asks again (at most 3 times) until each is done or the answer says plainly why not. No record lines are needed. Its full steps, with paths and what meets each: node tools/hooks/hooks.mjs why (the user sees only the plain list).\n' +
   '- Work log: the engine keeps, by itself, what the user asked (every message, mid-task ones too) and what you promised. When you think you are finished, what is still open is listed: do it, or say it is declined (why) or waits on the user. Optional: node tools/hooks/hooks.mjs log add|done|wait "<item>".';
 export const DEV_EDIT_LINE = 'File changes: Edit/Write only; never sed, heredoc or shell redirection on source files.';
-export const SPLIT_SESSION = '- The engine lives in .anzuelo/: it is only for you, the coding agent. Everything the app or its users need goes in the app\'s own folders. Where the rules name .cache/ (turn notes, answer drafts), use .anzuelo/local/.cache/, never the app\'s own .cache/.';
+export const SPLIT_SESSION = () => `- The engine lives in .anzuelo/: it is only for you, the coding agent. Everything the app or its users need goes in the app's own folders. Where the rules name .cache/ (turn notes, answer drafts), use ${(p => p.startsWith('..') || path.isAbsolute(p) ? where('.cache') : p)(path.relative(PROJECT, where('.cache'))).replace(/\\/g, '/')}/, never the app's own .cache/.`;
 function cmdSession(data) {
   const cfg = config();
   syncAll(cfg);
@@ -2137,7 +2137,7 @@ function cmdSession(data) {
   // (engine v2: the old checklist asked for record lines nothing checks any more; three plain sentences instead)
   const parts = [seen ? 'Session checklist: as shown at this session\'s start (full rules in AGENTS.md / CLAUDE.md).' : engineOf() === 'v2' ? V2_SESSION : read(abs('docs/checks/session-checklist.md')).trim()];
   // (the engine in .anzuelo/engine: its folder is the coding agent's alone, and its scratch lives there. Boundary plan)
-  if (split && !seen) parts.push(SPLIT_SESSION);
+  if (split && !seen) parts.push(SPLIT_SESSION());
   // (the starter's development copy only, never a project: a shell edit (sed, heredoc, redirection) stripped regex
   // backslashes from source files over and over; a memory note read once did not stop it)
   if (exists('.starter-dev')) parts.push(DEV_EDIT_LINE);

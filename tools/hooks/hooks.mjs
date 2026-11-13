@@ -18,7 +18,9 @@ if (!process.env.ANZUELO_NO_COMPILE_CACHE && !here.startsWith(tmp + path.sep))
 // large app, 2026-11-13): the agent wrote its draft, as the rules said, into the app's .cache/, where the engine never
 // looks, so an Issue line written there would show no acknowledgement)
 if (/[\\/]\.anzuelo[\\/]engine[\\/]tools[\\/]hooks[\\/]hooks\.mjs$/.test(here)) {
+  // (where the resolver keeps .cache/: .anzuelo/local/.cache/, or the user's profile when the state is kept outside)
+  const { where, PROJECT } = await import('./paths.mjs'), c = path.relative(PROJECT, where('.cache')), shown = (c.startsWith('..') || path.isAbsolute(c) ? where('.cache') : c).replace(/\\/g, '/');
   const SCRATCH = /(?<![\w./-])\.cache\/(turn-notes\.md|answer[\w.-]*\.md)/g, put = process.stdout.write.bind(process.stdout);
-  process.stdout.write = (chunk, ...rest) => put(typeof chunk === 'string' ? chunk.replace(SCRATCH, '.anzuelo/local/.cache/$1') : chunk, ...rest);
+  process.stdout.write = (chunk, ...rest) => put(typeof chunk === 'string' ? chunk.replace(SCRATCH, `${shown}/$1`) : chunk, ...rest);
 }
 await import('./hooks-main.mjs');
