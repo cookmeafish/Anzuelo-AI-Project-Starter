@@ -1867,14 +1867,14 @@ export function proofTurn(acts) {
   const entries = (acts.calls || []).map(c => ({ type: 'assistant', message: { content: [{ type: 'tool_use', name: c.name, input: c.input || {} }] } }));
   return { answer: String(acts.answer || ''), said: String(acts.said || acts.answer || ''), notes: '', since, runs, cmds: runs.map(r => r.cmd), entries, changed: changedOf(acts) };
 }
-// REQ: fix-proven. A fix turn (a complaint taken on with a code change, or the debug skill opened) follows the debug skill
-// and shows the failure fixed: one command failed before the first code edit and passed, the same, after the last.
+// REQ: fix-proven. A fix turn (a code change in a turn routed to a fix runbook, a complaint taken on, or debug opened)
+// follows the debug skill and shows the failure fixed: one command failed before the first code edit and passed after.
 // Oversight, 2026-11-12: fixes were patches tested only on the moment shown. "NOT VERIFIED: ..." says why it can't run
 const FIX_CODE = /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|sh|ps1)$/i, RUN_FAILED = /\b(FAIL(?:ED|S)?|failing|not ok|AssertionError|Traceback|Error:)/;
 export function fixGaps(acts) {
   const calls = acts.calls || [], code = calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && FIX_CODE.test(String(c.input?.file_path || '')) && !/(^|[\\/])(tests?|__tests__)[\\/]|\.test\.|selftest|selfcheck/i.test(String(c.input?.file_path || '')));
-  const debug = calls.some(c => c.name === 'Read' && /[\\/]debug[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || '')));
-  if (!code.length || !(acts.complaint || debug) || /\bNOT VERIFIED\b/.test(String(acts.answer || ''))) return [];
+  const debug = calls.some(c => c.name === 'Read' && /[\\/]debug[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))), routed = (acts.routes || []).some(f => /(^|[\\/])(debug|bugfix|field-report|learn-from-upset|improvement-loop)(\.md|[\\/]SKILL\.md)$/.test(String(f)));
+  if (!code.length || !(acts.complaint || debug || routed) ||/\bNOT VERIFIED\b/.test(String(acts.answer || ''))) return [];
   const runs = proofTurn(acts).runs, n = r => r.editedBefore.filter(f => FIX_CODE.test(f)).length, key = r => r.cmd.replace(/\s+/g, ' ').trim(), bad = r => r.error || RUN_FAILED.test(r.out);
   const failedBefore = new Set(runs.filter(r => n(r) === 0 && bad(r)).map(key)), shown = runs.some(r => n(r) >= code.length && !bad(r) && failedBefore.has(key(r)));
   return [!debug && 'This turn fixed a problem without the debug skill: open skills/debug/SKILL.md and follow its phases (the cause first, a test that fails without the fix).',

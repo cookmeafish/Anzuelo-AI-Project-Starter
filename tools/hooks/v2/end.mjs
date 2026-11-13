@@ -704,7 +704,7 @@ function judge(data, { shadow = false } = {}) {
       acts.answer = applied ?? `${prev.trim()}\n\n${note}`; } }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
   acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.notesAt = turn.notesAt; acts.notesSha = turn.notesSha; acts.transcriptPath = data.transcript_path || '';
-  acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
+  acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts); acts.routes = [turn.runbook, ...(turn.also || [])].filter(Boolean);
   lap('session transcript (tail, history, earlier)');
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
   // never in a preview)

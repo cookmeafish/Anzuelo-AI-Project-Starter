@@ -1889,6 +1889,12 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   const otherCmd = fx([user('the export is broken'), dbg, call('Bash', { command: 'node --test test/other.test.js' }, 'not ok 1'), fix, passRun, say('Fixed.')]);
   const notVerified = fx([user('the export is broken'), dbg, fix, say('Changed it. NOT VERIFIED: the export - it needs the live account.')]);
   const notFix = fx([user('rename the export button'), fix, say('Renamed.')], false);
+  // (the route reads the request, not the agent's choice: a plain report patched at once, with no Issue line and no debug
+  // read, is a fix turn. Oversight, 2026-11-12: that was the case the user complained about)
+  const routedAs = (rows, routes) => { const a = acts(rows); a.complaint = false; a.routes = routes; return fixGaps(a); };
+  const plainReport = routedAs([user('the export button does nothing'), fix, say('Fixed.')], ['skills/debug/SKILL.md']);
+  const feature = routedAs([user('add a dark mode toggle'), fix, say('Added.')], ['docs/playbooks/feature.md']);
+  report(plainReport.length === 2 && feature.length === 0, 'end: a turn routed to a fix runbook with a code edit and no test run is asked for the debug skill and the before-and-after proof; a feature request with code edits is not', JSON.stringify({ plainReport, feature }));
   report(proven.length === 0 && noDebug.length === 1 && /debug skill/.test(noDebug[0]) && afterOnly.length === 1 && /fail, then the same command/.test(afterOnly[0]) && otherCmd.length === 1 && notVerified.length === 0 && notFix.length === 0,
     'end: a fix turn is proven by the same command failing before the code change and passing after, through the debug skill; pass-only or another command is held, NOT VERIFIED and a non-fix turn are not', JSON.stringify({ proven, noDebug, afterOnly, otherCmd, notVerified, notFix }));
 }
