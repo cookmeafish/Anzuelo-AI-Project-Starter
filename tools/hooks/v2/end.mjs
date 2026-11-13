@@ -27,7 +27,7 @@ function planOpenGaps(turn, acts, again) {
   return msg ? [msg] : [];
 }
 import { labelsEsHint } from '../labels.mjs';
-import { unansweredLate, asksOnly } from './late.mjs';
+import { unansweredLate, asksOnly, keys as keyWordsLate } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { externalStopSteps } from '../extstop.mjs';
 import { reviewExcuse } from '../excuse.mjs';
@@ -320,17 +320,12 @@ export function onStop(data, opts = {}) {
   const line = !out && passed && opts.show ? passLine(passed) : '';
   return out || (line ? { systemMessage: line } : null);
 }
-// A stop after a block re-checks only what a script can check, and blocks again with what is still missing, at most
-// MAX_BLOCKS times per request; the last one has the agent tell the user plainly what is not done. The verify list
-// comes once. Lesson (the user, 2026-11-07): the end check is there to make sure the work gets done, and one block
-// let an agent that ignored it end the turn with the work undone.
+// A stop after a block re-checks what a script can, up to MAX_BLOCKS per request, the last asking to say plainly what is
+// not done; the verify list comes once. The user, 2026-11-07: one block let an agent ignore it and leave the work undone.
 export const MAX_BLOCKS = 3;
-// REQ: upset-learned. A complaint (this turn's request upset, or one typed during it) on a turn that changed files: the
-// answer says whether it held, and when it did, what was checked; a lesson is written where it stops the next miss (a
-// skill, runbook, rule, check, test or the agent's memory notes, changed this turn); an engine lesson in a project goes
-// to the starter; upset again in the session needs a plan in docs/plans/ and a sweep of the real data. A complaint
-// shown not to hold, or strong words about nothing wrong, owes none of it. Lesson (the old suite under v2): v2 checked
-// none of the learn-from-upset items, whose markers it strips, and the same miss could come back unlearned.
+// REQ: upset-learned. A complaint on a turn that changed files: the answer says whether it held and what was checked; a
+// lesson where it stops the next miss (an engine one goes to the starter); upset again in the session, a plan and a sweep
+// (repeatGaps: within 14 days). One shown not to hold owes none. Lesson: v2 once checked none of learn-from-upset's items.
 const NOT_HELD = /\b(does(?:n'?t| not)|did(?:n'?t| not)) hold\b|\bis(?:n'?t| not) what happened\b|\balready (?:lists?|has|have|there|in place|does|shows?)\b|\bnot (?:actually |really )?(?:wrong|an? (?:issue|problem|mistake))\b|\bnothing (?:was )?wrong\b|\b(?:is|was) (?:already )?(?:there|correct|right)\b[^.\n]{0,40}\b(?:already|in fact|actually)\b|no (?:se sostiene|era (?:un )?(?:error|problema))|\bno encontr[eé]\b|\bnada (?:estaba )?mal\b/i;
 // (a partial verdict, or a lead that is itself the evidence, "Checked: <what> - <what was wrong>", says it too)
 const PARTLY = /^\W*(?:partly|in part|en parte|parcialmente)\b/im, LEAD_CHECKED = /^\s*(?:checked|comprobado|verificado)\s*:/im;
@@ -417,11 +412,8 @@ export function headlessResumed(rows, running) {
   return running.filter(id => resumed.has(id));
 }
 export const headlessLine = ids => `This run is headless (claude -p or the SDK): it ends with this answer, and a helper resumed with SendMessage stops with it, so its work never comes back (agent ${ids.join(', ')}). Do the rest of its work yourself, or start a new helper with the Agent tool and wait for its result, then end with the whole answer.`;
-// REQ: notice-answer. In a headless run the caller gets only the last message: a reply to a background notice or a fired
-// wakeup, after the turn already answered, replaces that answer. Unless it carries the answer again (most of its lines,
-// or as long as 60% of it), the turn is held, once (not on a send-back). Interactive sessions show the answer above, so
-// a short reply is fine. Lesson (the old engine): a headless run's result was a three-line reply to a leftover watcher's
-// notice, with none of the answer.
+// REQ: notice-answer. Headless, the caller gets only the last message: a reply to a notice after the answer must carry it
+// again (most lines, or 60% of its length), else held once. Lesson: a run's result was a 3-line reply to a watcher.
 export function noticeAnswerGaps(rows, final, again = false) {
   if (again || !final || !rows.some(r => /^sdk/.test(String(r.entrypoint || '')))) return [];
   const notice = r => r.type === 'user' && (r.turnOrigin === 'scheduled' || /<task-notification>/.test(typeof r.message?.content === 'string' ? r.message.content : JSON.stringify(r.message?.content || '')));
@@ -435,14 +427,22 @@ export function noticeAnswerGaps(rows, final, again = false) {
   return ['This run is headless (claude -p or the SDK): its caller gets only the last message, and this reply to a background notice is now that message, so the answer given before is lost. End with that whole answer again, then any news from the notice.'];
 }
 const turnNotes = notesOf; // (the agent's notes this turn)
-// REQ: rule-request. A standing rule the agent took on is written where every later turn reads it and enforced, not only
-// promised: the principle in AGENTS.md (CLAUDE.md), its dated row in docs/checks/user-requirements.md, how it is
-// enforced (a check, a test a check runs, a "Done when" line, a guard, or "hook: N/A <reason>"), and with
-// "memoryOnRuleRequest" a memory note. The trigger is the agent's own judgment: it opened the project-rule skill, ran
-// `hooks.mjs rule`, or its notes or answer record a rule ("Rule: ...", "rule added"). Never "always", "never" or "from
-// now on" in the prompt: keyword-forced rule handling was retired on 2026-11-07, and those words only feed the
-// reminder's hint. "Rule: none - <why>" (or "not a rule") is the agent's call that nothing is owed. Lesson (the old suite
-// under v2): a rule taken on and only promised was never written down or enforced.
+// REQ: repeat-planned. A problem back within 14 days (its Issue line shares most key words with one recorded before the
+// turn) gets no other patch: a plan in docs/plans/ written this turn and "Sweep: <the real data it covered>", or "Not a
+// repeat: <why>". Each Issue line is recorded with its date. Lesson (2026-10-28): one display was "fixed" six times
+const ISSUES = 'tools/hooks/state/issues.json';
+export function repeatGaps(acts) {
+  const now = [...turnNotes(acts).matchAll(/^\s*Issue:\s*(?!none\b|<)([^|\n]+)/gim)].map(m => m[1].trim()); if (!now.length) return [];
+  let rec = []; try { rec = JSON.parse(fs.readFileSync(at(ISSUES), 'utf8')); } catch { }
+  const t0 = Date.parse(acts.at || '') || Date.now(), same = (a, b) => { const w = keyWordsLate(a), k = new Set(keyWordsLate(b)); return w.length >= 3 && w.filter(x => k.has(x)).length >= Math.ceil(w.length * 0.6); };
+  const rep = now.find(t => rec.some(r => Date.parse(r.at) < t0 - 1000 && Date.parse(r.at) > t0 - 14 * 86400_000 && same(t, r.text)));
+  if (!process.env.V2_NO_STATE) try { fs.mkdirSync(path.dirname(at(ISSUES)), { recursive: true }); fs.writeFileSync(at(ISSUES), JSON.stringify([...rec.filter(r => Date.parse(r.at) > Date.now() - 30 * 86400_000), ...now.filter(t => !rec.some(r => r.text === t && Date.parse(r.at) >= t0 - 1000)).map(text => ({ at: new Date().toISOString(), text }))].slice(-200))); } catch { }
+  const both = `${acts.answer || ''}\n${turnNotes(acts)}`, plan = changedOf(acts).some(f => /^docs\/plans\/[^/]+\.md$/.test(f));
+  return !rep || /^\W*Not a repeat:\s*\S/im.test(both) || (plan && /^\W*Sweep:\s*\S/im.test(both)) ? [] : [`This problem came back within 14 days ("${rep.slice(0, 60)}"): another patch won't hold. ${plan ? '' : 'Write a plan in docs/plans/ for the cause, '}${/^\W*Sweep:/im.test(both) ? '' : 'run a sweep over the real data, every case and not only the one shown, and say what it covered ("Sweep: ..."), '}or say "Not a repeat: <why>".`];
+}
+// REQ: rule-request. A rule the agent took on (project-rule opened, `hooks.mjs rule`, "Rule: ..." in notes or answer; never
+// the prompt's words, retired 2026-11-07) is in AGENTS.md, dated in user-requirements.md, enforced or "hook: N/A <why>",
+// and with "memoryOnRuleRequest" a memory note; "Rule: none - <why>" owes nothing. Lesson: one only promised was never kept.
 const RULE_SAID = /^\s*(?:[-*]\s*)?(?:new |standing )?rule\s*:\s*(?!none\b|<)\S|\b(?:new|standing) rule (?:added|saved|written|set)\b|\brule (?:added|saved|written|is in place)\b/im;
 const RULE_NONE = /\brule\s*:\s*none\b|\bnot a (?:standing |lasting )?rule\b|N\/A\(rule-request\)/im;
 const RULE_TEST = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.\w+$/i;
@@ -733,7 +733,7 @@ function judge(data, { shadow = false } = {}) {
     return q ? [`Next in the queue (${q.file}): "${q.text.slice(0, 160)}". Give the user a one-line update and start it now, unless it waits on the user (then say so).`] : []; });
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...logOpen, ...nextUp, ...autos, ...wakes,...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...fixGaps(acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...logOpen, ...nextUp, ...autos, ...wakes,...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...fixGaps(acts), ...repeatGaps(acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (format items never hold: the Finished section, plain-writing reflows, a runbook item asking for the Finished section.
   // The reminder asks for them up front. The user, 2026-11-12: a hold for format splits the answer into fragments)
   const fmt = engineChecks().filter(r => ['finished-summary', 'plain-writing'].includes(r?.tag)).map(r => `Check: ${r.message}`.slice(0, 60));

@@ -1903,6 +1903,21 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   const general = fx([user('exporting "Q3 report.pdf" crashes'), ...base, ed('run(sanitize(name))'), call('Edit', { file_path: path.join(dir, 'test/export.test.js'), old_string: 'x', new_string: 'test("Q3 report.pdf", () => {})' }), passRun, say('Fixed.')]);
   report(keyedP.length === 1 && /keys on the report's own example \("Q3 report\.pdf"\)/.test(keyedP[0]) && bareP.length === 1 && /only catches, retries or waits/.test(bareP[0]) && causeP.length === 0 && general.length === 0,
     'end: a fix keyed on the report\'s own example, or only a bare catch, retry or timeout, is named as a patch; the root cause in the answer releases the second, and a general fix that names the example only in a test is not', JSON.stringify({ keyedP, bareP, causeP, general }));
+  { // REQ: repeat-planned. A problem back within 14 days needs a plan and a sweep, or "Not a repeat: <why>"
+    const { repeatGaps } = await import('./end.mjs'), rec = path.join(dir, 'tools/hooks/state/issues.json'), notes = path.join(dir, '.cache/turn-notes.md');
+    const day = n => new Date(Date.now() - n * 86400_000).toISOString(), plan = call('Write', { file_path: path.join(dir, 'docs/plans/2026-11-12-export-label.md'), content: '# Plan' });
+    const rp = (issue, rows, past) => { fs.writeFileSync(rec, JSON.stringify(past)); const a = acts(rows); a.at = new Date(Date.now() - 5000).toISOString(); fs.writeFileSync(notes, `Issue: ${issue} | runbook: debug | fixed when: it shows\n`); return repeatGaps(a); };
+    const old = [{ at: day(5), text: 'the export page drops the label on saved reports' }];
+    const repeat = rp('the export page drops the label on saved reports again', [user('again'), fix, say('Fixed.')], old);
+    const planned = rp('the export page drops the label on saved reports again', [user('again'), fix, plan, say('Fixed.\nSweep: every saved report in data/ (212), all keep their label.')], old);
+    const denied = rp('the export page drops the label on saved reports again', [user('again'), fix, say('Not a repeat: this time the label is on new reports, a different path.')], old);
+    const stale = rp('the export page drops the label on saved reports again', [user('again'), fix, say('Fixed.')], [{ at: day(20), text: old[0].text }]);
+    const other = rp('the dark mode toggle forgets its setting after reload', [user('dark mode'), fix, say('Fixed.')], old);
+    const recorded = JSON.parse(fs.readFileSync(rec, 'utf8')).some(r => /dark mode toggle/.test(r.text));
+    report(repeat.length === 1 && /came back within 14 days/.test(repeat[0]) && /plan in docs\/plans/.test(repeat[0]) && planned.length === 0 && denied.length === 0 && stale.length === 0 && other.length === 0 && recorded,
+      'end: a problem back within 14 days (key words shared with a recorded Issue line) needs a plan and a sweep, or "Not a repeat"; one older than 14 days or a different problem does not; each Issue line is recorded', JSON.stringify({ repeat, planned, denied, stale, other, recorded }));
+    fs.rmSync(rec, { force: true }); fs.rmSync(notes, { force: true });
+  }
   report(plainReport.length === 2 && feature.length === 0, 'end: a turn routed to a fix runbook with a code edit and no test run is asked for the debug skill and the before-and-after proof; a feature request with code edits is not', JSON.stringify({ plainReport, feature }));
   report(proven.length === 0 && noDebug.length === 1 && /debug skill/.test(noDebug[0]) && afterOnly.length === 1 && /fail, then the same command/.test(afterOnly[0]) && otherCmd.length === 1 && notVerified.length === 0 && notFix.length === 0,
     'end: a fix turn is proven by the same command failing before the code change and passing after, through the debug skill; pass-only or another command is held, NOT VERIFIED and a non-fix turn are not', JSON.stringify({ proven, noDebug, afterOnly, otherCmd, notVerified, notFix }));
