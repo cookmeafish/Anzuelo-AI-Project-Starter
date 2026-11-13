@@ -56,6 +56,9 @@ docs/STATUS.md, which here is the template new projects start from).
   goes through the Stop hook ("Stop says" reads as a stop): it shows in the status bar from the session's state file,
   on by default where the project uses the starter's status line (chained to a project's own, never replacing it), and
   nowhere else; Stop's systemMessage only for a real problem, "Waiting on you", or the upset acknowledgement.
+- [ ] 12b. The audit checks every "(hook: <name>)" in runbooks and skills names a real check, so the release chain
+  catches one: a learn-from-upset item named "fix-proven" (no such check) shipped in a076036, and only the end check
+  caught it, after the release (fixed in 25a0be5).
 - [ ] 13. Hook speed under 300 ms on real-size transcripts.
 
 ## Queue to the finish (oversight's plan, 2026-11-10; tick as done)
