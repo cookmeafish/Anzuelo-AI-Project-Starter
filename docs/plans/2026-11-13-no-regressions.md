@@ -1,5 +1,5 @@
 ---
-status: open
+status: dropped - merged into docs/plans/2026-11-13-real-turn-suite.md (the coding session's plan for the same gate, arriving with the next release)
 ---
 # Plan: what the user relies on can't silently break in a release
 
