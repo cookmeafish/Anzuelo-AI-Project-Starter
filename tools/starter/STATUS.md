@@ -4,7 +4,7 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Queue (oversight, for the user, 2026-11-12; in order, tick as done)
-- [ ] 1. The work log (now).
+- [x] 1. The work log (released in c2f1528, 2026-11-12; follow-up fixes from its first live day in the next release).
 - [ ] 2. A release with rewrite part 1 + routing + the log, then upgrade all 3 projects the same day.
 - [ ] 2a. (oversight, 2026-11-12, for a fourth project, a large established app) The .anzuelo layout from day one: a
   fresh install of an established project puts everything under .anzuelo/ (the engine-outside plan's remaining steps,
