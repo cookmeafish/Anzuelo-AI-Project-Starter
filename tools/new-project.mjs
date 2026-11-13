@@ -909,6 +909,16 @@ if (flag('--add-pack')) {
 }
 
 const existing = fs.existsSync(dest) ? fs.readdirSync(dest).filter(n => n !== '.git') : [];
+// (an established project, with files and no engine yet, gets everything under .anzuelo/: the engine in .anzuelo/engine,
+// what is made for it in .anzuelo/local, wired through git-ignored files, its own files untouched (starter.mjs install).
+// "--adopt" keeps the old layout on purpose; "--dev" too, for the trial rounds. The user's rule, 2026-11-12: every
+// project keeps all of the starter under its .anzuelo/)
+if (auto && existing.length && !dry && !flag('--dev') && !fs.existsSync(path.join(dest, '.anzuelo', 'engine'))) {
+  const val = k => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
+  console.log(`${dest} already has files: installing the engine under ${path.join(dest, '.anzuelo')}, nothing of the project's touched.\n`);
+  const r = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dest, ...['--name', '--desc', '--private'].flatMap(k => val(k) ? [k, val(k)] : [])], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
 if (existing.length && !flag('--adopt')) console.log(`${dest} already has files: adding the starter around them. Nothing existing is overwritten.\n`);
 const hadInstructions = ['CLAUDE.md', 'AGENTS.md'].some(f => fs.existsSync(path.join(dest, f)));
 // The project's own files, as they were before the starter came: setup never asks to rewrite them (name markers in the

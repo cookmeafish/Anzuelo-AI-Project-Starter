@@ -9535,6 +9535,15 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       && asks(before) && yes.status === 0 && !asks(afterYes) && repo && no.status === 0 && !asks(afterNo) && cfg.privateRepo === false,
       'install: the engine is cloned into .anzuelo/engine, the project keeps its own files, and the setup gate asks about a private repository for .anzuelo/local until yes or no is recorded',
       JSON.stringify({ ins: [ins.status, (ins.stdout || '').slice(-300), (ins.stderr || '').slice(0, 300)], before: before.slice(0, 300), afterYes: afterYes.slice(0, 200), repo, afterNo: afterNo.slice(0, 200), cfg }));
+    // (the project maker's own choice for a folder with files is that same install: everything under .anzuelo/, the
+    // project's files untouched, git status showing the ignore list alone. The user's rule, 2026-11-12)
+    const est = path.join(tmp, 'est'); fs.mkdirSync(path.join(est, 'src'), { recursive: true }); fs.writeFileSync(path.join(est, 'src/app.js'), 'console.log(1);\n');
+    const eg = (...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: est, encoding: 'utf8' });
+    eg('init', '-q'); eg('add', '-A'); eg('commit', '-q', '-m', 'theirs');
+    const np = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), est], { encoding: 'utf8', timeout: 300000 });
+    const st = (eg('status', '--porcelain').stdout || '').trim();
+    report(np.status === 0 && fs.existsSync(path.join(est, '.anzuelo/engine/tools/hooks/hooks.mjs')) && !fs.existsSync(path.join(est, 'tools/hooks')) && fs.readFileSync(path.join(est, 'src/app.js'), 'utf8') === 'console.log(1);\n' && !fs.existsSync(path.join(est, 'README.md')) && !/^\?\? (tools|skills|packs|library|AGENTS\.md|CLAUDE\.md|DIRECTORY\.md)\b/m.test(st),
+      'install: the project maker puts an established project\'s engine under .anzuelo/ by itself: its files untouched, no engine code, rules or template readme in the project (only its own records, docs/)', JSON.stringify({ status: np.status, st, out: (np.stdout || '').slice(-200), err: (np.stderr || '').slice(0, 200) }));
   } finally { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-readonly')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {

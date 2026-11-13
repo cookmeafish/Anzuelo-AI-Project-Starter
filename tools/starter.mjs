@@ -524,7 +524,8 @@ if (cmd === 'link') {
     const keep = keepList(loc), keepIt = f => keep.some(k => f === k || f.startsWith(k + '/'));
     const walk = d => { for (const e of fs.readdirSync(path.join(tmp, d || '.'), { withFileTypes: true })) {
       const f = d ? `${d}/${e.name}` : e.name;
-      if (SKIP.test(f)) continue;
+      // (an established folder never gets the template's readme: it is the starter's, not the project's)
+      if (SKIP.test(f) || (had.length && f === 'README.md')) continue;
       if (e.isDirectory()) { walk(f); continue; }
       const k = keepIt(f) ? 'project' : kind(f), from = path.join(tmp, f), same = p => { try { return fs.readFileSync(p).equals(fs.readFileSync(from)); } catch { return false; } };
       if (k === 'engine' || (k === 'both' && same(path.join(eng, f)))) continue;
