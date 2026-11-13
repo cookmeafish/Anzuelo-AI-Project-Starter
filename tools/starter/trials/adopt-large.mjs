@@ -68,6 +68,7 @@ const files0 = Number(g(['ls-files']).stdout.split('\n').filter(Boolean).length)
 const t0 = Date.now();
 const inst = spawnSync(process.execPath, [path.join(STARTER, 'tools', 'starter.mjs'), 'install', dir, '--private', 'no', '--gitignore', 'no'], { cwd: STARTER, encoding: 'utf8', env, timeout: 600000, maxBuffer: 64 << 20 });
 const { stateOutside } = await import('../../hooks/paths.mjs'), so = stateOutside(path.join(dir, '.anzuelo', 'local'), dir); // (read now: the delete proof removes .anzuelo/)
+const installed = fs.existsSync(path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks', 'hooks.mjs'));
 // the setup turn: a real headless session in the project
 const TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Skill', 'Agent', 'Task', 'TodoWrite', 'Bash(node:*)', 'Bash(git:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)', 'Bash(yarn:*)', 'Bash(npm:*)'];
 // (--no-agent: the install and the checks only, to try the trial itself; no agent session runs)
@@ -106,6 +107,10 @@ let packed = null; try { packed = JSON.parse(pack.stdout)[0].files.map(f => f.pa
 const pj = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')); } catch { return {}; } })(), ebFiles = [].concat(pj.build?.files || []);
 const { globRx } = await import('../../hooks/v2/lib.mjs'), SAMPLE = ['.anzuelo/engine/tools/hooks/hooks.mjs', 'CLAUDE.local.md', '.claude/skills/plan/SKILL.md', '.codex/hooks.json'];
 const ebPacks = ebFiles.length ? SAMPLE.filter(s => ebFiles.some(p => !String(p).startsWith('!') && globRx(String(p)).test(s)) && !ebFiles.some(p => String(p).startsWith('!') && globRx(String(p).slice(1)).test(s))) : [];
+// (no proof by default: npm "not a package" means npm doesn't pack this folder; electron-builder with no file list packs
+// the whole app folder, which the owner must decide to narrow; and no packager at all is said plainly)
+const npmNot = !packed && /must have name and version|private/i.test(pack.stderr || pack.stdout || ''), ebAll = (!!pj.build || fs.existsSync(path.join(dir, 'electron-builder.yml'))) && !ebFiles.length;
+const packNote = packed ? `npm packs ${packed.length} files` : npmNot ? 'npm does not pack this folder (not a package)' : `npm pack failed: ${(pack.stderr || '').trim().split('\n')[0]?.slice(0, 120)}`;
 const packedEngine = (packed || []).filter(f => ENGINE_RX.test(f) || /^\.(claude|agents)\/skills\//.test(f));
 // Proof: delete the engine (its folder and the wiring) and the folder is what it was, file for file; the app's tests
 // are the same files, and its own test command (when given) ends the same way
@@ -114,7 +119,7 @@ for (const m of ['.claude/skills', '.agents/skills']) for (const n of (() => { t
 const tree1 = tree(), treeDiff = Object.keys({ ...tree0, ...tree1 }).filter(f => f !== 'TRIAL-NOTE.txt' && tree0[f] !== tree1[f] && !(f === '.claude/settings.local.json' && tree0[f])), app1 = runApp();
 
 const checks = [
-  ['the engine installed in .anzuelo/engine', inst.status === 0 && fs.existsSync(path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks', 'hooks.mjs')), (inst.stderr || inst.stdout || '').slice(-300)],
+  ['the engine installed in .anzuelo/engine', inst.status === 0 && installed, (inst.stderr || inst.stdout || '').slice(-300)],
   ['the setup session ran to an answer', !j.is_error && !!j.result, (j.error || '').slice(0, 300)],
   ['the adoption review was written under .anzuelo/', !!review, review ? path.relative(dir, review) : 'no "## Adoption review" section under .anzuelo/'],
   ['the project\'s own rules, hooks and package settings are byte for byte the same', !changedOwn.length, changedOwn.join(', ')],
@@ -123,7 +128,8 @@ const checks = [
   [`the ${uncommitted} uncommitted files, the ignored dependencies and data, and the branch are untouched`, !wipChanged.length && wip0.status === wip1.status && wip0.diff === wip1.diff && wip1.branch === 'feature/trial-work', `${wipChanged.slice(0, 10).join(', ')} | branch ${wip1.branch}`],
   ['a normal commit of the project\'s own work goes through', commit.status === 0, (commit.stderr || '').slice(0, 300)],
   ['proof: a friend\'s clone has no engine file, no new reference to .anzuelo and no hooks path', !friendEngine.length && !friendRefs.length && !friendHooks, JSON.stringify({ friendEngine: friendEngine.slice(0, 5), friendRefs: friendRefs.slice(0, 5), friendHooks })],
-  ['proof: the app\'s packager never packs the engine (npm pack, and an electron-builder file list if any)', !packedEngine.length && !ebPacks.length, JSON.stringify({ packedEngine: packedEngine.slice(0, 5), ebPacks, npm: packed ? `${packed.length} files` : `not run (${(pack.stderr || '').trim().split('\n').pop()?.slice(0, 120)})` })],
+  ['proof: the app\'s packager never packs the engine (npm pack, and electron-builder: a file list that leaves the engine out, or none at all, which packs everything and needs the owner\'s decision)', (!!packed || npmNot) && !packedEngine.length && !ebPacks.length && !ebAll,
+    JSON.stringify({ packedEngine: packedEngine.slice(0, 5), ebPacks, electronBuilder: ebAll ? 'no file list: it packs the whole folder; ask the owner before adding an exclude' : ebFiles.length ? 'file list checked' : 'none', npm: packNote })],
   ['proof: with the engine deleted the folder is what it was before the install, file for file; the same test files; the app\'s own tests end the same', !treeDiff.length && tests(tree1) === tests0 && app1 === app0, JSON.stringify({ changed: treeDiff.slice(0, 8), tests: [tests0, tests(tree1)], app: [app0, app1] })],
 ];
 const rec = { at: new Date().toISOString(), src: path.resolve(src), dir, files: files0, minutes: Math.round((Date.now() - t0) / 6000) / 10, prompt, answer: j.result || '', cost: j.total_cost_usd, turns: j.num_turns, session: j.session_id, own: OWN, changedOwn, hooksPath: [hooksPath0, hooksPath1], wiring, stray, review: review ? path.relative(dir, review) : null, checks };

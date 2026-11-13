@@ -454,9 +454,10 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const hook = (cmd, extra) => spawnSync(process.execPath, [hk, cmd], { cwd: dir, encoding: 'utf8', env: henv, input: JSON.stringify({ session_id: sid, transcript_path: tp, ...extra }) }).stdout || '';
   const session = hook('session', { source: 'startup' }); hook('prompt', { prompt: 'fix the label' }); hook('pretool', { tool_name: 'Bash', tool_input: { command: 'git status' } }); hook('posttool', { tool_name: 'Bash', tool_input: { command: 'git status' }, tool_response: {} }); hook('stop', {});
   const after = list(dir), changed = Object.keys(after).filter(f => after[f] !== before[f]);
-  const outside = (() => { try { return fs.readdirSync(path.join(home, '.anzuelo-state')); } catch { return []; } })();
+  // (where the engine keeps this project's state: a test copy's goes under the tests' own root, a real one's to the profile)
+  const so = (await import('./hooks/paths.mjs')).stateOutside(path.join(dir, '.anzuelo/local'), dir), outside = so && fs.existsSync(path.join(so, 'tools/hooks/state')) ? [path.basename(so)] : [];
   const pages = Object.keys(after).filter(f => /^(\.anzuelo|\.claude[\\/]skills|\.agents[\\/]skills)[\\/]/.test(f) && /\.html?$|\.test\.|\.spec\.|(^|[\\/])__tests__[\\/]/i.test(f));
-  check(name, 'with the state kept outside, a whole turn of hooks creates or changes no file inside the project, its state goes to the user\'s profile, and the session note names that place for the engine\'s scratch',
+  check(name, 'with the state kept outside, a whole turn of hooks creates or changes no file inside the project, its state goes outside it (for this test copy, under the tests\' own root), and the session note names that place for the engine\'s scratch',
     inst.status === 0 && !changed.length && outside.length === 1 && session.includes(outside[0]), JSON.stringify({ inst: inst.status, changed: changed.slice(0, 8), outside, session: session.slice(-240) }));
   check(name, 'nothing under .anzuelo/ or in the skill copies is a page or a file a test runner collects (*.html, *.test.*, *.spec.*, __tests__/)', !pages.length, pages.slice(0, 8).join(', '));
 }

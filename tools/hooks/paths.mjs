@@ -45,7 +45,10 @@ const exists = f => { try { fs.statSync(f); return true; } catch { return false;
 export const keepList = local => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).keepInProject || []).map(s => norm(s).replace(/\/+$/, '')).filter(Boolean); } catch { return []; } };
 // A record kept in the project's own equivalent ("recordPaths", { "docs/CHANGELOG.md": "CHANGELOG.md" }), per the adoption review.
 export const stateOutside = (local, project) => { try { if (JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).stateOutside !== true) return null; } catch { return null; }
-  return path.join(os.homedir(), '.anzuelo-state', `${path.basename(project).replace(/[^\w.-]+/g, '-')}-${createHash('sha1').update(path.resolve(project).toLowerCase()).digest('hex').slice(0, 8)}`); };
+  // (a project in the temp folder is a test copy: its state goes under the tests' own root, which their clean-up removes,
+  // never into the user's profile. Lesson (2026-11-13): test installs left state folders in the real profile)
+  const tmp = path.resolve(os.tmpdir()).toLowerCase(), inTmp = path.resolve(project).toLowerCase().startsWith(tmp + path.sep);
+  return path.join(inTmp ? path.join(os.tmpdir(), 'anzuelo-tests', 'state') : path.join(os.homedir(), '.anzuelo-state'), `${path.basename(project).replace(/[^\w.-]+/g, '-')}-${createHash('sha1').update(path.resolve(project).toLowerCase()).digest('hex').slice(0, 8)}`); };
 export const recordMap = local => { try { const m = JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).recordPaths || {}; return Object.fromEntries(Object.entries(m).filter(([k, v]) => RECORDS.test(norm(k)) && v).map(([k, v]) => [norm(k), norm(v)])); } catch { return {}; } };
 // resolver(r) gives where(p) (to read: local copy, else engine copy, else local) and whereWrite(p) (always local for
 // engine-made files, so an upgrade never meets a change of the project's).

@@ -47,6 +47,7 @@ export function cleanOld(maxAgeMs = 3600_000) { let n = 0;
   const sweep = (dir, skip = '') => { try { for (const e of fs.readdirSync(dir)) { if (e === skip || e === 'failed') continue; const p = path.join(dir, e); try { if (Date.now() - fs.statSync(p).mtimeMs > maxAgeMs) { rm(p); n++; } } catch { } } } catch { } };
   sweep(TEST_ROOT, 'projects');
   try { for (const p of fs.readdirSync(path.join(TEST_ROOT, 'projects'))) sweep(path.join(TEST_ROOT, 'projects', p)); } catch { }
+  sweep(path.join(TEST_ROOT, 'state')); // (test copies' state kept outside them: each one goes when it is an hour old)
   return n;
 }
 
