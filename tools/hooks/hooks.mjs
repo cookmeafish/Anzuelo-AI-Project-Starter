@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = path.resolve(fileURLToPath(import.meta.url)).toLowerCase(), tmp = path.resolve(os.tmpdir()).toLowerCase();
-if (!process.env.ANZUELO_NO_COMPILE_CACHE && !here.startsWith(tmp + path.sep) && !/[\\/]\.anzuelo-frozen[\\/]/.test(here))
+// (a release's frozen copies keep it: few (the newest 3 stay) and the cache is capped, and its timed tests run there)
+if (!process.env.ANZUELO_NO_COMPILE_CACHE && !here.startsWith(tmp + path.sep))
   try { module.enableCompileCache?.(path.join(os.tmpdir(), 'anzuelo-compile-cache')); } catch { }
 await import('./hooks-main.mjs');
