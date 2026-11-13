@@ -5,7 +5,10 @@ docs/STATUS.md, which here is the template new projects start from).
 
 ## Queue (oversight, for the user, 2026-11-12; in order, tick as done)
 - [x] 1. The work log (released in c2f1528, 2026-11-12; follow-up fixes from its first live day in the next release).
-- [ ] 1b. No-leaks Task 3, right after the three upgrades: the paged pool stayed +507 MB after the two chains of
+- [ ] 1b. (2026-11-13: measured with tools/starter/pooltags.ps1. The Key growth was three orphaned whole-disk searches,
+  stopped and now refused by the no-disk-scan guard. What stays per old-suite shard is NTFS blocks of deleted test
+  files (Ntff, NtfF, about 250 MB at +10 min). Next: fewer files per test copy (no-leaks plan, Task 5), then the soak.)
+  No-leaks Task 3, right after the three upgrades: the paged pool stayed +507 MB after the two chains of
   4680b8a (2573 -> 3080 MB); top tag Key (registry key blocks, 317 MB, 1.22M live), then MmSt, FMfn, Ntff, Toke. Find
   what opens a registry path per test copy or process by a tag diff around one shard; save a tag baseline
   (pooltags.ps1, into tools/starter/) right before the next chain. Fixed only after the multi-chain soak.
@@ -19,7 +22,9 @@ docs/STATUS.md, which here is the template new projects start from).
   in a markdown link or image target (a file name nobody reads); the injection check read ordinary advice ("ignore
   her", about a game character) as instructions to an AI; downloaded pages under a git-ignored sources folder were
   scanned as project code for security and typed-out names (data, not code).
-- [ ] 1d. Upgrades (oversight, 2026-11-12), with no-leaks Task 3: a project's post-upgrade check runs the v2 selftest
+- [x] 1d. (released in a611c2e, a076036 and 77cb3dd, 2026-11-13: the dirty-tree stop with --allow-dirty, the light
+  post-upgrade check, the runbook naming the v2 self-test, which now runs in a project and is proven there by the trial)
+  Upgrades (oversight, 2026-11-12), with no-leaks Task 3: a project's post-upgrade check runs the v2 selftest
   and the parity tags only, never the full old suite or its shards (the release chain proved that commit; a project's
   upgrade ran the full suite and the churn reached the machine); the engine runbook's "self-test ran" item accepts it.
   `starter.mjs upgrade` on a dirty tree stops before changing anything and names what is uncommitted; with
