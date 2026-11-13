@@ -46,6 +46,9 @@ const timeVerdict = (within, what, numbers) => {
   return others > 0;
 };
 
+// (the repo's git status as the run starts: the run must leave it the same, or the release's speed record names no commit)
+const repoStatus = () => spawnSync('git', ['status', '--porcelain', '-uall'], { cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), encoding: 'utf8' }).stdout ?? null;
+const REPO_STATUS0 = repoStatus();
 const dir = testDir('anzuelo-v2-');
 process.env.ANZUELO_ROOT = dir;
 // (no turn-start snapshots in the background while tests run: the one test of them turns them on for its own run)
@@ -3089,6 +3092,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     report(!delNew && /protect-originals/.test(delOld), 'pretool: under v2 a delete of a file this turn created in an originals folder goes through; one there before is refused', JSON.stringify({ delNew: delNew.slice(0, 120), delOld: delOld.slice(0, 120) })); }
   const got = refuse.map(([tag, d, cfg]) => [tag, guard({ session_id: '', ...d }, cfg) || '']);
   const same = refuse.every(([, d, cfg]) => guard({ session_id: '', ...d }, cfg) === guard({ session_id: '', ...d }, { ...cfg, engine: 'v1' }));
+  // (removed now, not only at exit: the release's speed record is written before exit, and names the commit only on a clean tree)
+  fs.rmSync(path.join(ROOT, protName), { force: true });
   report(got.every(([tag, r]) => new RegExp(`REQ: (${tag})\\b`).test(r)) && same && IN_WORK_GUARDS.test('REQ: no-secrets'),
     'guard: under v2 each safety guard refuses (secrets, AI credit, risky git, push, browser, generated copies, protected files), the same as v1', got.filter(([tag, r]) => !new RegExp(`REQ: (${tag})\\b`).test(r)));
   const busy = [
@@ -4314,6 +4319,8 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
 }
 
 fs.rmSync(dir, { recursive: true, force: true });
+// (Lesson, release 56a4f0d: a test's sample file in the repo, removed only at exit, made the speed record name no commit)
+if (REPO_STATUS0 != null) { const now = repoStatus(); report(now === REPO_STATUS0, 'hygiene: the self-test leaves the repo\'s git status as it found it (no file of its own left in the project before the speed record is written)', (now || '').split('\n').filter(l => l && !(REPO_STATUS0 || '').includes(l)).slice(0, 5)); }
 // (the release verdict on the time limits, for the proof: judged only with a quiet window, nothing noted, and every test
 // passing, on the exact commit tested)
 {
