@@ -98,6 +98,17 @@ settings merge)
 - [ ] Run `node tools/audit.mjs`, then the trial. Expected: audit PASS and all three proofs passing on the large-app
       sample.
 
+## Task 5b: during everyday coding, app work always lands in the app
+**Files:** tools/hooks/v2/guard.mjs, the session-start text
+**Uses / provides:** uses Task 2.
+- [ ] The guard refuses a write by the coding agent into the engine's folder unless the path is one the engine
+      defines for the agent (its records, notes, plans, state). App code, assets, app docs and configs written there
+      are refused with one plain line: app changes go in the app's own folders so the people who use the app get them.
+- [ ] The session-start text for an installed project says it in one line: the engine's folder is only for the coding
+      agent's own rules and notes, and everything the app or its users need goes in the app.
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: writing a source file, an asset or an app doc under the engine's
+      folder is refused; writing an engine record there passes; ALL PASS.
+
 ## Task 6: the audit keeps it true
 **Files:** tools/audit.mjs
 **Uses / provides:** uses Tasks 2 and 4.
