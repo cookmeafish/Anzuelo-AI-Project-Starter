@@ -3901,7 +3901,9 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   // from hooks-main.mjs (148 lines there, 145 after its lessons were cut), and section and VERBATIM_ENGINE in
   // settings.mjs (one copy, where v2 and the old engine each had theirs); 4,408 to 4,559. setup.mjs, which routes, is
   // loaded only by the setup gate and the tools, so it is not counted here)
-  const cap = { guard: 800, reminder: 400, end: 3200, base: 4560 }, ALL = 6000;
+  // (base: 4,580 from 2026-11-13, oversight's decision: boundary safety for established apps, the gate for installing
+  // into one. The push check and the commit gate learned the engine's own paths; their lesson comments stay whole)
+  const cap = { guard: 800, reminder: 400, end: 3200, base: 4580 }, ALL = 6000;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
   const lines = got.guard + got.reminder + got.end;
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
