@@ -307,7 +307,7 @@ export function onStop(data, opts = {}) {
   if (TIMES) process.stderr.write(`V2-STOP-TIMING ${JSON.stringify({ total: Math.round(performance.now() - t0), parts: TIMES.filter(([, ms]) => ms >= 0.5) })}\n`);
   // (each decision goes in the Stop log, "hooks.mjs last": its round, result and the steps it asked for)
   if (!opts.shadow) logStop(data.session_id, { request: decided.request || '', round: decided.round ?? null, result: out ? 'blocked' : waiting ? 'waiting' : decided.capped ? 'ended-unresolved' : decided.round ? 'passed' : 'ended', steps: out ? decided.steps || [] : [] });
-  if (!out && !waiting && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
+  if (!out && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ...(waiting ? { waited: Date.now() } : { ended: true }) }); } // (a wait: the next typed prompt is a new turn)
   // (REQ: recall-hint: a passing work turn leaves its line in the history, as the old engine's did, so a later request
   // like it starts from how it was done and tools/recall.mjs finds it. Lesson (the old suite under v2): v2 wrote none)
   if (!out && passed && !opts.shadow && worked(passed.acts) && !process.env.STARTER_BENCH) try {

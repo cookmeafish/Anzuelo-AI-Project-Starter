@@ -4072,6 +4072,17 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const W2 = await import('./worklog.mjs');
   W2.update('wlogq', { texts: [{ t: 'Rule: words like "I\'ll do it later" can no longer close a request. I\'ll check the export and the import the same way in the next round. If the pool stays high, I\'ll keep the release on hold for now.', at: ts(5) }] });
   const condWaits = W2.loadLog('wlogq').some(i => /keep the release on hold/.test(i.text) && i.status === 'wait');
+  // (a promise cut at a colon, its object on the next line, has none: dropped. Oversight, 2026-11-12)
+  W2.update('wlogc', { texts: [{ t: 'Next I\'ll report the false alarm:\n- the sweep read a link target', at: ts(6) }] });
+  const colonKept = W2.loadLog('wlogc').some(i => /false alarm/.test(i.text));
+  // (after a Stop that went idle waiting on helpers, a typed prompt starts a new turn, without the old runbook or upset
+  // flag; a helper's notice keeps the turn. A project, 2026-11-12: one turn swallowed six hours of requests)
+  const L2 = await import('./lib.mjs'), { onPrompt: op2 } = await import('./start.mjs'), old = new Date(Date.now() - 3 * 3600_000).toISOString();
+  L2.saveTurn('wlogt', { at: old, runbook: 'docs/playbooks/zz-old.md', upset: true, waited: Date.now() - 3600_000 });
+  op2({ session_id: 'wlogt', prompt: '<task-notification><task-id>b1</task-id><status>completed</status></task-notification>' }); const kept = L2.loadTurn('wlogt');
+  op2({ session_id: 'wlogt', prompt: 'make the account selectable in the settings' }); const fresh = L2.loadTurn('wlogt');
+  report(!colonKept && kept.at === old && fresh.at !== old && fresh.runbook !== 'docs/playbooks/zz-old.md' && !fresh.upset,
+    'turns: a typed prompt after an idle wait is a new turn (no old runbook or upset); a helper notice keeps it; a promise cut at a colon is dropped', JSON.stringify({ colonKept, kept: kept.at, old, fresh }));
   const qItems = W2.loadLog('wlogq').map(i => i.text), doneMsg = W2.logCommand('wlogq', 'done', 'check the export and the import the same way in the next round');
   const P = 'Manager round: keep the coding session working.', stp = transcript([stampAt(0, user('watch the coding session')), stampAt(5, call('ScheduleWakeup', { delaySeconds: 1200, prompt: P, reason: 'round' }, 'scheduled'))]);
   const { onPrompt: op } = await import('./start.mjs'); op({ session_id: 'wlogs', prompt: P, transcript_path: stp }); op({ session_id: 'wlogs', prompt: 'and fix the csv export too', transcript_path: stp });
@@ -4079,7 +4090,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(condWaits, 'worklog: a promise under a condition ("If ..., I\'ll ...") waits on it and is never held', W2.loadLog('wlogq'));
   report(!qItems.some(t => /do it later/.test(t)) && qItems.some(t => /same way in the next round/.test(t)) && /^log: done/.test(doneMsg) && !sItems.some(t => /Manager round/.test(t)) && sItems.some(t => /csv export/.test(t)),
     'worklog: a quoted example is no promise; "log done" finds a promise by its own text; a prompt a schedule fires is no new ask', { qItems, doneMsg, sItems });
-  for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw', 'wlogq', 'wlogs']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+  for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw', 'wlogq', 'wlogs', 'wlogc', 'wlogt']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
   report(!/Still open/.test(watched), 'worklog: a promise the turn armed a watcher or wakeup for is waiting, not held', watched.slice(0, 300));
   report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)

@@ -297,7 +297,9 @@ export function onPrompt(data) {
   // its runbook. A turn ends when its Stop passes; one left open over 12 hours, as after a crash, does not hold.
   // Lesson (live): a mid-turn message moved the turn's start, and the end check lost the work done before it)
   const prev = loadTurn(data.session_id);
-  const open = !!(prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000);
+  // (after a Stop that went idle waiting on helpers, a typed prompt is a new turn; the helpers' notices are not. Lesson
+  // (a project, 2026-11-12): one turn swallowed six hours of requests, its old runbook and upset flag with them)
+  const open = !!(prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000 && !(prev.waited && !/^\s*<(task-notification|system-reminder)\b/.test(String(data.prompt || ''))));
   const { book, text } = reminder(data.prompt || '', { midTurn: open });
   // (an upset message from the user, not a relay, marks the turn: its end check asks for a fresh reviewer)
   const sore = upsetIn(data.prompt || '') && !relayedRx.test(String(data.prompt || '')) ? { upset: true } : {};
@@ -307,7 +309,7 @@ export function onPrompt(data) {
   // (the session's transcript is kept with the turn, so the self-check run from the agent's shell can read it: REQ
   // check-preview, hooks.mjs v2Cli)
   const tx = data.transcript_path ? { transcript: String(data.transcript_path) } : {};
-  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore, ...tx });
+  if (open) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore, ...tx });
   // (a new turn notes its uncommitted files' contents in the background, so the end check can tell a file it only
   // touched from one it changed)
   // (and the plans open when it began: REQ plan-open, planreq.mjs; and the notes file's size then, so only what the turn

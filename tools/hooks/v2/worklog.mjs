@@ -34,7 +34,7 @@ export function update(sid, { msgs = [], texts = [] } = {}) {
   for (const m of msgs) for (const a of asksIn(m.text)) add(a, 'user', m.at || new Date().toISOString());
   // (not in quotes or code; one under a condition ("If it fails, I'll ...") waits on it, never held. Oversight, 2026-11-12)
   for (const x of texts) { const s = String(x.t).replace(/```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|“[^”\n]*”/g, ' ');
-    for (const p of s.matchAll(PROMISE)) add(`${p[1].trim()} (your promise)`, 'promise', x.at, /\b(if|when|once|unless|after|should)\b[^.!?\n]*$/i.test(s.slice(0, p.index).split(/[.!?\n]/).pop() || '') ? 'wait' : 'open'); }
+    for (const p of s.matchAll(PROMISE)) if (!/:\s*$/.test(p[1])) add(`${p[1].trim()} (your promise)`, 'promise', x.at, /\b(if|when|once|unless|after|should)\b[^.!?\n]*$/i.test(s.slice(0, p.index).split(/[.!?\n]/).pop() || '') ? 'wait' : 'open'); }
   for (const it of items) if (it.status === 'open' && texts.some(x => x.at > it.at && named(it.text.replace(/ \(your promise\)$/, ''), x.t))) it.status = 'done';
   saveLog(sid, items);
   return items.filter(i => i.status === 'open');
