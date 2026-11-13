@@ -876,7 +876,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     try { fs.rmSync(path.join(dir, 'tools/hooks/state/v2-turn.notesatprobe.json'), { force: true }); } catch { }
     if (keep) fs.writeFileSync(nf, keep); else fs.rmSync(nf, { force: true });
     report(/Skill lesson/.test(mine) && !/old complaint/.test(mine) && /old complaint/.test(whole) && /Done 1-3/.test(above) && stale === '' && saved === size, 'end: the turn\'s notes are only what it added to the notes file (its size and hash recorded when the turn begins); a file that shrank or was rewritten is read whole, an untouched one not at all', JSON.stringify({ mine, whole: whole.length, above: above.length, stale, saved, size })); }
-  // (a peer session's Issue line, written while this turn ran, is not this turn's even when the peer's turn has ended by
+  // (the walk for changed files skips nested checkouts (a worktree or clone inside the project, with its own .git) and
+// device names like nul, without failing; the project's own files are still found. Review of a large app, 2026-11-13)
+{ const { filesMatching } = await import('./lib.mjs'), wt = path.join(dir, 'wtnest'); fs.mkdirSync(path.join(wt, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: ../.git/worktrees/wtnest\n'); fs.writeFileSync(path.join(wt, 'src/inner.js'), 'x'); fs.mkdirSync(path.join(dir, 'appsrc'), { recursive: true }); fs.writeFileSync(path.join(dir, 'appsrc/own.js'), 'x');
+  let dev = false; if (process.platform === 'win32') try { fs.writeFileSync(`\\\\?\\${path.join(dir, 'nul')}`, 'x'); dev = true; } catch { }
+  let got = [], err = ''; try { got = filesMatching('**/*'); } catch (e) { err = String(e.message || e); }
+  try { if (dev) fs.rmSync(`\\\\?\\${path.join(dir, 'nul')}`, { force: true }); } catch { } fs.rmSync(wt, { recursive: true, force: true }); fs.rmSync(path.join(dir, 'appsrc'), { recursive: true, force: true });
+  report(!err && got.includes('appsrc/own.js') && !got.some(f => f.startsWith('wtnest/')) && !got.includes('nul'), 'end: the walk for changed files skips a nested checkout and a device name like nul without failing, and still finds the project\'s own files', JSON.stringify({ err, nested: got.filter(f => f.startsWith('wtnest/')), dev, nul: got.includes('nul') })); }
+// (a peer session's Issue line, written while this turn ran, is not this turn's even when the peer's turn has ended by
   // the time this one is judged. Lesson (oversight, 2026-11-13): a peer's repeat-problem line held another session's turn)
   { const { notesOf, notesMark } = await import('./lib.mjs'), nf = path.join(dir, '.cache/turn-notes.md'), keep = fs.existsSync(nf) ? fs.readFileSync(nf) : null, st = path.join(dir, 'tools/hooks/state');
     fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, ''); fs.mkdirSync(st, { recursive: true });

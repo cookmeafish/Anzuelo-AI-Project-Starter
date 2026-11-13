@@ -539,14 +539,14 @@ export function noteGaps(acts) {
 
 // The files a path or glob names, walked from its fixed part, at most 20,000, skipping bulk folders and build output
 // (lessons: 40,000 cache files hid real changes; a site build's rewrite was asked to be screenshotted).
-const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target', '_site', '.nuxt', '.output', '.svelte-kit', 'coverage', 'storybook-static']);
+const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target', '_site', '.nuxt', '.output', '.svelte-kit', 'coverage', 'storybook-static']), RESERVED_NAME = /^(con|prn|aux|nul|com\d|lpt\d)(\.[^.]*)?$/i;
 export function filesMatching(glob) {
   const g = glob.replace(/\\/g, '/'), rx = globRx(g), base = g.split('/').filter((s, i, a) => !/[*?]/.test(a.slice(0, i + 1).join('/'))).join('/');
   if (!/[*?]/.test(g)) return fs.existsSync(at(g)) ? [g] : [];
   // (in a project with the engine in .anzuelo/, the project walk skips it and the local folder is walked under the same
   // names; the engine's own files are no project work)
   const out = new Set(), walk = (root, d) => { if (out.size > 20000) return; let es = []; try { es = fs.readdirSync(path.join(root, d), { withFileTypes: true }); } catch { return; }
-    for (const e of es) { if (e.isDirectory() && (BULK.has(e.name) || (LAYOUT.split && root === ROOT && !d && e.name === '.anzuelo'))) continue; const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) walk(root, p); else if (rx.test(p)) out.add(p); } };
+    for (const e of es) { if (RESERVED_NAME.test(e.name) || (e.isDirectory() && (BULK.has(e.name) || (LAYOUT.split && root === ROOT && !d && e.name === '.anzuelo') || fs.existsSync(path.join(root, d, e.name, '.git'))))) continue; const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) walk(root, p); else if (rx.test(p)) out.add(p); } }; // (nested checkouts (a .git inside: worktrees, clones) and device names like nul are no project files. Review of a large app, 2026-11-13)
   for (const root of new Set([ROOT, LAYOUT.LOCAL])) walk(root, base);
   return [...out];
 }

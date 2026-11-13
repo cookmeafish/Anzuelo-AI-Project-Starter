@@ -51,6 +51,9 @@ export const DEFAULTS = JSON.parse(fs.readFileSync(new URL('./defaults.json', im
 // List settings in config.json EXTEND the defaults (a pack adding root files must not drop AGENTS.md from the list).
 export const EXTENDS = ['knowledgeDirs', 'gitignoreMustIgnore', 'gitignoreMustKeep', 'rootAllowed', 'namesIgnore', 'injectionIgnore', 'fluff', 'secretPatterns', 'userFacing', 'userFacingIgnore', 'verbatimAllowed', 'ignoreForChanges', 'guiFiles', 'guiIgnore', 'evidenceLabels', 'questionNoFileExempt', 'notWork'];
 let foundMirrors = null, ignoredDirs = null;
+const gitIgnoredDirs = () => { if (!fs.existsSync(path.join(ROOT, '.git'))) return null; const cf = abs('tools/hooks/state/ignored-dirs.json'), key = ['.gitignore', '.git/info/exclude'].map(f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs; } catch { return 0; } }).join('|');
+  try { const c = JSON.parse(fs.readFileSync(cf, 'utf8')); if (c.key === key) return c.dirs; } catch { } const r = spawnSync('git', ['ls-files', '-oi', '--exclude-standard', '--directory'], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); if (r.status !== 0) return null;
+  const dirs = r.stdout.split(/\r?\n/).filter(l => l.endsWith('/')).slice(0, 500).map(l => `${l}**`); try { fs.mkdirSync(path.dirname(cf), { recursive: true }); fs.writeFileSync(cf, JSON.stringify({ key, dirs })); } catch { } return dirs; };
 export function config() {
   const c = readJSON(CONFIG(), {});
   const out = { ...DEFAULTS, ...c };
@@ -65,7 +68,10 @@ export function config() {
   for (const m of foundMirrors) if (!out.skillMirrors.includes(m)) out.skillMirrors = [...out.skillMirrors, m];
   // Plain folders the root .gitignore names ("dist/", "/target/") hold build output and caches: never walked for changes.
   // Lesson: a monorepo's dist/ and nested caches were walked on every prompt and stop, which tripled the hook time.
-  ignoredDirs ??= read(abs('.gitignore')).split(/\r?\n/).map(l => l.trim()).filter(l => /^\/?[\w.-]+\/$/.test(l) && !l.startsWith('.') && !l.startsWith('/.'))
+  // (git's own list where there is a repository: dot-folders, patterns and the local exclude file count too, cached in
+  // the engine's state until an ignore file changes. Lesson (a review of a large app, 2026-11-13): the hand parse
+  // dropped every dot-folder and pattern, so a large app's build and data folders were walked on every prompt)
+  ignoredDirs ??= gitIgnoredDirs() ?? read(abs('.gitignore')).split(/\r?\n/).map(l => l.trim()).filter(l => /^\/?[\w.-]+\/$/.test(l) && !l.startsWith('.') && !l.startsWith('/.'))
     .map(l => l.startsWith('/') ? `${l.slice(1)}**` : `**/${l}**`);
   out.ignoreForChanges = [...new Set([...out.ignoreForChanges, ...ignoredDirs])];
   return out;
