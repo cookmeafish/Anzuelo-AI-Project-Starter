@@ -83,6 +83,14 @@ settings merge)
 - [ ] At adoption, the project's session lists its AI-related files as app runtime (prompts, model config, key
       handling, agent code the app ships) or coding-agent tooling. App-runtime paths are recorded, and the engine never
       reads them as rules, never mirrors over them, never guards them as its own.
+- [ ] Anything that drives the app's own AI at runtime is app code, wherever it sits: project-made runbooks and skills
+      the app's AI follows, project hooks or checks that enforce app rules, prompts, app checklists and templates. It
+      stays tracked in the app's folders and ships; the engine never moves it or treats it as its own. Only the
+      starter-shipped engine (its runbooks, skills, hooks, tools and records) is coding-agent material. The test for
+      each file: who made it, and who reads it at runtime (project-made or app-read means the app's).
+- [ ] An app wanting engine-style checks inside its runtime AI builds them as an app feature, never as a runtime
+      dependency on `.anzuelo/`. Test: in the trial, an app whose runtime AI reads a project-made runbook still works
+      after `.anzuelo/` is deleted.
 - [ ] Engine skill names can't collide with project skills: a clash gets a prefixed engine name.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: a sample app with a runtime prompts folder and a project skill
       keeps both untouched through install and upgrade; ALL PASS.
