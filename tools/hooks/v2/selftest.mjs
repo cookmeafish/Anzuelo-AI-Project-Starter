@@ -1926,6 +1926,18 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
       'end: a problem back within 14 days (key words shared with a recorded Issue line) needs a plan and a sweep, or "Not a repeat"; one older than 14 days or a different problem does not; each Issue line is recorded', JSON.stringify({ repeat, planned, denied, stale, other, recorded }));
     fs.rmSync(rec, { force: true }); fs.rmSync(notes, { force: true });
   }
+  { // (learn-from-upset counts as going through debug, with its debug items: the cause named, and fail-then-pass, which
+    // stays required either way. Oversight, 2026-11-13)
+    const { doneWhen, applies, met } = await import('./lib.mjs');
+    const lfu = fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..', 'skills/learn-from-upset/SKILL.md'), 'utf8');
+    const causeItem = doneWhen(lfu).find(i => /names its cause/.test(i.text)), lfuRead = call('Read', { file_path: path.join(dir, 'skills/learn-from-upset/SKILL.md') }, 'skill');
+    const said = 'Fixed. The root cause was the label dropped on save; the test now fails on the old code and passes.';
+    const withProof = acts([user('the export is broken AGAIN'), lfuRead, failRun, fix, passRun, say(said)]); withProof.complaint = true;
+    const noProof = acts([user('the export is broken AGAIN'), lfuRead, fix, passRun, say(said)]); noProof.complaint = true;
+    const a = fixGaps(withProof), b = fixGaps(noProof);
+    report(a.length === 0 && b.length === 1 && /Show the fix on the failure itself/.test(b[0]) && !!causeItem && applies(causeItem, withProof) && met(causeItem, withProof) === true,
+      'end: an upset fix turn through learn-from-upset, naming its cause and running fail-then-pass, passes; without the fail-then-pass run it is held (learn-from-upset counts as debug)', JSON.stringify({ a, b, causeItem }));
+  }
   report(plainReport.length === 2 && feature.length === 0, 'end: a turn routed to a fix runbook with a code edit and no test run is asked for the debug skill and the before-and-after proof; a feature request with code edits is not', JSON.stringify({ plainReport, feature }));
   report(proven.length === 0 && noDebug.length === 1 && /debug skill/.test(noDebug[0]) && afterOnly.length === 1 && /fail, then the same command/.test(afterOnly[0]) && otherCmd.length === 1 && notVerified.length === 0 && notFix.length === 0,
     'end: a fix turn is proven by the same command failing before the code change and passing after, through the debug skill; pass-only or another command is held, NOT VERIFIED and a non-fix turn are not', JSON.stringify({ proven, noDebug, afterOnly, otherCmd, notVerified, notFix }));

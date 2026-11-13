@@ -43,6 +43,9 @@ below first: it shows the user "acknowledged", and the end-of-turn check looks f
    result (every item of that kind, every slot it fills, every page it is on) and fix them all in this turn, before the
    answer says it is fixed or can't happen again. A check written for the lesson runs over the whole result, and passes
    on it, before you say so.
+   **A real fault in code is debugged, not patched:** follow `skills/debug/SKILL.md`'s four phases for it (this skill
+   counts as going through debug once its two debug items below hold). Name the cause with its evidence, and run the same
+   check or reproduction before the change (it fails) and after it (it passes); the end check holds a fix without that.
    **The simplest fix that removes the cause:** change one thing in the right place rather than add layers; extend an
    existing step, tool or check rather than add a new one. If the fix needs much more than that, say why in one line.
 1a. **List everything wrong before fixing anything.** Write the user's complaint, every part of it and every message
@@ -93,6 +96,8 @@ below first: it shows the user "acknowledged", and the end-of-turn check looks f
 - [ ] The answer opens with whether the complaint holds, in full, in part or not, with the evidence (judgment: the
       user can tell at once what was actually wrong).
 - [ ] The miss is fixed and verified (judgment: the user can see the corrected result).
+- [ ] A code fix names its cause with the evidence that shows it (answer: \b(root cause|the cause (is|was)|cause:|caused by)\b) (when tool: ^(Edit|Write|MultiEdit)\b.*\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|sh|ps1)\b).
+- [ ] A code fix ran the same check or reproduction failing before the change and passing after, or says "NOT VERIFIED: <what> - <why>" (hook: fix-proven).
 - [ ] Every other case of the same miss in the same result was looked for and fixed, not only the one the user named
       (judgment: what counts as "the same kind" needs a reader).
 - [ ] Each part of the complaint was checked on its own, and the answer says which parts held (judgment: whether a
