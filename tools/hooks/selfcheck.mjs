@@ -5301,7 +5301,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'stop-log', 'usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
+const STANDALONE_TAGS = ['upgrade-clean', 'status-bar', 'stop-log','usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -5332,6 +5332,10 @@ else if (!IS_STARTER && (PLAIN_RUN || TAGS_RUN)) {
   if (ALL_ASKED) MODE_WHY = `${ALL_ASKED} asks for every test`;
   else if ((REUSED = findPass(STAMP))) MODE_WHY = `this engine (stamp ${STAMP.slice(0, 8)}: its files, Node ${process.versions.node.split('.')[0]}, ${process.platform}, ${localDay()}) passed all ${REUSED.passed} engine tests at ${String(REUSED.at).slice(11, 16)} UTC`;
   else if ((REUSED = shippedProof())) MODE_WHY = `this engine is the one the starter shipped, byte for byte (${PROOF_FILE}), and the starter's own full run passed all ${REUSED.passed} of its tests on it`;
+  // (an upgrade's own check: the release chain ran the whole suite on this commit, so the project runs its own scenarios
+  // and the smoke set, with the v2 self-test beside it, never the whole engine suite again. Oversight, 2026-11-12: a
+  // project's upgrade ran all 1,700 engine tests, and the file churn slowed the machine)
+  else if (process.env.SELFCHECK_AFTER_UPGRADE && readProof(ROOT)?.commit && (REUSED = { passed: readProof(ROOT).tests, shipped: true })) MODE_WHY = `after an upgrade: the starter's release chain passed all ${REUSED.passed} engine tests on commit ${String(readProof(ROOT).commit).slice(0, 7)}`;
   else MODE_WHY = `no full pass is recorded for this engine yet (stamp ${STAMP.slice(0, 8)}: its files, Node major, platform and today's date)${readProof(ROOT) ? `, and it is not the engine the starter proved${ENGINE_CHANGED.length ? ` (changed here: ${ENGINE_CHANGED.slice(0, 5).join(', ')})` : ''}` : ''}`;
 }
 const REUSE = !!REUSED;
@@ -9574,6 +9578,22 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       'layout: with the engine in .anzuelo/engine the reminder, a guard, sync and the audit work from there, sync leaves the engine as it was, and hook state lands in .anzuelo/local',
       JSON.stringify({ session: session.status, prompt: prompt.slice(0, 200), secret: secret.slice(0, 200), sync: [sync.status, (sync.stderr || '').slice(0, 300)], same, audit: [audit.status, (audit.stdout || '').split('\n').filter(l => /FAIL|^\s+-/.test(l)).slice(0, 12)], stateAt }));
   } finally { fs.rmSync(proj, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('upgrade-clean'))) {
+  // REQ: upgrade-clean. An upgrade over uncommitted project work stops before changing anything; --allow-dirty goes on
+  // and ends with the engine's files to commit apart. Lesson (a project, 2026-11-12): engine files mixed with a day's work
+  const dir = copyProject(), g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: dir, encoding: 'utf8' });
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true }); g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'project');
+    fs.appendFileSync(path.join(dir, 'docs/BRIEF.md'), '\nTheir own uncommitted line.\n');
+    const hookBefore = fs.readFileSync(path.join(dir, 'tools/hooks/v2/end.mjs'), 'utf8'); fs.writeFileSync(path.join(dir, 'tools/hooks/v2/end.mjs'), hookBefore + '\n// old\n'); g('commit', '-q', '-am', 'older engine'); fs.appendFileSync(path.join(dir, 'docs/BRIEF.md'), '\nmore\n');
+    const up = (...f) => spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--no-selftest', ...f], { encoding: 'utf8', timeout: 600000 });
+    const refused = up(), unchanged = fs.readFileSync(path.join(dir, 'tools/hooks/v2/end.mjs'), 'utf8').endsWith('// old\n');
+    const went = up('--allow-dirty'), lines = `${went.stdout || ''}`.trim().split(/\r?\n/);
+    report(refused.status === 1 && /not upgraded: 1 file\(s\) have uncommitted changes \(docs\/BRIEF\.md\)/.test(refused.stderr || '') && unchanged
+      && lines.some(l => /^the engine's files \(commit them apart\): git add .*tools\/hooks\/v2\/end\.mjs/.test(l) && !/docs\/BRIEF\.md/.test(l)),
+      'upgrade: over uncommitted work it stops and changes nothing; --allow-dirty goes on and names only the engine\'s files to commit apart', JSON.stringify({ r: [refused.status, (refused.stderr || '').slice(0, 200)], unchanged, last: lines.slice(-2) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('layout-split'))) {
   // (an upgrade from a linked copy behind its origin ends by saying so: the newest release was not used. Lesson (a

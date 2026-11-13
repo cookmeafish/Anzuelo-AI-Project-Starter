@@ -64,7 +64,7 @@ const FEEDBACK = 'docs/starter-feedback.md';
 const FEEDBACK_HEAD = '# Feedback for the starter\nLessons about the engine itself (hooks, checks, tools), one dated line each. Upgrades keep this file;\n`node tools/starter.mjs report` copies new lines to the linked starter.\n\n';
 const feedbackLines = () => { try { return fs.readFileSync(at(FEEDBACK), 'utf8').split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: \S/.test(l)).map(l => l.trim()); } catch { return []; } };
 // The upgrade's own options, passed through by upgrade and update alike. Lesson: update dropped --verbose.
-const upgradeFlags = () => process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings', '--verbose'].includes(a));
+const upgradeFlags = () => process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings', '--verbose', '--allow-dirty'].includes(a));
 // A line already sent is recognized after small edits: the same date, and most of its words the same (a reworded
 // path, a typo fixed, a sentence added). Lesson: report sent two edited lines again, as if they were new.
 const lineWords = l => new Set((String(l).toLowerCase().replace(/^- \d{4}-\d\d-\d\d:\s*/, '').match(/[a-z0-9]{3,}/g) || []));

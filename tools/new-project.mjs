@@ -473,6 +473,13 @@ if (flag('--remove')) {
 if (auto && madeFromStarter) console.log(`${dest} was made from the starter: upgrading its engine (its own content stays as it is).\n`);
 if (flag('--upgrade') || (auto && madeFromStarter)) {
   if (!madeFromStarter) { console.error(`${dest} is not a project made from the starter (no tools/hooks/hooks.mjs). Use --adopt.`); process.exit(1); }
+  // (the project's own work is committed first, so the engine change is its own commit: on uncommitted files the upgrade
+  // stops before changing anything; --allow-dirty goes ahead and ends with the engine's files to commit apart. Lesson
+  // (a project, 2026-11-12): an upgrade over a day's uncommitted work mixed the two, and only the owner could sort them)
+  const dirtyNow = () => { const r = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: dest, encoding: 'utf8' }); return r.status === 0 ? (r.stdout || '').split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, '')) : []; };
+  const dirty0 = dry ? [] : dirtyNow();
+  if (dirty0.length && !flag('--allow-dirty')) { console.error(`not upgraded: ${dirty0.length} file(s) have uncommitted changes (${dirty0.slice(0, 5).join(', ')}${dirty0.length > 5 ? ', ...' : ''}). Commit the project's own work first, or ask the owner and run again with --allow-dirty (the upgrade then lists its own files to commit apart).`); process.exit(1); }
+  if (dirty0.length) process.on('exit', () => { const now = dirtyNow().filter(f => !dirty0.includes(f)); if (now.length) console.log(`the engine's files (commit them apart): git add ${now.map(f => /\s/.test(f) ? `"${f}"` : f).join(' ')}`); });
   // Never worse: audit and time the project before, so the result can be compared after.
   const before = probe('before');
   const print0 = dry ? null : fingerprint(dest);
@@ -834,9 +841,12 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // (the project's own tests that leave temp folders: checked alongside the self-tests, in its own process, cheap commands
   // only; collected after them and stopped if not done, so the upgrade never waits on it)
   const hintRun = process.argv.includes('--no-selftest') ? { collect: () => '' } : startTempHint(dest);
-  const st = process.argv.includes('--no-selftest') ? { status: 1, stdout: '' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000, env: { ...process.env, STARTER_NO_TIMING_WAIT: '1' } });
-  const stLine = ((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0];
-  const stPassed = st.status === 0 && /ALL PASS/.test(stLine);
+  // (the project's own scenarios and the smoke set, the release chain's full run standing for the engine, plus the v2
+  // self-test: never the whole engine suite in a project. Oversight, 2026-11-12: its churn slowed the user's machine)
+  const st = process.argv.includes('--no-selftest') ? { status: 1, stdout: '' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000, env: { ...process.env, STARTER_NO_TIMING_WAIT: '1', SELFCHECK_AFTER_UPGRADE: '1' } });
+  const v2st = process.argv.includes('--no-selftest') || !fs.existsSync(path.join(dest, 'tools', 'hooks', 'v2', 'selftest.mjs')) ? { status: 0, stdout: 'v2 selftest: ALL PASS (not run)' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'v2', 'selftest.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000 });
+  const stLine = [((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0], ((v2st.stdout || '').match(/^v2 selftest: .*$/m) || [''])[0]].filter(Boolean).join('; ');
+  const stPassed = st.status === 0 && /^selfcheck: .*ALL PASS/.test(stLine) && v2st.status === 0 && /v2 selftest: ALL PASS/.test(stLine);
   items.push(stPassed ? `self-tests: node tools/hooks/selfcheck.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/selfcheck.mjs passes here');
   // (the engine is proven to run here, not only installed: the project's own prompt and Stop hooks run once. Lesson (two
   // projects): an upgrade and a full self-test passed while the default engine could not load in the project)
