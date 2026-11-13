@@ -1862,6 +1862,21 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   const own = healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node tools/audit.mjs' }, 'FAIL   9. runbooks are well-formed, routed and checked\n        - docs/playbooks/export.md: no check\naudit: FAIL (30 sweeps, 1 failed)'), say('Added.')]));
   report(own.length === 1 && /runbooks are well-formed/.test(own[0]) && own[0].includes('docs/playbooks/export.md: no check') && ranCount() === before, 'end: a failing health check the agent ran after the change is named from its own output, with its detail lines (the file and what is wrong); it is not run again', JSON.stringify(own));
 }
+{ // REQ: audit-run. A failure the project's last run before the turn listed was already there, not this turn's; "after
+  // this change" is said only when a run before the turn lacked it. Lesson (2026-11-12): a fixture with a real turn was
+  // told its old failures came "after this change"
+  const rec = path.join(dir, 'tools/hooks/state/audit-fails.json'), past = new Date(Date.now() - 3600_000).toISOString();
+  const turnNow = rows => { const a = acts(rows); a.at = new Date().toISOString(); return a; };
+  fs.writeFileSync(rec, JSON.stringify({ at: past, fails: ['old sweep'] })); put('tools/fail.txt', 'old sweep');
+  const already = healthGaps(turnNow([user('add a step'), rule, say('Added.')]));
+  fs.rmSync(rec); put('tools/fail.txt', 'brand new sweep');
+  const noRecord = healthGaps(turnNow([user('add a step'), rule, say('Added.')]));
+  fs.writeFileSync(rec, JSON.stringify({ at: past, fails: [] })); put('tools/fail.txt', 'another new sweep');
+  const proven = healthGaps(turnNow([user('add a step'), rule, say('Added.')]));
+  report(already.length === 0 && noRecord.length === 1 && /fails: brand new sweep/.test(noRecord[0]) && proven.length === 1 && /fails after this change: another new sweep/.test(proven[0]) && JSON.parse(fs.readFileSync(rec, 'utf8')).fails.includes('another new sweep'),
+    'end: a health failure the last run before the turn had is already there (not held); with no earlier run it is named without "after this change"; one a passing run before lacked is "after this change"; each run is recorded', JSON.stringify({ already, noRecord, proven }));
+  fs.rmSync(rec, { force: true });
+}
 fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
 { // (the starter's dev check: a run of the self-test counts, a look at one scenario (--explain, --route) does not)

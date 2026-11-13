@@ -904,23 +904,23 @@ export function healthGaps(acts, { run = true } = {}) {
   if (!run && !ownFail) return ['(the health check would run here)'];
   // (a hard limit: a slow audit never holds the end of a turn. Its time is kept, to see what it costs)
   const t0 = Date.now(), r = ownFail ? { status: 1, stdout: auditOut(ownFail) } : spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
-  const ms = Date.now() - t0;
-  if (r.status === 0 || r.error) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
-  // (a failure reported on an earlier turn, or naming only files this turn did not change, is not this turn's. Lesson:
-  // a sweep waiting on the user failed every structural turn)
+  const ms = Date.now() - t0, rec = at('tools/hooks/state/audit-fails.json'), pre = (() => { try { return JSON.parse(fs.readFileSync(rec, 'utf8')); } catch { return null; } })(), keep = f => { try { fs.mkdirSync(path.dirname(rec), { recursive: true }); fs.writeFileSync(rec, JSON.stringify({ at: new Date().toISOString(), fails: f })); } catch { } };
+  if (r.status === 0 || r.error) { if (!r.error) keep([]); saveTurn('health', { ...loadTurn('health'), ms }); return []; }
+  // (a failure reported on an earlier turn, the project's last run before this turn listed (already there), or naming only
+  // files this turn did not change, is not this turn's; "after this change" only when a run before the turn lacked it)
   const blocks = String(r.stdout || '').split(/\n(?=PASS|WARN|FAIL)/).filter(b => /^FAIL/.test(b));
   const touched = new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...changedSince(acts, { test: () => true })]);
   const others = b => { const named = [...b.matchAll(/^\s+- ([\w./-]+\.\w+):/gm)].map(m => m[1]); return named.length > 0 && named.every(f => !touched.has(f)); };
   const title = b => b.split('\n')[0].replace(/^FAIL\s+/, '').replace(/\s*\(.*$/, '').trim();
   const mine = blocks.filter(b => !others(b)), fails = mine.map(title);
-  if (!fails.length) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
-  const known = new Set(loadTurn('health').fails || []), fresh = fails.filter(f => !known.has(f));
+  keep(blocks.map(title)); if (!fails.length) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
+  const was = pre && Date.parse(pre.at) < since ? new Set(pre.fails || []) : null, known = new Set([...(loadTurn('health').fails || []), ...(was || [])]), fresh = fails.filter(f => !known.has(f));
   saveTurn('health', { fails, ms });
-  if (fails.length && !fresh.length) return [];
+  if (!fresh.length) return [];
   // (each failure with its first lines of detail, the files and what is wrong: the agent fixes it without rerunning the
   // audit to find out. Lesson (the old suite under v2): the step named "relative links resolve" but not the broken link)
   const said = mine.filter(b => fresh.includes(title(b))).slice(0, 3).map(b => { const d = [...b.matchAll(/^\s+- (.+)$/gm)].map(m => m[1].trim()).slice(0, 2); return d.length ? `${title(b)} (${d.join('; ')})` : title(b); });
-  return [`The project's health check (node tools/audit.mjs) fails after this change: ${said.join('; ') || 'see its output'}. Fix it and run it again.`];
+  return [`The project's health check (node tools/audit.mjs) fails${was ? ' after this change' : ''}: ${said.join('; ') || 'see its output'}. Fix it and run it again.`];
 }
 
 // Check 5: new facts written into the knowledge base name where they came from. The outcome, not the process: each
