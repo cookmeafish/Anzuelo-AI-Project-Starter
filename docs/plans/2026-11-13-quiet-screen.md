@@ -1,16 +1,16 @@
 ---
 status: open
 ---
-# Plan: the user sees only what matters from <!--name:STARTER_NAME-->Anzuelo<!--/name-->
+# Plan: the user sees only what matters from the engine
 
-**Goal:** what <!--name:STARTER_NAME-->Anzuelo<!--/name--> shows the user is only real and useful: the upset acknowledgement every time, no old notes, at
+**Goal:** what the engine shows the user is only real and useful: the upset acknowledgement every time, no old notes, at
 most one hold per answer with only proven items, and no venting turned into tasks.
 
 **Approach:** fix each cause at its source in the v2 engine, prove each with a test built from the real hour of
 2026-11-13 (session 76462ec3, 10:49 to 11:10), then replay that hour and release.
 
 **Spec (user, 2026-11-13):** the user must be bothered as little as possible; the "acknowledged" line must show; what
-<!--name:STARTER_NAME-->Anzuelo<!--/name--> shows must be meaningful, not clutter.
+the engine shows must be meaningful, not clutter.
 
 **Confidence:** 7/10. Main risk: one hold round at most could hide a real miss, so the rounds that stay are the ones
 for safety and for real work not done.
@@ -69,6 +69,14 @@ What the user saw in that hour, and why:
 - [ ] A repeat-problem or open-plan item holds only the session that owns it. Sending the problem to the owning
       session counts as handled.
 - [ ] Status and changelog asks only when this turn changed a starter or project file of that kind.
+- [ ] Work that running background helpers own is waiting, not missing: no hold for their unfinished output (claims
+      they haven't returned, a file still being written); it is judged on the turn that merges their results. Test: a
+      turn with live background agents and partial files ends with no hold (a project, 2026-11-13: 3 rounds of 6, 5
+      and 5 items while 8 helpers ran).
+- [ ] The agent isn't hounded for false alarms: each check keeps a running count of its holds that turned out real (the
+      agent changed work because of them) and false (met already, waived with a reason, or the answer showed it didn't
+      apply). A check whose holds are mostly false over its last 20 stops holding: it moves to the start-of-turn
+      reminder, and the release replay reports it to be fixed. Safety guards are never demoted.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the two answers from the real hour pass with at most one hold
       each; ALL PASS.
 
@@ -79,6 +87,17 @@ What the user saw in that hour, and why:
       sentence by sentence; the turn's work closes them.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real upset message makes 1 item, and a 3-instruction
       message makes 3; ALL PASS.
+
+## Task 4b: show value, not activity
+**Files:** tools/hooks/v2/lines.mjs, tools/hooks/v2/end.mjs
+**Uses / provides:** uses Task 3's evidence.
+- [ ] The routine "✅ checks passed (after N fix rounds) · 📖 …" line is gone. In its place, one line only when the engine
+      changed the outcome this turn: "⚓ <brand> caught: <what, in plain words>" (a real miss the agent then fixed), or
+      "🛡️ blocked: <unsafe action>". A turn where nothing was caught shows nothing.
+- [ ] Once a day, at the first prompt of the day, one line sums up the day before: "⚓ <brand> yesterday: caught N
+      misses, blocked M unsafe actions". Shown only when N + M > 0, and it can be turned off (status-lines).
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: a turn with a real catch shows one "caught" line naming it; a
+      clean turn shows nothing; the daily line appears once and only with nonzero counts; ALL PASS.
 
 ## Task 5: replay and release
 **Files:** the replay tool
