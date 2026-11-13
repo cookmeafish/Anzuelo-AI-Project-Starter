@@ -24,7 +24,8 @@ docs/STATUS.md, which here is the template new projects start from).
   upgrade ran the full suite and the churn reached the machine); the engine runbook's "self-test ran" item accepts it.
   `starter.mjs upgrade` on a dirty tree stops before changing anything and names what is uncommitted; with
   --allow-dirty it goes ahead and lists the engine's files for a separate commit. Tests for both.
-- [ ] 2. A release with rewrite part 1 + routing + the log, then upgrade all 3 projects the same day.
+- [x] 2. A release with rewrite part 1 + routing + the log (c2f1528), then the upgrades: two projects upgraded; the
+  third waits on the user (its permission settings need the owner's OK to pull the upgrade).
 - [ ] 2a. (oversight, 2026-11-12, for a fourth project, a large established app) The .anzuelo layout from day one: a
   fresh install of an established project puts everything under .anzuelo/ (the engine-outside plan's remaining steps,
   plus the audit check); then migrate projects one and two. Confirm the adoption review (surgery mode) works on v2 with
