@@ -5586,6 +5586,7 @@ if (isMain) {
     // (a guard that denies a tool call is not a Stop step: a waiver can't lift it, so say so instead of "waived". Lesson
     // (a field report): "waive no-overwrite" printed "waived", and the same rm was denied again, then retried)
     if (GUARD_TAGS.test(tag)) { console.log(`not waived: ${tag} is a guard on tool calls, not a step at the end of the answer, so a waiver can't lift it. ${tag === 'no-overwrite' || tag === 'protect-originals' ? 'A delete goes ahead when the user\'s request asks for it ("delete the old drafts") or when the file matches "deleteOk" in tools/hooks/config.json (drafts the user never saw); otherwise write a new version, or ask the user in one line.' : 'Do what its message says, or ask the user in one line.'}`); process.exit(2); }
+    { const S = await import('./setup.mjs'), known = S.knownTags(); if (!known.has(tag)) { const near = S.closestTags(tag, known); console.log(`not waived: no check is named "${tag}"${near.length ? `. The closest: ${near.join(', ')}` : ''}. Each held item's name is in the details file (node tools/hooks/hooks.mjs why).`); process.exit(2); } }
     const msg = `waived for this turn: ${tag} (${why.join(' ').trim()})`; logRun(`node tools/hooks/hooks.mjs waive ${tag} "${why.join(' ').trim().replace(/"/g, "'")}"`, msg, false); console.log(msg); process.exit(0); }
   // the user's whitelist (REQ: trigger-words): node tools/hooks/hooks.mjs ignore-word <upset|praise|rule> "<word>" [--remove]
   if (cmd === 'ignore-word') {

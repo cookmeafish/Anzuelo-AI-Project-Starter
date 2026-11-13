@@ -38,7 +38,7 @@ export const DEV_NEW_PROJECT = { tag: 'dev-new-project', rule: '12', when: { fil
 export const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**', 'AGENTS.md', 'SETUP-PROMPT.md', 'docs/checks/**', 'docs/playbooks/**'];
 // (the proof the self-test writes when it passes, and the starter's own records of where work stands, are no engine
 // change. Lesson (this starter's own turns): a status line asked for the self-test and a changelog entry)
-export const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json'];
+export const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json', 'tools/starter/reviews/**']; // (reports too, 2026-11-12)
 // (a run of the self-test, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed
 // run. Under v2 its own self-test, tools/hooks/v2/selftest.mjs, counts too: the release chain runs the whole old suite)
 export const DEV_SELF_TESTS = { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: SELF_WRITTEN },

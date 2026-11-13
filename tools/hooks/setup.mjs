@@ -2,6 +2,7 @@
 // docs/BRIEF.md must route through v2's router, the one the user's requests go through. Loaded only when needed: it
 // reads v2's routing (plan step 1b; oversight 2026-11-12).
 import { ROOT, read, readJSON, abs, exists, config, section } from './settings.mjs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { where, recordMap, LOCAL } from './paths.mjs';
 import { rulesText } from './state.mjs';
@@ -88,4 +89,21 @@ export function setupProblems(cfg = config()) {
     : 'ask the user what happens to the starter now: link this project to it (recommended), keep a copy of the unused packs and library skills in .starter/, or remove it. Then run node tools/starter.mjs link | keep | remove');
   if (exists('packs') || exists('library')) probs.push(`packs/ or library/ is still in the project: run node tools/starter.mjs ${own.starter || 'link | keep | remove'}`);
   return probs;
+}
+
+// Every check name a waiver can name: the REQ tags in the engine's code, the engine's and the project's check tables,
+// and the always list's "req:" markers. For "hooks.mjs waive": an unknown name is refused with the closest real ones.
+// Lesson (oversight, 2026-11-12): "waive starter-selftest" printed "waived" while the check is dev-self-tests, and the
+// next round held it again.
+export function knownTags() {
+  const out = new Set(), add = (t, rx) => { for (const m of String(t || '').matchAll(rx)) out.add(m[1]); };
+  const dir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
+  for (const d of [dir, path.join(dir, 'v2')]) for (const f of fs.readdirSync(d).filter(f => f.endsWith('.mjs') && !/selfcheck|selftest/.test(f))) add(fs.readFileSync(path.join(d, f), 'utf8'), /(?:REQ: |tag: ')([a-z][\w-]+)/g);
+  for (const f of ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json']) add(read(abs(f)), /"tag":\s*"([a-z][\w-]+)"/g);
+  add(read(abs('docs/checks/always.md')), /req: ([a-z][\w-]+)/g);
+  return out;
+}
+export function closestTags(tag, known = knownTags()) {
+  const parts = String(tag).split('-').filter(p => p.length > 2);
+  return [...known].map(k => [k, parts.filter(p => k.replace(/-/g, '').includes(p.replace(/-/g, '').slice(0, 5))).length]).filter(([, n]) => n).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k]) => k);
 }

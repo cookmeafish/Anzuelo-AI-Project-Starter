@@ -4103,6 +4103,14 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const agent = 'I will redo the export check once the tests pass and send the numbers.';
   const quoted = met(redo, { heard: `> ${agent}\nthanks, looks fine`, agentAll: agent, calls: [] }), copied = met(redo, { heard: `${agent}\nok`, agentAll: agent, calls: [] }), pasted = met(redo, { heard: '<pasted_content>redo it all</pasted_content> fine', calls: [] }), own = met(redo, { heard: 'please redo the export', calls: [] });
   report(!quoted && !copied && !pasted && own, 'prompt checks read only the user\'s own words: a quoted, copied or pasted line asks nothing', JSON.stringify({ quoted, copied, pasted, own })); }
+// (a waiver of a name no check uses is refused with the closest real names; a report under tools/starter/reviews/ is no
+// engine change for the starter's own checks. Oversight, 2026-11-12: "waive starter-selftest" said waived, held again)
+{ const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const w = spawnSync(process.execPath, [path.join(repo, 'tools/hooks/hooks.mjs'), 'waive', 'starter-selftest', 'only a review report changed'], { cwd: repo, encoding: 'utf8' });
+  const { DEV_SELF_TESTS, DEV_CHANGELOG } = await import('../base-checks.mjs'), { globRx } = await import('./lib.mjs');
+  const ign = c => [].concat(c.when.filesIgnore || []).some(g => globRx(g).test('tools/starter/reviews/2026-11-12-audit.md'));
+  report(w.status === 2 && /not waived: no check is named "starter-selftest"\. The closest: dev-self-tests/.test(w.stdout) && ign(DEV_SELF_TESTS) && ign(DEV_CHANGELOG),
+    'waive: an unknown check name is refused with the closest real ones; a review report is no engine change', { out: w.stdout.trim(), st: ign(DEV_SELF_TESTS), cl: ign(DEV_CHANGELOG) }); }
 // (a failed run's folder kept for a look outlives its process and two later runs' cleanups; the newest 3 are kept.
 // Lesson (2026-11-12): a failing trial's sample, said to be kept, was gone before it could be read)
 { const tt = new URL('../testtmp.mjs', import.meta.url).href;

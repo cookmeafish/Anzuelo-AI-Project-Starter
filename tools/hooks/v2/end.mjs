@@ -762,7 +762,7 @@ function judge(data, { shadow = false } = {}) {
   const parts = [], last = rounds + 1 === MAX_BLOCKS;
   // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.
   // Lesson (2026-11-07): an agent resent the same answer to each repeat block, and the false item was never looked at)
-  if (list.length) parts.push(`${again ? 'Still not done (do it now, or say in one line of the answer why it does not fit this work, as "<runbook>.md doesn\'t fit this task: <why>" or "item N doesn\'t fit: <why>"; resending the same answer does not count)' : 'Not done yet'}:\n${list.map(s => `- ${s}`).join('\n')}`);
+  if (list.length) parts.push(`${again ? 'Still not done (do it now, or say in one line of the answer why it does not fit this work, as "<runbook>.md doesn\'t fit this task: <why>" or "item N doesn\'t fit: <why>"; resending the same answer does not count)' : 'Not done yet'}:\n${list.map(s => `- ${s}${(t => t.length ? ` [${t.join(', ')}]` : '')(stepTags(s).filter(x => !x.includes('#')))}`).join('\n')}`); // (with its name, for a waiver)
   if (often && list.length) parts.push(often);
   if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
   // (a Spanish request is told the Spanish labels of what it is held to, as the old engine did)
