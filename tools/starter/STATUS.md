@@ -15,7 +15,10 @@ docs/STATUS.md, which here is the template new projects start from).
   refuses an unknown tag and names the item's real one, a waiver holds in later rounds, and each held item shows its tag
   in the details file (the last two done in de58b8a). From a project: hook timings up 15-20% after c2f1528 (prompt 146
   -> 175 ms), with item 13. The audit's REQ-tag sweep reads plain names in a requirements row's enforcement cell as
-  tags (a project's false alarm): only REQ-style tags count.
+  tags (a project's false alarm): only REQ-style tags count. More from a project: the writing sweep read a filler word
+  in a markdown link or image target (a file name nobody reads); the injection check read ordinary advice ("ignore
+  her", about a game character) as instructions to an AI; downloaded pages under a git-ignored sources folder were
+  scanned as project code for security and typed-out names (data, not code).
 - [ ] 1d. Upgrades (oversight, 2026-11-12), with no-leaks Task 3: a project's post-upgrade check runs the v2 selftest
   and the parity tags only, never the full old suite or its shards (the release chain proved that commit; a project's
   upgrade ran the full suite and the churn reached the machine); the engine runbook's "self-test ran" item accepts it.
