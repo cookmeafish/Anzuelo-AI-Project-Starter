@@ -25,8 +25,11 @@ export function asksIn(msg) {
   const bits = t.split(/\n+|(?<=[.!?])\s+(?=[A-Z¿¡])/).map(s => s.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(s => s.length > 3 && !CHAT.test(s) && keys(s).length);
   return (bits.length > 6 ? [t.replace(/\s+/g, ' ')] : bits).map(s => s.slice(0, 300));
 }
-// A later text of the agent's names the item: half its key words, at least one (two once it has four or more).
-const named = (item, text) => { const w = keys(item), k = new Set(keys(text)); return w.length > 0 && w.filter(x => k.has(x)).length >= Math.max(w.length >= 4 ? 2 : 1, Math.round(w.length / 2)); };
+// A later text of the agent's names the item: half its key words, at least one (two once it has four or more), in a
+// sentence that is not a promise ("I'll add it next" names it, but nothing is done yet). Oversight, 2026-11-12
+const FUTURE = /\b(?:I'll|I will|will|going to|next|later|after (?:this|that)|then I)\b/i;
+const named = (item, text) => { const w = keys(item); if (!w.length) return false; const need = Math.max(w.length >= 4 ? 2 : 1, Math.round(w.length / 2));
+  return String(text).split(/(?<=[.!?\n])\s+/).filter(s => !FUTURE.test(s)).some(s => { const k = new Set(keys(s)); return w.filter(x => k.has(x)).length >= need; }); };
 const PROMISE = /\b(?:I'll|I will|I'm going to|next,? I'll|then I'll)\s+([^.\n]{8,160})/gi;
 // The log brought up to date: new asks (msgs: [{ text, at }]), the agent's promises in its texts ([{ t, at }]), and each
 // open item closed by a later text that names it. Returns the open items, oldest first.

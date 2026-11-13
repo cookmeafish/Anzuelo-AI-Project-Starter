@@ -2144,8 +2144,11 @@ function cmdSession(data) {
     const out = (r.stdout || '').trim().split(/\r?\n/);
     // said as what it means (Lesson: "INTERRUPTED WORK: RESULT: PASS (235 file(s) checked)" read like a failure)
     const n0 = /(\d+)\s+file/.exec(out[out.length - 1] || '')?.[1];
-    n.push(r.status === 0 ? `RESUMED: the files edited before the interruption are intact${n0 ? ` (${n0} checked)` : ''}. Before continuing, re-read the request and the runbook, and check the work still matches what the user asked for.`
-      : `INTERRUPTED WORK IS BROKEN: ${out.filter(l => l.startsWith('PROBLEM')).slice(0, 6).join(' | ')}. Fix these first, then re-read the request and the runbook.`);
+    // ("broken" only with a problem the check listed: one that timed out or crashed proved nothing, so nothing is said.
+    // Lesson (a project, 2026-11-12): the user saw "files need fixing" while the same resume reported them intact)
+    const probs = out.filter(l => l.startsWith('PROBLEM'));
+    if (r.status === 0) n.push(`RESUMED: the files edited before the interruption are intact${n0 ? ` (${n0} checked)` : ''}. Before continuing, re-read the request and the runbook, and check the work still matches what the user asked for.`);
+    else if (probs.length) n.push(`INTERRUPTED WORK IS BROKEN: ${probs.slice(0, 6).join(' | ')}. Fix these first, then re-read the request and the runbook.`);
   }
   if (n.length) parts.push('--- notices ---\n- ' + n.join('\n- '));
   // announced here, so the first prompt doesn't repeat them; last turn's misses are announced once, then dropped

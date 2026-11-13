@@ -6,6 +6,11 @@ docs/STATUS.md, which here is the template new projects start from).
 ## Queue (oversight, for the user, 2026-11-12; in order, tick as done)
 - [ ] 1. The work log (now).
 - [ ] 2. A release with rewrite part 1 + routing + the log, then upgrade all 3 projects the same day.
+- [ ] 2a. (oversight, 2026-11-12, for a fourth project, a large established app) The .anzuelo layout from day one: a
+  fresh install of an established project puts everything under .anzuelo/ (the engine-outside plan's remaining steps,
+  plus the audit check); then migrate projects one and two. Confirm the adoption review (surgery mode) works on v2 with
+  the .anzuelo layout by a trial on a copy of a large public repository.
+- [ ] 2b. Fix proof (item 3's first part), then the rest as queued.
 - [ ] 3. The rewrite's remaining parts:
   - [ ] fix proof;
   - [x] the subagent guard; (ef7b085: never refuses)
@@ -25,7 +30,10 @@ docs/STATUS.md, which here is the template new projects start from).
 - [ ] 9. Upgrade project three.
 - [ ] 10. Phase B.
 - [ ] 11. Text audit 3-5.
-- [ ] 12. The asyncRewake experiment for Stop feedback.
+- [ ] 12. The asyncRewake experiment for Stop feedback. And (oversight, 2026-11-12): the pass line (✅ 📖 🧠 🌱) never
+  goes through the Stop hook ("Stop says" reads as a stop): it shows in the status bar from the session's state file,
+  on by default where the project uses the starter's status line (chained to a project's own, never replacing it), and
+  nowhere else; Stop's systemMessage only for a real problem, "Waiting on you", or the upset acknowledgement.
 - [ ] 13. Hook speed under 300 ms on real-size transcripts.
 
 ## Queue to the finish (oversight's plan, 2026-11-10; tick as done)

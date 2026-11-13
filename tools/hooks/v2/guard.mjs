@@ -375,6 +375,13 @@ export function pretoolHits(data, cfg) {
     // Edit tool shows the change and fails safely. Lesson (a field report, 2026-11-12): an in-place sed broke a JS file)
     const sedHit = sedInPlaceFiles(cmd).find(f => /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)$/i.test(f) && !/^(\/tmp|\$TEMP|\$TMP)\b/i.test(f));
     if (sedHit) add(`REQ: shell-hygiene. "sed -i" would rewrite ${sedHit} in place, unseen, where one pattern slip breaks the file. Use the Edit tool for the change.`);
+    // (the same for a heredoc, a redirect, tee, or an inline node -e / python -c script that writes a project code file:
+    // the shell mangles backslashes and quotes. Lesson (a project, 2026-11-12): three broken scripts in one session)
+    const CODE_F = String.raw`[\w./\\-]+\.(?:m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)`;
+    const inProj = f => { const p = String(f).replace(/\\/g, '/'); return !/^(\/tmp\b|\$TE?MP|%TE?MP%|~|\.\.|\/dev\/)/i.test(p) && (!/^([A-Za-z]:|\/)/.test(p) || p.toLowerCase().startsWith(ROOT.replace(/\\/g, '/').toLowerCase())); };
+    const shellW = [...cmd.matchAll(new RegExp(String.raw`(?:^|[\s;&|(])(?:\d?>>?|tee(?:\s+-a)?)\s*["']?(${CODE_F})\b`, 'g'))].map(m => m[1])
+      .concat(/\b(?:node|python3?|py)\s+-[ec]\b/.test(cmd) && /writeFileSync|appendFileSync|open\([^)]*['"][wa]/.test(cmd) ? [...cmd.matchAll(new RegExp(String.raw`['"\`](${CODE_F})['"\`]`, 'g'))].map(m => m[1]) : []).find(inProj);
+    if (shellW) add(`REQ: shell-hygiene. This command writes ${shellW}, a code file, through the shell (a heredoc, redirect or inline script), where backslashes and quotes get mangled. Use the Write or Edit tool.`);
     // REQ: forbidden-command. Project-defined commands that must never run (e.g. killing the user's own app or port).
     for (const f of cfg.forbiddenCommands) { try { if (re(f.pattern).test(cmd)) add(`REQ: forbidden-command. ${f.reason || 'This command is forbidden in this project.'} (pattern: ${f.pattern})`); } catch { } }
     // REQ: git-safety. History rewrites and force operations need a fresh backup bundle and the user's explicit words.

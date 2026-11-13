@@ -3134,6 +3134,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
     for (const f of ['hooks.mjs', 'hooks-main.mjs', 'hidewin.mjs', 'testtmp.mjs', 'fitstale.mjs', 'fit.mjs', 'state.mjs', 'shell.mjs', 'runs.mjs', 'transcript.mjs', 'setupinfo.mjs', 'setup.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    fs.copyFileSync(path.join(repo, 'tools/integrity-check.mjs'), path.join(c, 'tools/integrity-check.mjs')); // (a check that cannot run proves nothing)
     const resume = ended => { const sid = ended ? 'resumedone' : 'resumeopen';
       fs.writeFileSync(path.join(c, `tools/hooks/state/v2-turn.${sid}.json`), JSON.stringify({ at: new Date().toISOString(), runbook: null, ...(ended ? { ended: true } : {}) }));
       return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'session'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source: 'resume' }), env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c } }).stdout || ''; };
@@ -4048,7 +4049,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const promised = onStop({ session_id: 'wlogp', transcript_path: transcript([stampAt(0, user('fix the totals and the date column')), stampAt(5, say('Fixing the totals first; I\'ll fix the date column format right after that.')),
     stampAt(10, call('Edit', { file_path: path.join(dir, 'src/totals.js'), old_string: 'a', new_string: 'b' })), stampAt(15, say('The totals are fixed.'))]) })?.reason || '';
   const terse = onStop({ session_id: 'wlog1', transcript_path: transcript([stampAt(0, user('add a csv export')), stampAt(5, call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' })), stampAt(10, say('Done.'))]) })?.reason || '';
-  for (const s of ['wlog4', 'wlogp', 'wlog1']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+  // (a promise names an ask but does nothing: "I'll add the emojis next", then "Done.", leaves it open. Oversight)
+  const later = onStop({ session_id: 'wlogf', transcript_path: transcript([stampAt(0, user('fix the totals row.\nalso put emojis in the section headings')), stampAt(5, call('Edit', { file_path: path.join(dir, 'src/totals.js'), old_string: 'a', new_string: 'b' })),
+    stampAt(10, say('Fixed the totals row. I\'ll put emojis in the section headings next.')), stampAt(15, say('Done.'))]) })?.reason || '';
+  for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+  report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
     && !log.some(i => /object Object/.test(i.text)) && log.some(i => /coach popup/.test(i.text) && i.status === 'done')
     && /Still open: "fix the date column format right after that \(your promise\)"/.test(promised) && !/Still open/.test(terse),
@@ -4070,6 +4075,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const agent = 'I will redo the export check once the tests pass and send the numbers.';
   const quoted = met(redo, { heard: `> ${agent}\nthanks, looks fine`, agentAll: agent, calls: [] }), copied = met(redo, { heard: `${agent}\nok`, agentAll: agent, calls: [] }), pasted = met(redo, { heard: '<pasted_content>redo it all</pasted_content> fine', calls: [] }), own = met(redo, { heard: 'please redo the export', calls: [] });
   report(!quoted && !copied && !pasted && own, 'prompt checks read only the user\'s own words: a quoted, copied or pasted line asks nothing', JSON.stringify({ quoted, copied, pasted, own })); }
+// (a turn that only edited a scratch notes file outside the project and sent messages shows no ✅: nothing was checked.
+// Oversight, 2026-11-12: the released engine showed "checks passed" for it)
+{ const scratch = path.join(os.tmpdir(), `notes-${process.pid}.md`);
+  const shownS = onStop({ session_id: 'scratchonly', transcript_path: transcript([user('pass this on to the other session'), call('Edit', { file_path: scratch, old_string: 'a', new_string: 'b' }), call('SendMessage', { to: 'peer', message: 'done' }, 'sent'), say('Sent.')]) }, { show: true });
+  fs.rmSync(path.join(dir, 'tools/hooks/state/v2-turn.scratchonly.json'), { force: true });
+  report(!/✅/.test(JSON.stringify(shownS || '')), 'visible: a turn of a scratch-file edit and messages shows no "checks passed"', JSON.stringify(shownS)); }
 // (format items never hold a turn: real work with no Finished section passes. The user, 2026-11-12: a hold for format
 // only splits the answer into fragments)
 { const plain = onStop({ session_id: 'nofin', transcript_path: transcript([user('rename the export button'), read, edit, call('Bash', { command: 'npm test' }, 'Tests: 4 passed'), log, say('Renamed the button. How it was checked: npm test, 4 pass.')]) });

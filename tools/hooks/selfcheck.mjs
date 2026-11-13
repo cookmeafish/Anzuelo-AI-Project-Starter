@@ -2574,6 +2574,11 @@ PRETOOL.push(
   { name: 'shell-hygiene: sed -i on a code file is refused, the Edit tool named', tool: 'Bash', input: { command: 'sed -i "s|oldName|newName|g" src/app.js' }, deny: true, tag: 'shell-hygiene' },
   { name: 'shell-hygiene: sed -i.bak -e on a module is refused', tool: 'Bash', input: { command: 'cd web && sed -i.bak -e "s/x/y/" lib/x.mjs' }, deny: true, tag: 'shell-hygiene' },
   { name: 'shell-hygiene: sed -n reading a code file goes through', tool: 'Bash', input: { command: 'sed -n 1,20p src/app.js' }, deny: false },
+  // (a heredoc, redirect or inline script writing a project code file is refused for Write or Edit; a scratch file
+  // outside the project, or output to a text file, goes through. Lesson (2026-11-12): backslashes stripped three times)
+  { name: 'shell-hygiene: a heredoc into a code file is refused', tool: 'Bash', input: { command: "cat > src/app.js <<'EOF'\nconst a = /\\d+/;\nEOF" }, deny: true, tag: 'shell-hygiene' },
+  { name: 'shell-hygiene: node -e writing a module is refused', tool: 'Bash', input: { command: `node -e "require('fs').writeFileSync('lib/x.mjs', s)"` }, deny: true, tag: 'shell-hygiene' },
+  { name: 'shell-hygiene: a scratch script in the temp folder, and output to a text file, go through', tool: 'Bash', input: { command: 'cat > $TEMP/fix.mjs <<\'EOF\'\nx\nEOF\nnode tools/audit.mjs > .cache/audit.txt 2>/dev/null' }, deny: false },
   // (in auto mode a changed input is refused by the host after its review, so the call is not rewritten, and not refused
   // either: the brief rule is quality, not safety. Lesson (2026-11-12): three launches in a row were refused and resent)
   { name: 'sub-agent brief without the rules in auto mode: runs as written, never refused or rewritten', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, mode: 'auto',
@@ -6696,6 +6701,11 @@ if (mineB() && (!TAGS || TAGS.includes('interrupted-work'))) { // interrupted-wo
     const start = cc('startup', { session_id: 'rs2' }), resumed = cc('resume', { session_id: 'rs1', transcript_path: tp });
     write(dir, { 'data/settings.json': '{ "a": 1,' });
     const broken = cc('resume');
+    // (a check that ended without listing a problem (timed out, crashed) proved nothing: nothing shown or said. Lesson
+    // (a project, 2026-11-12): "files need fixing" was shown while the same resume said they were intact)
+    write(dir, { 'tools/integrity-check.mjs': 'process.exit(3);\n' });
+    const unproven = cc('resume');
+    report(shown(unproven) === '' && !/INTERRUPTED WORK IS BROKEN/.test(unproven), 'session: an integrity check that ends without a listed problem shows nothing and claims nothing broken', unproven.slice(-200));
     report(shown(start) === '' && shown(resumed) === '' && /❗ files from before the interruption need fixing first/.test(shown(broken)) && /INBOX/.test(start) && /RESUMED/.test(resumed),
       'session: the user sees nothing at the start (no "on duty", intact files or agent chores), only broken files; the agent still gets every notice', JSON.stringify([shown(start), shown(resumed), shown(broken), start.slice(-160), resumed.slice(-160)]));
     const pre = d => run(dir, 'pretool', d, { CLAUDE_PROJECT_DIR: '.' }).out;
