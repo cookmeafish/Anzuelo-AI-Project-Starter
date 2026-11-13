@@ -7,9 +7,15 @@ status: open
 agent makes ("I'll do X after Y") is tracked until it's done, declined with a reason, or handed to the user. It survives
 long sessions and summaries.
 
-**Approach:** the engine keeps one ask ledger per session, from evidence: the user's messages and the agent's own
-promises. The reminder lists only the open items. The end check closes items on evidence, and the final line names
-what's still open.
+**Approach:** one work log is the single list of what's left:
+- what the user asked or pointed out, in any message;
+- the agent's own promises;
+- the open tasks of every active plan (with their plan files);
+- the queue the project keeps.
+
+When the agent thinks it's finished, the end check reads the log. If anything is open and doesn't wait on the user, the
+agent gives a one-line update and goes on to the next item, so the user never has to slow down for it. The reminder
+lists open items only when there are any. Items close on evidence.
 
 **Spec (user, 2026-11-12):** when the user says several things, or points something out a bit earlier, the agent must
 not forget it, nor forget what it was doing before.
