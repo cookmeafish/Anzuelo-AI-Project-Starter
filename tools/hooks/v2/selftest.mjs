@@ -2672,6 +2672,19 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   report(c.up === shouted.length && c.calm === eager.length && c.rule === 'project' && c.acro !== 'project',
     'start: caps-weight: capitals with a sign of trouble are upset, eager capitals and acronyms are not; a capital NEVER routes as a standing rule', c);
 }
+{ // (one routing path: a runbook that gains a trigger_regex mid-session is named by route(), by the reminder the prompt
+  // hook and "begin" print, and is the runbook the end check holds the turn to. Lesson (a field report, 2026-11-12):
+  // only the old engine's router read trigger_regex, and begin previewed another runbook each time)
+  const { route } = await import('./lib.mjs'), { onPrompt } = await import('./start.mjs');
+  const ask = 'tally the shop sales by item for last week';
+  const before = route(ask)?.name;
+  put('docs/playbooks/sales-tally.md', '---\nname: sales-tally\ntriggers: sales ledger\ntrigger_regex: \\btally\\b.*\\bsales\\b\n---\n## Done when\n1. The tally is saved (file: data/sales/*.csv)\n');
+  const now = route(ask)?.name, said = onPrompt({ session_id: 'rxroute', prompt: ask })?.hookSpecificOutput?.additionalContext || '';
+  const held = missing({ runbook: (await import('./lib.mjs')).loadTurn('rxroute').runbook }, acts([user(ask), call('Read', { file_path: path.join(dir, 'docs/playbooks/sales-tally.md') }), edit, say('Tallied.')]));
+  fs.rmSync(path.join(dir, 'docs/playbooks/sales-tally.md')); try { fs.rmSync(path.join(dir, 'tools/hooks/state/v2-turn.rxroute.json'), { force: true }); } catch { }
+  report(before !== 'sales-tally' && now === 'sales-tally' && /sales-tally/.test(said) && held.some(s => /sales-tally\.md item 1/.test(s)),
+    'start: one routing path: a runbook\'s trigger_regex, added mid-session, routes the request in route(), the reminder begin prints, and the end check', JSON.stringify({ before, now, said: said.slice(0, 160), held }));
+}
 { // (prompt-visible, each part on this turn's own evidence only: a runbook written shows as made; 📖 only when the end
   // check found its items met, never for one only read; 🧠 only for a file this turn changed; ✅ only when checks ran
   // over real work; 🚨 at the end only for an Issue said in the answer and never written. Every false line of

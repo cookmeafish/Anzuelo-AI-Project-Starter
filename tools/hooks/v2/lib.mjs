@@ -139,6 +139,8 @@ export function doneWhen(text) {
 // 2026-11-10): the runbooks were read and parsed again by each check, about 38 ms of every Stop)
 const sigOf = files => files.map(f => { try { const s = fs.statSync(at(f)); return `${at(f)}:${s.mtimeMs}:${s.size}`; } catch { return `${at(f)}:-`; } }).join('|');
 let booksMemo = { sig: null, out: null };
+// (a "trigger_regex:" routes like the triggers, in every route. Lesson (2026-11-12): only the old router read it)
+const triggerReOf = fm => { const s = /^trigger_regex:\s*(.+)$/m.exec(fm)?.[1]?.trim(); try { return s ? new RegExp(s, 'i') : null; } catch { return null; } };
 export function runbooks() {
   const files = [];
   for (const d of RUNBOOK_DIRS) { let names = []; try { names = listAll(d); } catch { continue; } files.push(...names.filter(f => f.endsWith('.md') && !f.startsWith('_')).map(f => `${d}/${f}`)); }
@@ -153,7 +155,7 @@ export function runbooks() {
       const menu = (/^menu:\s*(.+)$/m.exec(fm)?.[1] || '').split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(s => /^[A-Z]\d{1,2}$/.test(s));
       // (the skills it hands its steps to: its own mirror, and each skills/<name>/SKILL.md its text names)
       const skills = [...new Set([`skills/${f.replace(/\.md$/, '')}/SKILL.md`, ...[...text.matchAll(/\bskills\/[\w-]+\/SKILL\.md\b/g)].map(m => m[0])])];
-      out.push({ name: f.replace(/\.md$/, ''), file, triggers, menu, items: doneWhen(text), skills, front: fm });
+      out.push({ name: f.replace(/\.md$/, ''), file, triggers, triggerRe: triggerReOf(fm), menu, items: doneWhen(text), skills, front: fm });
     }
   }
   booksMemo = { sig, out };
@@ -172,7 +174,8 @@ export function skillBooks({ parts = false } = {}) {
     const file = `skills/${n}/SKILL.md`, text = read(file), fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] || '';
     if (!fm || /^generated:\s*true/m.test(fm)) continue;
     const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2), items = doneWhen(text);
-    if (/^runbook:/m.test(fm) ? parts && items.some(it => it.kind) : triggers.length) out.push({ name: n, file, triggers, menu: [], items, skills: [] });
+    const triggerRe = triggerReOf(fm);
+    if (/^runbook:/m.test(fm) ? parts && items.some(it => it.kind) : triggers.length || triggerRe) out.push({ name: n, file, triggers, triggerRe, menu: [], items, skills: [] });
   }
   // (the project's own skills first: one a pack or the library ships comes after, so on equal triggers the project's
   // wins, as "this project's skills beat global ones". Lesson (the old suite under v2): a pack's note skill took a
@@ -205,41 +208,38 @@ export function route(prompt, books = runbooks()) {
   const code = /^\s*([A-Za-z]\d{1,2})(?=\s|$)/.exec(String(prompt))?.[1]?.toUpperCase();
   const byCode = code && books.find(b => b.menu.includes(code));
   if (byCode) return { ...byCode, matched: code };
-  // (an engine upgrade goes to the engine runbook, where its checklist is, whatever the fixes it describes say. Not in
-  // the starter, where an upgrade message is a project's report back. Lesson (replay): every upgrade message the starter
-  // sent a project routed to the project runbook on words like "audit" in its list of fixes)
+  // (an engine upgrade goes to the engine runbook, whatever its list of fixes says; not in the starter (replay))
   const eng = books.find(b => b.file === 'docs/playbooks/engine.md');
   if (eng && !fs.existsSync(at('.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\b(upgrade|update)\s+to\s+(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\blinked starter copy\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
-  // (a request to change a runbook itself, "fix the <name> playbook so ...", "arregla el playbook de <name>", is project
-  // upkeep: the project runbook, not that runbook's own job. "with the <name> runbook" or "follow the <name> playbook"
-  // uses it. Lesson (the old suite under v2): an edit to a runbook was sent to follow that runbook)
+  // (a request to change a runbook itself, "fix the <name> playbook so ...", is project upkeep, not that runbook's job)
   const named = n => books.some(b => b.name.toLowerCase() === String(n).toLowerCase());
   const editEn = /\b(?:fix|change|update|edit|improve|rewrite|reword|tweak|adjust|correct|amend|extend|shorten)\s+(?:the\s+|my\s+|this\s+|our\s+)?([\w-]+)\s+(?:playbook|runbook)\b/i.exec(String(prompt));
   const editEs = /\b(?:arregla|corrige|cambia|modifica|actualiza|edita|mejora|ampl[ií]a|acorta)r?\s+(?:el|mi|este|nuestro)\s+(?:playbook|runbook|procedimiento)\s+de\s+([\w-]+)/i.exec(String(prompt));
   const project = books.find(b => b.file === 'docs/playbooks/project.md'), edited = [editEn, editEs].find(m => m && named(m[1]));
   if (project && edited) return { ...project, matched: 'runbook edit' };
-  // (a message that names the starter is about the project itself, in a project (in the starter every message is):
-  // the project runbook, whatever a generic word like "report" or "improve" matches. Unless the project is about a real
-  // thing of that name ("_subjects" in docs/names.json). Lesson (the old engine): "a report to <starter> on how to improve
-  // it" went to the project's own runbook on its generic words)
+  // (a message naming the starter is about the project itself: the project runbook, unless the project is about a
+  // real thing of that name ("_subjects" in docs/names.json))
   if (project && !fs.existsSync(at('.starter-template'))) {
     let nm = {}; try { nm = JSON.parse(fs.readFileSync(at('docs/names.json'), 'utf8')); } catch { }
     const st = String(nm.STARTER_NAME || '').trim();
     if (st.length >= 3 && !/\{\{/.test(st) && ![].concat(nm._subjects || []).includes('STARTER_NAME')
       && new RegExp(`(^|[^\\p{L}\\p{N}])${st.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}\\p{N}])`, 'iu').test(String(prompt))) return { ...project, matched: 'starter named' };
   }
-  // (a message to pass on to another session or agent, asking for no work here, is no runbook's job: its words describe
-  // the other session's work. Lesson (the old engine): "tell the other session to improve its report" was routed to the
-  // domain runbook on "improve" and "report")
+  // (a message to pass on to another session, asking no work here, is no runbook's job: its words are the other's work)
   // (a standing rule about telling it, "from now on always tell the other session ...", is a rule, not a message to pass on)
   if (toOtherSession(prompt) && !/^\W*(from now on|going forward|de ahora en adelante|a partir de ahora|always|never|siempre|nunca)\b/i.test(String(prompt))) return null;
   const match = text => {
     const p = ` ${String(text).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
     let best = null;
-    for (const b of books) for (const t of b.triggers) {
-      const phrase = t.replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
-      const score = !phrase || !p.includes(` ${phrase} `) ? 0 : (p.startsWith(` ${phrase} `) ? 1000 : 0) + phrase.length;
-      if (score && (!best || score > best.score)) best = { book: b, score, phrase, trigger: t };
+    for (const b of books) {
+      for (const t of b.triggers) {
+        const phrase = t.replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+        const score = !phrase || !p.includes(` ${phrase} `) ? 0 : (p.startsWith(` ${phrase} `) ? 1000 : 0) + phrase.length;
+        if (score && (!best || score > best.score)) best = { book: b, score, phrase, trigger: t };
+      }
+      // (a trigger_regex match scores like a phrase of its length, on the request as typed)
+      const m = b.triggerRe?.exec(String(text)), score = m && m[0].trim() ? (m.index === String(text).search(/\S/) ? 1000 : 0) + m[0].trim().length : 0;
+      if (score && (!best || score > best.score)) best = { book: b, score, phrase: m[0].trim().toLowerCase(), trigger: `/${b.triggerRe.source}/` };
     }
     return best;
   };
