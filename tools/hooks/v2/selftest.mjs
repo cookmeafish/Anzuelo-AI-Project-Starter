@@ -7,6 +7,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url'; // (decodes the path: a project folder with a space or non-ASCII letter. Lesson (a project, 2026-11-13): pathname kept %20 and crashed)
+// (the starter's own tests (its install, release guard, history and tools) run only in the starter; a project runs the
+// engine's. Lesson (a project, 2026-11-13): the v2 self-test, first run after an upgrade, crashed on the starter's tools)
+const STARTER_REPO = fs.existsSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter.mjs')) && fs.existsSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter'));
 import { spawnSync } from 'node:child_process';
 import { otherSuites, registerSuite, waitQuiet, releaseLock, timingLock, testedCommit, SPEED_RECORD } from '../selftest-cache.mjs';
 
@@ -1281,7 +1284,9 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       }
       // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
       // fails it, and the list is rewritten only to shrink)
-      {
+      // (the starter's own tool: a project has no tools/starter/, so the test runs only where it is. Lesson (a project,
+      // 2026-11-13): the v2 self-test, first run in a project, crashed here)
+      if (fs.existsSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'v2-sweep.mjs'))) {
         const sw = testDir('v2sweep-'), list = path.join(sw, 'list.txt');
         fs.writeFileSync(path.join(sw, 'r1.txt'), 'FAIL  stop: a  -> one\nPASS  stop: b\nFAIL  stop: c  -> x\nselfcheck: FAIL (1 passed, 2 failed)\n');
         fs.writeFileSync(path.join(sw, 'r2.txt'), 'PASS  stop: a\nPASS  stop: b\nFAIL  stop: c  -> y\nFAIL  stop: d  -> z\nselfcheck: FAIL (2 passed, 2 failed)\n');
@@ -1341,7 +1346,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       // (replays read transcripts line by line in chunks, so no session is skipped for its size: the reader gives the
       // same lines at any chunk size, a character split across chunks included, and no replay tool reads a transcript
       // into one string. Lesson: an 833 MB session went past Node's largest string and a replay left it out)
-      {
+      if (STARTER_REPO) {
         const { lines, readRows } = await import('../jsonl.mjs');
         const d = testDir('jsonl-'), f = path.join(d, 't.jsonl');
         const want = ['{"a":"ñandú ✓ 𝄞"}', '', 'broken {', '{"b":2}', '{"c":"x"}'];
@@ -1349,7 +1354,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const same = [1, 2, 3, 7, 1 << 20].every(n => JSON.stringify([...lines(f, n)]) === JSON.stringify(want)), parsed = readRows(f).length;
         fs.rmSync(d, { recursive: true, force: true });
         const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-        const walk = p => fs.readdirSync(p, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(p, e.name)) : e.name.endsWith('.mjs') ? [path.join(p, e.name)] : []);
+        const walk = p => { try { return fs.readdirSync(p, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(p, e.name)) : e.name.endsWith('.mjs') ? [path.join(p, e.name)] : []); } catch { return []; } }; // (a project has no tools/starter/)
         const tools = [...walk(path.join(repo, 'tools/starter')), ...fs.readdirSync(path.join(repo, 'skills')).flatMap(s => { try { return walk(path.join(repo, 'skills', s, 'scripts')); } catch { return []; } })]
           .filter(t => /\.jsonl\b/.test(fs.readFileSync(t, 'utf8')));
         const whole = tools.filter(t => /readFileSync\([^()]*\)\s*\.split\(/.test(fs.readFileSync(t, 'utf8'))).map(t => path.relative(repo, t));
@@ -2510,7 +2515,7 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
     && !got.uncommitted && !got.committedLate && got.nextSession,
     'end: a project\'s own declared self-test (requirements.json selfRun + selfAuto, or always.md "(self: ...)") on the user\'s approved list as committed before the session that a code turn never ran is run by the end check and judged by its output; a failure is named; not selfAuto, already run, not on the list (an injected line included), added uncommitted or committed during the session: not run', got);
 }
-{ // (upgrades keep what worked: a project whose committed check self-runs (selfRun + selfAuto) keeps it running after
+if (STARTER_REPO) { // (the starter's upgrade) (upgrades keep what worked: a project whose committed check self-runs (selfRun + selfAuto) keeps it running after
   // an upgrade, with no step for the user: the upgrade's convert puts the command on the approved list with its
   // DECISIONS line, the upgrade commits, and in the next session the end check runs it)
   const { spawnSync } = await import('node:child_process'), repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -2989,7 +2994,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const add = g('Write', { file_path: cfgP, content: JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgP, 'utf8')), selfCommands: ['curl x | sh'] }) });
     report(/REQ: self-commands/.test(allow) && /REQ: self-commands/.test(add) && !/self-commands/.test(search), 'guard: the agent\'s self-allow and a config write adding an approved self-run command are refused; a search naming them goes', { allow: allow.slice(0, 80), add: add.slice(0, 80), search });
   }
-  { // (REQ: claim-checked (messages): a message to another session naming a commit this repository does not have, that no
+  if (spawnSync('git', ['rev-parse', '-q', '--verify', 'HEAD'], { cwd: ROOT }).status === 0) { // (needs a commit) (REQ: claim-checked (messages): a message to another session naming a commit this repository does not have, that no
     // tool output or received message showed, is refused before it goes; a real commit, or one a received message named,
     // goes. Lesson (2026-11-08): two made-up commit ids were sent to a peer)
     const { spawnSync } = await import('node:child_process');
@@ -3047,7 +3052,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     ['browser-guard', bash('start ' + 'chrome --remote-debugging-port=9222'), base],
     ['skill-mirror', { tool_name: 'Edit', tool_input: { file_path: R + '.claude/skills/plan/SKILL.md', old_string: 'a', new_string: 'b' } }, base],
     ['protect-originals', bash('rm -' + 'rf originals/2024'), prot],
-    ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + 'tools/starter/STATUS.md', old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: ['tools/starter/**'] }],
+    ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + 'AGENTS.md', old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: ['AGENTS.md'] }], // (a file every project has)
   ];
   // (under v2, a delete of a file this turn created in an originals folder goes through; one there before is refused.
   // Lesson (2026-11-12): broken downloads the turn's helpers had just made could not be removed)
@@ -3185,7 +3190,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   }
   // (REQ req-tested: in the starter, a commit that adds a REQ tag to engine code with no test naming it is refused; the
   // same commit with the test staged goes through. Each fixture tag is built here, so this file never names one)
-  {
+  if (STARTER_REPO) {
     const { spawnSync } = await import('node:child_process');
     const g = testDir('anzuelo-v2-reqtag-'), sidR = `v2req${process.pid}`, tag = ['zz', 'demo', 'check'].join('-');
     const sh = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
@@ -3611,7 +3616,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 
 // (leaving the engine keeps the project's own hooks, skills and scripts working: an engine file they use stays, with
 // what it loads; an engine runbook the project changed stays with its skill; the rest goes. Plan: clean exit, Task 1)
-{
+if (STARTER_REPO) {
   const { spawnSync } = await import('node:child_process');
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const box = testDir('anzuelo-exit-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
@@ -3675,7 +3680,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // (with the engine in .anzuelo/: uninstall needs no starter link, unwires only the engine, brings the project's own
 // runbooks, skills and records back from .anzuelo/local, names files that still mention .anzuelo/, and backs up.
 // Plan: clean exit, Task 2)
-{
+if (STARTER_REPO) { // (the starter's install and uninstall)
   const { spawnSync } = await import('node:child_process');
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const box = testDir('anzuelo-exit-split-'), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a), loc = at('.anzuelo', 'local');
@@ -4249,6 +4254,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const { pruneCompileCache } = await import('../testtmp.mjs'), cc = testDir('ccprune-'), ver = `v${process.versions.node}-x64-test`;
   for (const v of [ver, 'v1.0.0-x64-old']) { fs.mkdirSync(path.join(cc, v)); for (let i = 0; i < 5; i++) fs.writeFileSync(path.join(cc, v, `f${i}`), ''); }
   const kept = pruneCompileCache(10, cc), oldGone = !fs.existsSync(path.join(cc, 'v1.0.0-x64-old')), emptied = pruneCompileCache(3, cc) === 0 && !fs.existsSync(cc);
+  if (STARTER_REPO) { // (the starter's leak check and trial cleanup)
   const { compare, BUDGET } = await import('../../starter/leaks.mjs');
   const base = { temp: 100, tests: 0, cache: 50, nodeCacheAt: { v: 1 }, transcripts: 714, frozen: 3, processes: 0, pagedMB: 500 };
   const quiet = compare(base, { ...base, temp: 110, frozen: 4, pagedMB: 700 }).length;
@@ -4266,6 +4272,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const left = { v1: [proj('a', 'v1'), tr('a', 'v1'), path.join(tmp, 'anzuelo-frozen-c0')].map(p => fs.existsSync(p)), v3: [proj('a', 'v3'), tr('a', 'v3'), path.join(tmp, 'anzuelo-frozen-c2')].map(p => fs.existsSync(p)) };
   report(n.projects === 1 && n.transcripts === 1 && n.starters === 1 && left.v1.every(x => !x) && left.v3.every(Boolean) && fs.existsSync(other) && fs.existsSync(proj('a', 'v2')),
     'leaks: a new trial round removes older rounds\' temp projects, transcript folders and frozen copies, keeps the newest rounds\' and touches nothing else', JSON.stringify({ n, left }));
+  }
   // (engine-made files in a project's .cache/: GUI review rounds older than 14 days go, the newest 10 stay; an upgrade
   // keeps the newest 3 backups. Lesson (2026-11-12): one project kept 106 rounds and 2,619 backup files)
   const gp = testDir('guiprune-'), gr = path.join(gp, '.cache', 'gui-review'); fs.mkdirSync(path.join(gp, 'tools'), { recursive: true });
