@@ -109,6 +109,44 @@ settings merge)
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: writing a source file, an asset or an app doc under the engine's
       folder is refused; writing an engine record there passes; ALL PASS.
 
+## Task 5c: the shapes of a real large app (oversight's read-only profile, 2026-11-13)
+**Files:** tools/starter.mjs (install), tools/hooks/wire.mjs, tools/hooks/hooks-main.mjs (mirror sync, walks),
+tools/hooks/v2/lib.mjs (walks), tools/starter/trials/adopt-large.mjs (the sample)
+**Uses / provides:** uses Tasks 2-3.
+- [ ] Engine files never match common test globs (`*.test.*`, `*.spec.*`, `__tests__/`), so an app runner that collects
+      dot-folders finds none. Proof: the app's test-file count is the same before and after install.
+- [ ] Every engine walk, glob, copy and fingerprint skips nested checkouts (a folder with its own `.git` file) and
+      reserved device names (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`) without failing.
+- [ ] The install changes zero tracked files: wiring only through `.git/info/exclude` (appended to, never rewritten,
+      after any block the project already has) and `CLAUDE.local.md`; never a `.gitignore` edit or an append to a
+      tracked `CLAUDE.md`; never writes an `AGENTS.md` it doesn't own.
+- [ ] The skill mirror writes and deletes only engine-owned names; a project's skill, or its drifted copy in another
+      mirror folder, is never synced or pruned, and an engine name never shadows it. (Done for the copy and the
+      exclude in c9c25d5; prune and drifted copies still to test.)
+- [ ] With git LFS configured or worktrees present, the install doesn't set `core.hooksPath`; the in-session commit
+      guard covers the agent's commits, and the audit says so.
+- [ ] For a project whose app watches its root (a dev server polling the folder), the engine's high-churn state (hook
+      state, caches, notes, answer drafts) lives outside the project, in a per-project folder in the user profile;
+      only engine code stays in `.anzuelo/`. Proof: engine state written while a watcher runs makes 0 change events.
+- [ ] The engine ships its own `.gitattributes` inside `.anzuelo/` (LF for its shell and hook files), so a machine with
+      `core.autocrlf=true` keeps them runnable.
+- [ ] Never touched: `.claude/scheduled_tasks.lock`, `.claude/worktrees/`, the app's runtime data folders and backups.
+- [ ] Found by the trial (2026-11-13): the agent's answer draft for `check --answer-file` went to the project's own
+      `.cache/answer.md`. The documented draft path, and every engine scratch file, goes under the engine's state.
+- [ ] Run `node tools/starter/trials/adopt-large.mjs <clone>` on a sample with every shape above. Expected: ADOPT-LARGE:
+      PASS.
+
+## Task 5d: the move into .anzuelo/ for older installs (projects one and two)
+**Files:** tools/starter.mjs (migrate)
+**Uses / provides:** uses Tasks 2-3 and 5.
+- [ ] Only files on the engine's ownership record move. Anything the app's code reads or runs is the app's and stays,
+      even if the engine first made it (the engine then reads it in place); an app that reads an engine-generated file
+      gets that file handed over first (no more regeneration, or a stable copy at the old path).
+- [ ] After the move, the same proofs as an install: remove `.anzuelo/` and the app still runs its own tests and
+      starts; a fresh clone works.
+- [ ] Run `node tools/trial.mjs` with two more shapes (an app reading an engine-made doc; app content in a folder a
+      pack made). Expected: TRIAL: PASS.
+
 ## Task 6: the audit keeps it true
 **Files:** tools/audit.mjs
 **Uses / provides:** uses Tasks 2 and 4.
