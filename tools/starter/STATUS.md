@@ -13,7 +13,14 @@ docs/STATUS.md, which here is the template new projects start from).
   (a "wait" item too); a promise in a sentence that defers it ("once they've upgraded") is waiting; a report, plan or
   STATUS under tools/starter/ is no engine change (no self-test or starter-changelog ask); `hooks.mjs waive <tag>`
   refuses an unknown tag and names the item's real one, a waiver holds in later rounds, and each held item shows its tag
-  in the details file. From a project: hook timings up 15-20% after c2f1528 (prompt 146 -> 175 ms), with item 13.
+  in the details file (the last two done in de58b8a). From a project: hook timings up 15-20% after c2f1528 (prompt 146
+  -> 175 ms), with item 13. The audit's REQ-tag sweep reads plain names in a requirements row's enforcement cell as
+  tags (a project's false alarm): only REQ-style tags count.
+- [ ] 1d. Upgrades (oversight, 2026-11-12), with no-leaks Task 3: a project's post-upgrade check runs the v2 selftest
+  and the parity tags only, never the full old suite or its shards (the release chain proved that commit; a project's
+  upgrade ran the full suite and the churn reached the machine); the engine runbook's "self-test ran" item accepts it.
+  `starter.mjs upgrade` on a dirty tree stops before changing anything and names what is uncommitted; with
+  --allow-dirty it goes ahead and lists the engine's files for a separate commit. Tests for both.
 - [ ] 2. A release with rewrite part 1 + routing + the log, then upgrade all 3 projects the same day.
 - [ ] 2a. (oversight, 2026-11-12, for a fourth project, a large established app) The .anzuelo layout from day one: a
   fresh install of an established project puts everything under .anzuelo/ (the engine-outside plan's remaining steps,
