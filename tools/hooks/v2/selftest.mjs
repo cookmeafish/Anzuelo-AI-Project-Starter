@@ -2960,6 +2960,15 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     ['protect-originals', bash('rm -' + 'rf originals/2024'), prot],
     ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + 'tools/starter/STATUS.md', old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: ['tools/starter/**'] }],
   ];
+  // (under v2, a delete of a file this turn created in an originals folder goes through; one there before is refused.
+  // Lesson (2026-11-12): broken downloads the turn's helpers had just made could not be removed)
+  { const { setSession } = await import('../state.mjs'), G = p => path.join(ROOT, p), sid = `delnew${process.pid}`, rec = G(`tools/hooks/state/v2-turn.${sid}.json`);
+    const od = G(`originals-${process.pid}`), protP = { ...base, protectedOriginals: [`originals-${process.pid}/**`] };
+    try { fs.mkdirSync(od, { recursive: true }); fs.writeFileSync(path.join(od, 'kept.pdf'), 'x'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1200);
+      fs.mkdirSync(path.dirname(rec), { recursive: true }); fs.writeFileSync(rec, JSON.stringify({ at: new Date().toISOString() })); fs.writeFileSync(path.join(od, 'broken.pdf'), ''); setSession({ sid });
+      var delNew = guard({ session_id: sid, ...bash(`rm originals-${process.pid}/broken.pdf`) }, protP) || '', delOld = guard({ session_id: sid, ...bash(`rm originals-${process.pid}/kept.pdf`) }, protP) || '';
+    } finally { setSession({ sid: '' }); fs.rmSync(od, { recursive: true, force: true }); fs.rmSync(rec, { force: true }); }
+    report(!delNew && /protect-originals/.test(delOld), 'pretool: under v2 a delete of a file this turn created in an originals folder goes through; one there before is refused', JSON.stringify({ delNew: delNew.slice(0, 120), delOld: delOld.slice(0, 120) })); }
   const got = refuse.map(([tag, d, cfg]) => [tag, guard({ session_id: '', ...d }, cfg) || '']);
   const same = refuse.every(([, d, cfg]) => guard({ session_id: '', ...d }, cfg) === guard({ session_id: '', ...d }, { ...cfg, engine: 'v1' }));
   report(got.every(([tag, r]) => new RegExp(`REQ: (${tag})\\b`).test(r)) && same && IN_WORK_GUARDS.test('REQ: no-secrets'),
@@ -3415,8 +3424,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       const third = pre('sq1', fq), fourth = pre('sq1', fq);
       fs.appendFileSync(fq, JSON.stringify({ type: 'assistant', timestamp: '2026-01-01T00:00:05Z', message: { content: [{ type: 'text', text: 'Here is the answer.' }] } }) + '\n');
       const fifth = pre('sq1', fq), sixth = pre('sq1', fq);
-      report(/Still unanswered/.test(third) && !/additionalContext/.test(fourth) && /answered your message/.test(fifth) && !/💬/.test(sixth) && ![one, third].some(o => /answers you first/.test(o)),
-        'late: an unanswered message is told once more after 2 more tool calls, then not again; the user\'s line promises nothing and says answered once the reply exists (late-answered)', { third: third.slice(0, 300), fourth: fourth.slice(0, 200), fifth: fifth.slice(0, 300), sixth: sixth.slice(0, 200) });
+      // (and no 💬 line for the user: they see their message and the answer. 2026-11-12: four such lines in two minutes)
+      report(/Still unanswered/.test(third) && !/additionalContext/.test(fourth) && ![one, third, fifth, sixth].some(o => /💬/.test(o)) && ![one, third].some(o => /answers you first/.test(o)),
+        'late: an unanswered message is told to the agent once more after 2 more tool calls, then not again; the user gets no 💬 line, they see the message and its answer (late-answered)', { third: third.slice(0, 300), fourth: fourth.slice(0, 200), fifth: fifth.slice(0, 300), sixth: sixth.slice(0, 200) });
     }
     // (REQ: queued-messages, a regression that reached users: v2 kept only the hint, and the end check never held a
     // question typed mid-turn. Held until a later text answers it; an answer clears it; the message is part of the request)

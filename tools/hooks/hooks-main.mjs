@@ -2750,9 +2750,8 @@ function cmdPretool(data) {
     return r.say.length ? MIDTURN.lateNote(r.say, r.again) : ''; } catch { return ''; } })() : '';
   const img = MIDTURN ? (() => { try { const m = MIDTURN.missingImages(data); return m && fresh('images-told.json', [m], x => `${data.agent_id}|${x.at}|${x.nums.join(',')}`).length ? MIDTURN.imagesNote(m) : ''; } catch { return ''; } })() : '';
   const notes = [late, img, ...(data.agent_id || V2_PRETOOL ? [] : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()])].filter(Boolean).join('\n');
-  const who = data.agent_id ? 'the helper' : 'Claude';
-  const heard = late ? `${brand()} 💬 your message reached ${who} mid-task` : replied ? `${brand()} 💬 ${who} answered your message` : '';
-  const ack = HOST === 'claude-code' ? [acked, heard, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
+  // (no 💬 line: the user sees their own message and the answer to it. Lesson (2026-11-12): four such lines in two minutes)
+  const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
 // A command that starts by changing to the folder it already runs in ("cd <project> && ..."): the cd is dropped in

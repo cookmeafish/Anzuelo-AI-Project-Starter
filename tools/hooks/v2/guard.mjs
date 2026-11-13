@@ -8,7 +8,7 @@ import { ENGINE, split, kind } from '../paths.mjs';
 import { commitIds, cutIds } from '../claims.mjs';
 import { selfListGrows, selfCmdWrites } from '../selfcmds.mjs';
 import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretHit, forbiddenRe, today, FORBID_EXEMPT, countRe, settingUp, isSuspended } from '../settings.mjs';
-import { stateFile, writeState, SNAPSHOT, rel, globRe, match, textOf, engineOf, briefFileNamesRules } from '../state.mjs';
+import { stateFile, writeState, SNAPSHOT, rel, globRe, match, textOf, engineOf } from '../state.mjs';
 import { people, peopleIn, peopleFor, personOf, pathsPeople } from '../people.mjs';
 import { isWakeTool, WAKE_ASK, WAKE_STATE } from '../wakeups.mjs';
 import { namesIn } from '../names.mjs';
@@ -23,7 +23,7 @@ import { makeProof } from '../proof.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
 import { MISSING_TOOL } from '../base-checks.mjs';
-import { envOf } from '../state.mjs';
+import { envOf, SID } from '../state.mjs';
 export { commitIds };
 // The gate judgment (gates.mjs), built on first use from the shared parts, as v2's end check builds it.
 let gatesMemo = null;
@@ -58,13 +58,17 @@ export { pretoolDecision as guard };
 // Every path a delete names in originals folder d is new this turn (not in the turn-start snapshot, not in git).
 export function deletesOnlyNewFiles(cmd, d) {
   const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
-  if (!snap?.files || !turnAt || Date.parse(snap.at) < turnAt - 5000) return false;
+  // (under v2, whose record is its own: a file created after its turn began. Lesson (2026-11-12): broken downloads the
+  // turn's helpers had just made were refused, as only the old engine's record was read)
+  const v2At = Date.parse(readJSON(abs(`tools/hooks/state/v2-turn.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`), {}).at || '');
+  const old = !!(snap?.files && turnAt && Date.parse(snap.at) >= turnAt - 5000);
+  if (!old && !v2At) return false;
   const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
   if (!paths.length) return false;
   for (const p of paths) {
-    if (/[*?]/.test(p) || p.startsWith('..') || !exists(p) || snap.files[p]) return false;
+    if (/[*?]/.test(p) || p.startsWith('..') || !exists(p) || (old && snap.files[p])) return false;
     let s; try { s = fs.statSync(abs(p)); } catch { return false; }
-    if (s.isDirectory()) return false;
+    if (s.isDirectory() || (!old && s.birthtimeMs < v2At - 1000)) return false;
     if (exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0) return false;
   }
   return true;
@@ -289,9 +293,9 @@ export function pretoolHits(data, cfg) {
       `If the request is about ${other} after all (a follow-up to earlier work on them), confirm it and retry: node tools/hooks/hooks.mjs waive scope-separate "<why this is ${other}'s>". Otherwise ${named.length ? `work only in ${named.map(n => `${cfg.scopesRoot}/${n}/`).join(', ')}` : 'leave that folder alone'}.`;
     return null;
   };
-  // REQ: subagent-brief. A sub-agent only follows the rules it is shown: every brief points it at AGENTS.md.
-  if (/^(Agent|Task)$/.test(name) && cfg.subagentBrief && typeof inp.prompt === 'string' && inp.subagent_type !== 'fork' && !/AGENTS\.md|CLAUDE\.md/.test(inp.prompt) && !briefFileNamesRules(inp.prompt))
-    add('REQ: subagent-brief. Sub-agents follow only what their brief says. Add to the prompt: "Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, the runbook for this task: docs/playbooks/<name>.md)." A prompt that names a brief file saying it works too. Then re-check its output yourself before reporting it.');
+  // (REQ: subagent-brief is never a refusal: it is a quality rule, not safety, and only safety stops work. The pretool
+  // entry adds the line to the brief in place where the host allows it. Lesson (2026-11-12): three helper launches in a
+  // row were refused in auto mode, and each was sent again)
   // REQ: headless-no-wakeup. A headless run ends with its answer: nothing would wake it later.
   if (/^(ScheduleWakeup|CronCreate)$/.test(name) && /^sdk/.test(process.env.CLAUDE_CODE_ENTRYPOINT || ''))
     add('REQ: headless-no-wakeup. This is a headless run: it ends with its answer, so nothing would wake it. A helper or background job you started reports back by itself in this turn when it ends: do other work meanwhile, or wait for it, then answer.');
@@ -362,6 +366,10 @@ export function pretoolHits(data, cfg) {
     // REQ: shell-hygiene. In Git Bash "> nul" creates a real file named nul that Windows can barely delete.
     if (name === 'Bash' && /[12&]?>>?\s*nul\b/i.test(cmd))
       add('REQ: shell-hygiene. In Bash, "> nul" creates a file literally named "nul". Use > /dev/null instead.');
+    // (REQ: shell-hygiene: "sed -i" on a project's code file rewrites it unseen, and a pattern slip breaks the program; the
+    // Edit tool shows the change and fails safely. Lesson (a field report, 2026-11-12): an in-place sed broke a JS file)
+    const sedHit = sedInPlaceFiles(cmd).find(f => /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)$/i.test(f) && !/^(\/tmp|\$TEMP|\$TMP)\b/i.test(f));
+    if (sedHit) add(`REQ: shell-hygiene. "sed -i" would rewrite ${sedHit} in place, unseen, where one pattern slip breaks the file. Use the Edit tool for the change.`);
     // REQ: forbidden-command. Project-defined commands that must never run (e.g. killing the user's own app or port).
     for (const f of cfg.forbiddenCommands) { try { if (re(f.pattern).test(cmd)) add(`REQ: forbidden-command. ${f.reason || 'This command is forbidden in this project.'} (pattern: ${f.pattern})`); } catch { } }
     // REQ: git-safety. History rewrites and force operations need a fresh backup bundle and the user's explicit words.

@@ -2569,10 +2569,15 @@ PRETOOL.push(
   // (the brief line is put in front of the prompt, not denied: a denial cost a full extra round that resent the prompt)
   { name: 'sub-agent brief without the rules: the line is added in place, not denied', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, deny: false,
     rewrites: { prompt: /^Read AGENTS\.md first and follow its rules[^\n]*\n\nReview the export feature\.$/, subagent_type: /^general-purpose$/ } },
-  // (in auto mode a changed input is refused by the host after its review, so the call is not rewritten: it is refused
-  // once with the line to add, and the agent's resend with it goes through)
-  { name: 'sub-agent brief without the rules in auto mode: refused with the line to add, never rewritten', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, mode: 'auto',
-    deny: true, tag: 'subagent-brief' },
+  // ("sed -i" on a code or text file is refused for the Edit tool: it rewrites unseen. Lesson (2026-11-12): it broke a
+  // JS file. A read with sed -n, or a file outside those kinds, goes through)
+  { name: 'shell-hygiene: sed -i on a code file is refused, the Edit tool named', tool: 'Bash', input: { command: 'sed -i "s|oldName|newName|g" src/app.js' }, deny: true, tag: 'shell-hygiene' },
+  { name: 'shell-hygiene: sed -i.bak -e on a module is refused', tool: 'Bash', input: { command: 'cd web && sed -i.bak -e "s/x/y/" lib/x.mjs' }, deny: true, tag: 'shell-hygiene' },
+  { name: 'shell-hygiene: sed -n reading a code file goes through', tool: 'Bash', input: { command: 'sed -n 1,20p src/app.js' }, deny: false },
+  // (in auto mode a changed input is refused by the host after its review, so the call is not rewritten, and not refused
+  // either: the brief rule is quality, not safety. Lesson (2026-11-12): three launches in a row were refused and resent)
+  { name: 'sub-agent brief without the rules in auto mode: runs as written, never refused or rewritten', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, mode: 'auto',
+    deny: false },
   // a program held for the user's approval is not run another way (Lesson, trial round 9: "go test" was held, and the
   // next call ran it through node's spawnSync)
   { name: 'permission-respected: a held program run through a node one-liner: denied', tool: 'Bash', input: { command: `node -e "const {spawnSync}=require('child_process');spawnSync('go',['test','./...'],{stdio:'inherit'})"` },

@@ -13,7 +13,7 @@ export const LINE_KINDS = { upset: '🚨', question: '💬', rule: '📜', runbo
 // with the user, "open: <why>" not shown yet (named in the v2-only plan). A kind with no entry fails the self-test.
 // Lesson (the user): a project moved to v2 lost its end-of-turn lines unseen; nothing compared what each engine showed.
 export const V2_SHOWS = { upset: 'v2: acknowledgedLine, passLine', passed: 'v2: passLine', lesson: 'v2: passLine', runbook: 'v2: runningLine',
-  skill: 'v2: runningLine', question: 'v2: lateMessages', blocked: 'v2: deny', critical: 'v2: deny, sessionUserLine',
+  skill: 'v2: runningLine', question: 'dropped: the user sees their message and its answer (2026-11-12)', blocked: 'v2: deny', critical: 'v2: deny, sessionUserLine',
   checklist: 'dropped: the end check verifies the runbook items itself; the count was the optional v1 ledger',
   session: 'dropped: no "on duty" line (the user)', resumed: 'dropped: intact files are implied (the user)',
   ...Object.fromEntries(['upgrade', 'plan', 'routine', 'inbox', 'feedback', 'harden', 'stale'].map(k => [k, 'dropped: a chore the agent does, shown as "running" or "improving" (the user)'])),
