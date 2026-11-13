@@ -36,7 +36,7 @@ import { VERBATIM_ENGINE } from './verbatim.mjs';
 import { NAMES_FILE, NAME_FILES, namesIn, nameProblems, headsOf, newLinesOf } from '../names.mjs';
 import { rootToolchainFile } from '../rootfiles.mjs';
 import { waivedTag, gitClaimGaps, notesOf, ownWords } from './lib.mjs';
-import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
+import { wakeGaps, watchersArmed, watcherLeft, wakeupsPending } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
 import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, checkOff, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen, smallChange } from './lib.mjs';
@@ -732,8 +732,8 @@ function judge(data, { shadow = false } = {}) {
     // (proof it was forgotten, not a guess: another ask of this turn was taken up and this one not; a promise made before
     // the final answer and never named after. A terse "Done." after the work is no proof)
     const open = W.update(String(data.session_id), { msgs: W.typedMsgs(rows), texts }).filter(i => i.at >= (turn.at || '')), fin = texts.at(-1)?.at || '';
-    const took = W.loadLog(String(data.session_id)).some(i => i.from === 'user' && i.status === 'done' && i.at >= (turn.at || ''));
-    return open.filter(i => i.from === 'user' ? took : i.at < fin).map(i => `Still open: "${i.text}". Do it now, after a one-line update to the user, or say in one line it is declined (why) or waits on the user (what).`); });
+    const took = W.loadLog(String(data.session_id)).some(i => i.from === 'user' && i.status === 'done' && i.at >= (turn.at || '')), armed = watchersArmed(sessionRows).length + wakeupsPending(sessionRows).length > 0; // (a promise a watcher or wakeup is armed for is waiting)
+    return open.filter(i => i.from === 'user' ? took : i.at < fin && !armed).map(i => `Still open: "${i.text}". Do it now, after a one-line update to the user, or say in one line it is declined (why) or waits on the user (what).`); });
   // (keep working: a turn that ticked a box of the project's queue is told the next open one, once)
   const nextUp = S('queue', () => { if (again || !W.tickedQueue(acts.calls)) return []; const q = W.queueOpen(f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } })[0];
     return q ? [`Next in the queue (${q.file}): "${q.text.slice(0, 160)}". Give the user a one-line update and start it now, unless it waits on the user (then say so).`] : []; });

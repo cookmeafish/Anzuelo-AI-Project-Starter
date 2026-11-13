@@ -4046,7 +4046,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // and never kept is named too; a one-ask turn ended with a terse "Done." holds nothing. The user, 2026-11-12: nothing
 // asked or promised is dropped. Lesson (a live case): three asks were never mentioned again)
 {
-  const T0 = Date.now() - 60_000, ts = s => new Date(T0 + s * 1000).toISOString(), stampAt = (s, r) => ({ ...r, timestamp: ts(s) });
+  // (a call is two rows, the use and its result: each gets the time, so the transcript holds the call)
+  const T0 = Date.now() - 60_000, ts = s => new Date(T0 + s * 1000).toISOString(), stampAt = (s, r) => Array.isArray(r) ? r.map(x => ({ ...x, timestamp: ts(s) })) : ({ ...r, timestamp: ts(s) });
   const queued = (s, prompt) => ({ type: 'attachment', timestamp: ts(s), attachment: { type: 'queued_command', prompt } });
   const rows4 = [stampAt(0, user('choose which account the stats come from')), queued(5, 'progress that updates itself'), queued(10, 'a refresh button on the stats page'),
     queued(15, [{ type: 'image', source: {} }, { type: 'text', text: 'the coach popup shows on my Claude login screen, hide it there' }]),
@@ -4059,7 +4060,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (a promise names an ask but does nothing: "I'll add the emojis next", then "Done.", leaves it open. Oversight)
   const later = onStop({ session_id: 'wlogf', transcript_path: transcript([stampAt(0, user('fix the totals row.\nalso put emojis in the section headings')), stampAt(5, call('Edit', { file_path: path.join(dir, 'src/totals.js'), old_string: 'a', new_string: 'b' })),
     stampAt(10, say('Fixed the totals row. I\'ll put emojis in the section headings next.')), stampAt(15, say('Done.'))]) })?.reason || '';
-  for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+  // (a promise the turn armed a watcher for is waiting, not open. Oversight, 2026-11-12: "read the pool at 20:11" was
+  // held while the turn's own Monitor was armed for it)
+  const watched = onStop({ session_id: 'wlogw', transcript_path: transcript([stampAt(0, user('tell me when the chain ends')), stampAt(5, say('I\'ll read the memory pool ten minutes after the chain ends.')),
+    stampAt(10, call('Monitor', { description: 'pool reading after the chain', command: 'sleep 600; read-pool' }, 'Monitor started (task id: bmon4821), watching.')), stampAt(15, say('The watcher reads it then.'))]) })?.reason || '';
+  for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+  report(!/Still open/.test(watched), 'worklog: a promise the turn armed a watcher or wakeup for is waiting, not held', watched.slice(0, 300));
   report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
     && !log.some(i => /object Object/.test(i.text)) && log.some(i => /coach popup/.test(i.text) && i.status === 'done')
