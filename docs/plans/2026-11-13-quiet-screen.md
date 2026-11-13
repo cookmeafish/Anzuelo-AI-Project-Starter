@@ -69,6 +69,9 @@ What the user saw in that hour, and why:
 - [ ] A repeat-problem or open-plan item holds only the session that owns it. Sending the problem to the owning
       session counts as handled.
 - [ ] Status and changelog asks only when this turn changed a starter or project file of that kind.
+- [ ] When every "Done when" item of the routed runbook is met by evidence (a hook, a run, a file), "open the runbook"
+      and "check the items are really done" don't hold: reading the file is a means, not an outcome. Test: the plan turn
+      of the real hour (plan saved, `plan-tasks.mjs check` passed, plan linked) ends with no hold.
 - [ ] Work that running background helpers own is waiting, not missing: no hold for their unfinished output (claims
       they haven't returned, a file still being written); it is judged on the turn that merges their results. Test: a
       turn with live background agents and partial files ends with no hold (a project, 2026-11-13: 3 rounds of 6, 5
