@@ -31,10 +31,14 @@ without its run outputs when it has no commit), the current engine put on it, an
 - [x] Sweep the three real projects; list every failure above.
 - [x] Fix each at its cause (the table's last column).
 - [x] After the fixes: the v2 self-test passes in a copy of each real project (387, 387, 388) and in the starter (406).
-- [ ] The trial, with the v2 self-test in every sample project, passes.
-- [ ] The release chain passes; the projects upgrade and run it for real.
+- [x] The trial, with the v2 self-test in every sample project, passes (156/156).
+- [x] The release chain passes (released 5cff447, pushed).
+- [ ] The projects upgrade and run it for real (one project notified; two wait on the user).
 - [ ] An adopted project with the engine in `.anzuelo/engine` joins the trial's samples, so that layout is proven by
       every release too.
+- [ ] Found on the way: the audit's count of tags with a v2 test counts any mention in selftest.mjs, so a comment
+      naming a tag passes as its test (engine-readonly did, until the comment went; it has a real test now). Count only
+      tags named in a report's text or a `REQ:` test marker.
 - [x] Explained (no engine gap): in a fresh empty project the ask sits at character 598 of the check's output, past
       the test's 300-character cut. The test now reads the whole output and runs in projects again. Was:
       Open, not understood yet: `check --answer-file` after `begin`, in a copy of two sample projects (empty folder,
