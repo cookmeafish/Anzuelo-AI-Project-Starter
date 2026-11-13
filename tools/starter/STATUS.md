@@ -9,6 +9,11 @@ docs/STATUS.md, which here is the template new projects start from).
   4680b8a (2573 -> 3080 MB); top tag Key (registry key blocks, 317 MB, 1.22M live), then MmSt, FMfn, Ntff, Toke. Find
   what opens a registry path per test copy or process by a tag diff around one shard; save a tag baseline
   (pooltags.ps1, into tools/starter/) right before the next chain. Fixed only after the multi-chain soak.
+- [ ] 1c. Live false holds from c2f1528 (oversight, 2026-11-12), each a test: an item the final answer delivers closes
+  (a "wait" item too); a promise in a sentence that defers it ("once they've upgraded") is waiting; a report, plan or
+  STATUS under tools/starter/ is no engine change (no self-test or starter-changelog ask); `hooks.mjs waive <tag>`
+  refuses an unknown tag and names the item's real one, a waiver holds in later rounds, and each held item shows its tag
+  in the details file. From a project: hook timings up 15-20% after c2f1528 (prompt 146 -> 175 ms), with item 13.
 - [ ] 2. A release with rewrite part 1 + routing + the log, then upgrade all 3 projects the same day.
 - [ ] 2a. (oversight, 2026-11-12, for a fourth project, a large established app) The .anzuelo layout from day one: a
   fresh install of an established project puts everything under .anzuelo/ (the engine-outside plan's remaining steps,
