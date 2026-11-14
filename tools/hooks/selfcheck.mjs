@@ -10201,6 +10201,26 @@ function prevEngineStop(dir, tp) {
   } finally { fs.writeFileSync(at, mine); }
   return times.length ? Math.min(...times) : null;
 }
+// (the same-run rule: slower only when both the fastest and the median are over 15% above the release's)
+export const sameRunSlower = (rel, now) => { const f = a => Math.min(...a), m = a => [...a].sort((x, y) => x - y)[a.length >> 1]; return f(now) > f(rel) * 1.15 && m(now) > m(rel) * 1.15; };
+// The old engine's Stop on the same turn, this copy against a copy with the released hooks (origin/main), 9 rounds
+// interleaved, whole process timed on both sides. null when there is no released copy.
+function releasedStopSameRun(dir, tpNow, mkTurn) {
+  const ref = (spawnSync('git', ['rev-parse', '-q', '--verify', 'origin/main'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim(); if (!ref) return null;
+  const rel = copyProject();
+  try {
+    const ar = spawnSync('git', ['archive', ref, 'tools/hooks'], { cwd: ROOT, maxBuffer: 1 << 28 });
+    // (-f - and run inside the folder: Windows' tar reads stdin only when told; Git's GNU tar takes "C:" for a host)
+    if (ar.status !== 0 || spawnSync('tar', ['-x', '-f', '-'], { cwd: rel, input: ar.stdout }).status !== 0) return null;
+    const tpRel = mkTurn(rel), slowMs = Number(process.env.STARTER_STOP_SLOW_MS || 0);
+    const one = (d, tp, slow) => { const t0 = performance.now(); spawnSync(process.execPath, [...(slow > 0 ? ['--import', `data:text/javascript,const t=Date.now();while(Date.now()-t<${slow});`] : []), path.join(d, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: d, encoding: 'utf8',
+      input: JSON.stringify({ transcript_path: tp, last_assistant_message: 'Playbook: plan.md. Saved the plan.' + FIN }), env: { ...process.env, STARTER_MEMORY_DIR: path.join(d, '.memtest') } }); return performance.now() - t0; };
+    const t = { rel: [], now: [] };
+    for (let i = 0; i < 9; i++) { t.rel.push(one(rel, tpRel, 0)); t.now.push(one(dir, tpNow, slowMs)); }
+    const fast = a => Math.round(Math.min(...a)), mid = a => Math.round([...a].sort((x, y) => x - y)[a.length >> 1]);
+    return { ref: ref.slice(0, 7), release: [fast(t.rel), mid(t.rel)], now: [fast(t.now), mid(t.now)], slower: sameRunSlower(t.rel, t.now) };
+  } finally { fs.rmSync(rel, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
 // (whether the Stop limits were judged with the machine to itself, for the proof: see writeProof's speed)
 let STOP_JUDGED = false;
 if (!TAGS && !HELPER && !REUSE) {
@@ -10208,9 +10228,10 @@ if (!TAGS && !HELPER && !REUSE) {
   try {
     const budget = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')).stopBudgetMs; } catch { return null; } })() || 500;
     const since = Date.now() - 1000;
-    const tp = transcript(dir, { prompt: 'make a plan for the csv export and note it in the changelog', tools: [pb('plan'), { name: 'Write', input: { file_path: 'docs/plans/2026-10-21-export.md' } },
+    const mkTurn = d => { const t = transcript(d, { prompt: 'make a plan for the csv export and note it in the changelog', tools: [pb('plan'), { name: 'Write', input: { file_path: 'docs/plans/2026-10-21-export.md' } },
       { name: 'Edit', input: { file_path: 'docs/CHANGELOG.md' } }, bash('node tools/audit.mjs'), ...many(6)], answer: null }, since);
-    write(dir, { 'docs/plans/2026-10-21-export.md': '# Export: plan\n- [ ] helpers\n- [ ] wire it up\n', 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-21: planned the export\n' });
+      write(d, { 'docs/plans/2026-10-21-export.md': '# Export: plan\n- [ ] helpers\n- [ ] wire it up\n', 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-21: planned the export\n' }); return t; };
+    const tp = mkTurn(dir);
     // (the other self-test runs on this machine finish first, up to 10 minutes; one waiting for its own turn to time is
     // no load, and the turn to time goes to one run at a time)
     markWaiting(true);
@@ -10254,7 +10275,16 @@ if (!TAGS && !HELPER && !REUSE) {
     report(v2best <= budget || others > 0, `stop-budget: engine v2's Stop hook stays within its ${budget} ms budget on a realistic work turn`, `${v2best} ms`);
     // (proven: both engines within budget; beside other runs that still proves it, load only adds. Over budget is never
     // proof, whatever excused it: other runs, or a previous engine as slow)
-    STOP_JUDGED = !!v && v.total <= budget && v2best <= budget;
+    // (the old engine's Stop over its budget: judged against the released engine timed in the same run, interleaved;
+    // slower only when both the fastest and the median are over 15% above the release's. v2's Stop, the default, keeps
+    // its fixed budget. Oversight, 2026-11-13: a busy machine held a release whose old-engine Stop the released engine
+    // matched in the same run. STARTER_STOP_COMPARE=1 compares even within budget; STARTER_STOP_SLOW_MS slows this side)
+    let same = null;
+    if (v && (v.total > budget || process.env.STARTER_STOP_COMPARE)) { same = releasedStopSameRun(dir, tp, mkTurn); console.log(`stop vs release (old engine): ${same ? JSON.stringify(same) : 'no released copy here'}`);
+      if (same) report(!same.slower, 'stop-budget: the old engine\'s Stop is no more than 15% slower than the released one timed in the same run, interleaved (fastest and median)', JSON.stringify(same)); }
+    STOP_JUDGED = !!v && (v.total <= budget || (!!same && !same.slower)) && v2best <= budget;
+    { const R = [480, 490, 500, 505, 510, 515, 520, 530, 540]; report(sameRunSlower(R, R.map(x => x * 1.3)) && !sameRunSlower(R, R) && !sameRunSlower(R, [...R.slice(0, 8), 2000]),
+      'stop-budget: the same-run rule flags 30% slower at both the fastest and the median; equal timings, or one slow sample, are not', ''); }
     // and the verdict names the slowest checks when the budget is missed
     const tight = v ? stopVerdict(samples, 1) : null;
     report(!!tight && !tight.ok && tight.slow.length === 3 && tight.slow.every(s => /^[\w(][^]* \d+(\.\d)? ms$/.test(s)) && (V2T ? samples[0].parts.length >= 3 : samples[0].parts.some(([l]) => /^check /.test(l)) && samples[0].parts.some(([l]) => /^core /.test(l))),
