@@ -141,7 +141,8 @@ const tree1 = tree(), treeDiff = Object.keys({ ...tree0, ...tree1 }).filter(f =>
 const checks = [
   ['the engine installed in .anzuelo/engine', inst.status === 0 && installed, (inst.stderr || inst.stdout || '').slice(-300)],
   ['the setup session ran to an answer', !j.is_error && !!j.result, (j.error || '').slice(0, 300)],
-  ['the adoption review was written under .anzuelo/', !!review, review ? path.relative(dir, review) : 'no "## Adoption review" section under .anzuelo/'],
+  // (only the agent session writes the review: --no-agent leaves this check out and says so, never a false FAIL)
+  ...args.includes('--no-agent') ? [] : [['the adoption review was written under .anzuelo/', !!review, review ? path.relative(dir, review) : 'no "## Adoption review" section under .anzuelo/']],
   ['the project\'s own rules, hooks and package settings are byte for byte the same', !changedOwn.length, changedOwn.join(', ')],
   ['git\'s hooks path is what it was', hooksPath1 === hooksPath0, `${hooksPath0 || '(unset)'} -> ${hooksPath1 || '(unset)'}`],
   ['nothing of the starter outside .anzuelo/ but the wiring', !stray.length, stray.slice(0, 15).join(', ')],
@@ -161,5 +162,5 @@ console.log(`wiring outside .anzuelo/: ${wiring.join(', ') || 'none'}, and ${mir
 // (an adopted project's state sits in the user's profile: the trial copy's goes with the copy, never left behind)
 if (!args.includes('--keep')) { fs.rmSync(dir, { recursive: true, force: true }); if (so) fs.rmSync(so, { recursive: true, force: true }); } else console.log(`kept: ${dir}${so ? ` (its state: ${so})` : ''}`);
 const bad = checks.filter(c => !c[1]).length;
-console.log(`ADOPT-LARGE: ${bad ? 'FAIL' : 'PASS'} (${checks.length - bad} of ${checks.length})`);
+console.log(`ADOPT-LARGE: ${bad ? 'FAIL' : 'PASS'} (${checks.length - bad} of ${checks.length}${args.includes('--no-agent') ? '; no agent run, so the adoption review is not checked' : ''})`);
 process.exit(bad ? 1 : 0);
