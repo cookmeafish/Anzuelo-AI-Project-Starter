@@ -52,8 +52,9 @@ Hooks per event in a fresh project (engine in .anzuelo/): session 2 git, prompt 
       and untracked files. Not 1: the snapshot needs each file's working-tree hash as git makes it, and with line-ending
       conversion on (autocrlf) only git's own hash-object matches the later reads. Prompt budget 3; the old code fails
       with 4 (the test now starts the turn with an uncommitted file, as real turns have).
-- [ ] Session start's 3 git calls (ls-files -oi, check-ignore --stdin, config core.hooksPath) become at most 1:
-      core.hooksPath read from .git/config directly, the ignored-file reads merged.
+- [ ] Session start's 3 git calls (ls-files -oi, check-ignore --stdin, config core.hooksPath): core.hooksPath stays
+      git's own answer (a direct read misses the system config, includes and worktree config: Oversight, 2026-11-14;
+      tried and reverted). Left: merge the two ignored-file reads, if both are needed at every session start.
 
 ## Task 3: the suites start fewer programs
 **Files:** tools/starter/v2-sweep.mjs, tools/hooks/selfcheck.mjs, tools/hooks/v2/selftest.mjs
