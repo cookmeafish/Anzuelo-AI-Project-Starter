@@ -6,10 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { testStateName } from './paths.mjs';
 
 export const TEST_ROOT = path.join(os.tmpdir(), 'anzuelo-tests');
 const MADE = new Set();
-const rm = d => { try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } catch { } };
+const rm0 = d => { try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } catch { } };
+// (with a test folder goes the state its projects kept outside them, named by their place: paths.mjs testStateName)
+const rm = d => { rm0(d); const n = testStateName(d), sd = path.join(TEST_ROOT, 'state'); if (n) try { for (const e of fs.readdirSync(sd)) if (e === n || e.startsWith(n + '~')) rm0(path.join(sd, e)); } catch { } };
 export function cleanMade() { for (const d of MADE) rm(d); MADE.clear(); }
 let hooked = false;
 const hook = () => {

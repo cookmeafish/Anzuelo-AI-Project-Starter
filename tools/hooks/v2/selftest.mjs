@@ -4413,6 +4413,12 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
 }
 
 fs.rmSync(dir, { recursive: true, force: true });
+// (a test copy's state kept outside it goes with its test folder, never left for the hourly sweep. Lesson (release chain,
+// 2026-11-13): those state folders grew the temp folder past the leak budget)
+{ const { cleanMade } = await import('../testtmp.mjs'), { stateOutside } = await import('../paths.mjs');
+  const d = testDir('v2-stateout-'), p = path.join(d, 'app'), loc = path.join(p, '.anzuelo', 'local'); fs.mkdirSync(loc, { recursive: true }); fs.writeFileSync(path.join(loc, 'config.json'), '{"stateOutside":true}');
+  const so = stateOutside(loc, p); fs.mkdirSync(path.join(so, 'tools/hooks/state'), { recursive: true }); const inRoot = path.dirname(so) === path.join(TEST_ROOT, 'state');
+  cleanMade(); report(inRoot && !fs.existsSync(so), 'state outside: a test copy\'s state sits under the tests\' root and is removed with its test folder', JSON.stringify({ so, left: fs.existsSync(so) })); }
 // (Lesson, release 56a4f0d: a test's sample file in the repo, removed only at exit, made the speed record name no commit)
 if (REPO_STATUS0 != null) { const now = repoStatus(); report(now === REPO_STATUS0, 'hygiene: the self-test leaves the repo\'s git status as it found it (no file of its own left in the project before the speed record is written)', (now || '').split('\n').filter(l => l && !(REPO_STATUS0 || '').includes(l)).slice(0, 5)); }
 // (the release verdict on the time limits, for the proof: judged only with a quiet window, nothing noted, and every test
