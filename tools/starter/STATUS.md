@@ -5,7 +5,16 @@ docs/STATUS.md, which here is the template new projects start from).
 
 ## Queue (oversight, for the user, 2026-11-12; in order, tick as done)
 - [x] 1. The work log (released in c2f1528, 2026-11-12; follow-up fixes from its first live day in the next release).
-- [ ] 1b. (2026-11-13: measured with tools/starter/pooltags.ps1. The Key growth was three orphaned whole-disk searches,
+- [ ] 1b. (2026-11-14, nonpaged: one release chain leaves +40 MB nonpaged, nearly all tag File (about 100k objects),
+  paired one for one with paged tag D2d (a tag in ntoskrnl.exe). Probes, 1,000 starts each: every start of a program
+  outside System32 (node.exe, git.exe, even a copy of whoami.exe in a temp folder) leaves one D2d and about one File
+  for good; whoami.exe and powershell.exe from System32 leave none; creating, reading, copying or deleting files
+  leaves none. Since boot (2026-11-12): 6.2M File objects (2.37 GB nonpaged) and 6.0M D2d (184 MB paged), freed only
+  by a restart. Smart App Control is off; the kernel components left are the anti-cheat driver (vgk, boot start)
+  and Defender's real-time scan, which the user decides about. Our side: fewer process starts per chain (hooks run
+  in one process per test file, not one per call). Measured with scratch leak-steps.sh, per step: v2 +4k, old suite
+  +26k, v2-sweep +53k, trial +18k, audit 0.)
+  (2026-11-13: measured with tools/starter/pooltags.ps1. The Key growth was three orphaned whole-disk searches,
   stopped and now refused by the no-disk-scan guard. What stays per old-suite shard is NTFS blocks of deleted test
   files (Ntff, NtfF, about 250 MB at +10 min). Next: fewer files per test copy (no-leaks plan, Task 5), then the soak.)
   No-leaks Task 3, right after the three upgrades: the paged pool stayed +507 MB after the two chains of
