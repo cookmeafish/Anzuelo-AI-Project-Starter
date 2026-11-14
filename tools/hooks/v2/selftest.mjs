@@ -1762,7 +1762,16 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const g2 = onStop({ transcript_path: transcript([user('add a csv export'), edit, say(reply)]), session_id: 'grows', stop_hook_active: true, last_assistant_message: reply });
     const items = r => (String(r?.reason || '').match(/^- .*$/gm) || []).map(s => s.replace(/ \[[^\]]*\]$/, ''));
     report(items(g1).length > 0 && items(g2).every(s => items(g1).includes(s)) && !/"Issue:" line is in the answer/.test(g2?.reason || ''),
-      'end: a later round of one request lists only the first round\'s items still unmet, never one the reply set off (the list never grows)', JSON.stringify({ g1: items(g1), g2: items(g2) })); }
+      'end: a later round of one request lists only the first round\'s items still unmet, never one the reply set off (the list never grows)', JSON.stringify({ g1: items(g1), g2: items(g2) }));
+    // (at most 5 items a hold, open asks and safety first; the rest are named once as noted, not held. Lesson (a project,
+    // 2026-11-14 21:51): one hold of 21 items, most from runbooks the work never touched)
+    onPrompt({ session_id: 'cap5', prompt: 'add a csv export' });
+    const ans = 'Issue: the export missed a column | runbook: export | fixed when: every column is exported\nAdded the export. All tests passed.';
+    const many = onStop({ transcript_path: transcript([user('add a csv export'), edit, say(ans)]), session_id: 'cap5', last_assistant_message: ans });
+    const held = (/Not done yet:\n((?:- .*\n?)+)/.exec(many?.reason || '') || ['', ''])[1].trim().split('\n').filter(Boolean);
+    const firstBook = held.findIndex(s => /playbooks\/export\.md/.test(s)), lastUpset = held.map(s => /\[upset-learned\]/.test(s)).lastIndexOf(true);
+    report(held.length === 5 && lastUpset >= 0 && (firstBook < 0 || lastUpset < firstBook) && /Say first whether it holds/.test(held.join('\n')) && /Also noted, not held/.test(many?.reason || ''),
+      'end: a hold asks for at most 5 items, the complaint\'s own items before runbook steps, and names the rest once as noted', String(many?.reason || '').slice(0, 1500)); }
   onPrompt({ session_id: 'fixed', prompt: 'add a csv export' });
   // (REQ: skill-learn: round 1 names the runbook's own item and, in the same round, its lesson, so no later round brings
   // it; once both are done (the lesson written into it, or "Skill lesson: none - <why>") the next stop passes. Done
