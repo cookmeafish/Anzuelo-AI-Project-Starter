@@ -9756,9 +9756,9 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
       JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: diffs(before, after), b }));
     { const ur = fs.readFileSync(urL, 'utf8');
       report(o3.status === 0 && /\r\n/.test(plan) && !/[^\r]\n/.test(plan) && /An invoice line the default added\./.test(plan) && /the project's own lesson/.test(plan)
-        && /Invoices are sent only on weekdays/.test(ur) && /Trips are booked only after the budget is checked/.test(ur) && !/^(<<<<<<<|=======|>>>>>>>)/m.test(ur + plan)
+        && /^\| 100 \| [^|]*\| Invoices are sent only on weekdays/m.test(ur) && /^\| 99 \| [^|]*\| Trips are booked only after the budget is checked/m.test(ur) && !/^(<<<<<<<|=======|>>>>>>>)/m.test(ur + plan)
         && !/(plan|user-requirements)\.md \(both changed/.test(upg.stdout) && !fs.existsSync(path.join(loc, '.cache/merge/docs/checks/user-requirements.md')),
-        'upgrade: a project\'s copy saved with CRLF endings merges the default\'s change and keeps its endings; rows both added at the end of a table are both kept; neither is left for the user',
+        'upgrade: a project\'s copy saved with CRLF endings merges the default\'s change and keeps its endings; rows both added at the end of a table are both kept, the default\'s with its number and the project\'s with one the default had moved to the next free number; neither is left for the user',
         JSON.stringify({ o3: o3.status, crlf: /\r\n/.test(plan), out: (upg.stdout || '').slice(0, 500), ur: ur.slice(-400) })); }
     // (the closing line names where the engine keeps records, and none with records off: an agent following a fixed
     // "docs/DECISIONS.md" would make a record file inside the app. Field report, 2026-11-13)
