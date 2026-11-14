@@ -9753,8 +9753,12 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
     {
       const cfg = path.join(loc, 'tools/hooks/config.json'), c = (() => { try { return JSON.parse(fs.readFileSync(cfg, 'utf8')); } catch { return {}; } })();
       const next = records => { fs.mkdirSync(path.dirname(cfg), { recursive: true }); fs.writeFileSync(cfg, JSON.stringify({ ...c, records }, null, 2));
-        fs.appendFileSync(path.join(up, 'README.md'), '\nOne more line.\n'); g(up, 'commit', '-qam', 'one more'); const u = st('upgrade'); return { u, line: /^what changed:.*$/m.exec(u.stdout || '')?.[0] || '' }; };
+        fs.appendFileSync(path.join(up, 'README.md'), '\nOne more line.\n'); g(up, 'commit', '-qam', 'one more'); const u = st('upgrade'); return { u, line: /^what changed[^:\n]*:.*$/m.exec(u.stdout || '')?.[0] || '' }; };
+      // (the steps after the pull are the pulled code's: a commit that changes the closing line shows on the upgrade that
+      // brings it, not one later. Field report, 2026-11-13: the old process printed the old line)
+      { const sm = path.join(up, 'tools/starter.mjs'); fs.writeFileSync(sm, fs.readFileSync(sm, 'utf8').replace('`what changed: ', '`what changed (pulled code): ')); }
       const on = next(true), off = next(false), line1 = on.line, line2 = off.line, upg2 = off.u;
+      report(/^what changed \(pulled code\): /.test(line1), 'upgrade: with the engine in .anzuelo/engine every step after the pull runs the pulled code (a changed closing line shows on the upgrade that brings it)', line1);
       report(/review them in \.anzuelo\/local\/docs\/DECISIONS\.md/.test(line1) && on.u.status === 0 && upg2.status === 0 && !!line2 && !/review them in/.test(line2) && !fs.existsSync(path.join(proj, 'docs/DECISIONS.md')),
         'upgrade: with the engine in .anzuelo/engine the closing line names .anzuelo/local/docs/DECISIONS.md for the review, and none at all with records off; no record file is made in the project', JSON.stringify({ line1, line2, err: (upg2.stderr || '').slice(0, 300) }));
     }
