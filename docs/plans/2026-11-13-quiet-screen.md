@@ -104,6 +104,11 @@ Seen in a project (2026-11-13): after a hold listing many open items, the agent 
 **Uses / provides:** none.
 - [ ] A user message is one item unless it lists separate instructions. Venting and complaints are not tracked
       sentence by sentence; the turn's work closes them.
+- [ ] A promise is tracked only from what a turn hands on: its final answer ("next turn I'll ..."), never the agent's
+      step-by-step narration between tool calls that the same turn then carries out. Seen 2026-11-14: two holds for
+      "I'll strip the status letters ..." and "I'll put the comment at the end of the line", both done in the commit a
+      few steps later. Test from that turn: two narrated "I'll" lines, then the commit, end with no hold; a final answer
+      saying "I'll do X next turn" is tracked.
 - [ ] The "deliver exactly N" ask comes only from the user's own request. A number in a peer session's message, a
       resumed-session summary or the agent's own text ("why it allowed 4 rounds", "9 rounds" in a description) is no
       ask. Seen 2026-11-13: two holds for "4 rounds" and "9 rounds" that no one asked for.
