@@ -109,6 +109,15 @@ What the user saw in that hour, and why:
       after two tries. Test: a long item closed by a phrase from its middle; an ambiguous phrase lists the candidates.
 - [x] (done: tools/hooks/state/stop-holds.jsonl, one line per hold with its time, session and whole reason, the newest
       500 once it passes 2 MB; test failed on the old code; 422/422.)
+- [x] (shell-hygiene, a field report: an inline script that only reads a code file goes through; the write test read the
+      opening quote of a path starting with "w" as a write mode. Now the mode must be open()'s second argument, and
+      write_text, write_bytes, createWriteStream, shutil and os moves and removes count as writes. Tests from the two
+      real refusals failed on the old code.)
+- [ ] A long turn's hold lists only what applies to the work done (a real hold of 21 items, 2026-11-14 21:51): a
+      runbook routed by some message of the turn holds only when the turn changed a file or ran a command of its kind;
+      an item conditional on an output ("once outputs/x is written") is left out while that output was never written;
+      at most 5 items per hold, safety and unfinished work first, the rest in the details file. Test: replay that hold;
+      it drops to the few real items (the fresh review, the visual-review line, the audit failure, the security check).
 - [ ] Each hold's full item list is kept in a per-session history (not only the newest stop-details file), so a
       replay reads every item. The review of 149 real holds could read only the first two of each
       (tools/starter/reviews/2026-11-14-real-holds.md).

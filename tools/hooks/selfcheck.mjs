@@ -2601,6 +2601,11 @@ PRETOOL.push(
   // outside the project, or output to a text file, goes through. Lesson (2026-11-12): backslashes stripped three times)
   { name: 'shell-hygiene: a heredoc into a code file is refused', tool: 'Bash', input: { command: "cat > src/app.js <<'EOF'\nconst a = /\\d+/;\nEOF" }, deny: true, tag: 'shell-hygiene' },
   { name: 'shell-hygiene: node -e writing a module is refused', tool: 'Bash', input: { command: `node -e "require('fs').writeFileSync('lib/x.mjs', s)"` }, deny: true, tag: 'shell-hygiene' },
+  // (an inline script that only reads a code file goes through: a path starting with "w" or "a" read as a write mode.
+  // Lesson (a field report, 2026-11-14): python -c "open('walkthrough/index.html').read()" refused twice)
+  { name: 'shell-hygiene: python -c and node -e that only read a code file go through', tool: 'Bash', input: { command: `python -c "import re;h=open('walkthrough/index.html',encoding='utf-8').read();print(len(re.findall(r'none:',h)))"; node -e "console.log(require('fs').readFileSync('assets/app.js','utf8').length)"` }, deny: false },
+  { name: 'shell-hygiene: python -c writing a page with open(p, "w") is refused', tool: 'Bash', input: { command: `python -c "open('walkthrough/index.html','w',encoding='utf-8').write(s)"` }, deny: true, tag: 'shell-hygiene' },
+  { name: 'shell-hygiene: python -c with write_text into a code file is refused', tool: 'Bash', input: { command: `python -c "from pathlib import Path; Path('walkthrough/build.py').write_text(s)"` }, deny: true, tag: 'shell-hygiene' },
   { name: 'shell-hygiene: a scratch script in the temp folder, and output to a text file, go through', tool: 'Bash', input: { command: 'cat > $TEMP/fix.mjs <<\'EOF\'\nx\nEOF\nnode tools/audit.mjs > .cache/audit.txt 2>/dev/null' }, deny: false },
   // (a search of the whole disk is refused for a bounded one; a search of the project or a named folder goes through.
   // Lesson (2026-11-12): helpers' disk-wide searches for a program ran for hours after their calls timed out)

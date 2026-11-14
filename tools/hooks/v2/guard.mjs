@@ -380,7 +380,7 @@ export function pretoolHits(data, cfg) {
     const CODE_F = String.raw`[\w./\\-]+\.(?:m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)`;
     const inProj = f => { const p = String(f).replace(/\\/g, '/'); return !/^(\/tmp\b|\$TE?MP|%TE?MP%|~|\.\.|\/dev\/)/i.test(p) && (!/^([A-Za-z]:|\/)/.test(p) || p.toLowerCase().startsWith(ROOT.replace(/\\/g, '/').toLowerCase())); };
     const shellW = [...cmd.matchAll(new RegExp(String.raw`(?:^|[\s;&|(])(?:\d?>>?|tee(?:\s+-a)?)\s*["']?(${CODE_F})\b`, 'g'))].map(m => m[1])
-      .concat(/\b(?:node|python3?|py)\s+-[ec]\b/.test(cmd) && /writeFileSync|appendFileSync|open\([^)]*['"][wa]/.test(cmd) ? [...cmd.matchAll(new RegExp(String.raw`['"\`](${CODE_F})['"\`]`, 'g'))].map(m => m[1]) : []).find(inProj);
+      .concat(/\b(?:node|python3?|py)\s+-[ec]\b/.test(cmd) && /\b(writeFile(Sync)?|appendFile(Sync)?|createWriteStream|write_text|write_bytes|renameSync|rmSync|unlinkSync)\b|\bopen\([^,)]*,\s*(mode\s*=\s*)?['"](?:[wax]|r\+)|\b(shutil\.(move|copy\w*|rmtree)|os\.(remove|rename|replace|unlink))\(/.test(cmd) ? [...cmd.matchAll(new RegExp(String.raw`['"\`](${CODE_F})['"\`]`, 'g'))].map(m => m[1]) : []).find(inProj);
     if (shellW) add(`REQ: shell-hygiene. This command writes ${shellW}, a code file, through the shell (a heredoc, redirect or inline script), where backslashes and quotes get mangled. Use the Write or Edit tool.`);
     // REQ: no-disk-scan. A search of the whole disk from the agent's shell (find /, find C:/, dir /s C:\, Get-ChildItem
     // C:\ -Recurse, grep -r or rg over a drive root) is refused for a bounded one. Lesson (2026-11-12): three helpers'
