@@ -9563,8 +9563,9 @@ if (mineB() && (!TAGS || TAGS.includes('process-budget'))) { // each hook event 
     for (const a of [['init', '-q'], ['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'start']]) spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
     const got = {};
     got.session = starts('session', { source: 'startup' });
-    // (the copy's own commit lands in the second the turn would start: a real turn starts after it)
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
+    // (the copy's own commit lands in the second the turn would start: a real turn starts after it, with work not yet
+    // committed, which the turn-start snapshot hashes)
+    fs.writeFileSync(edit.file_path, 'a\n'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
     row({ type: 'user', message: { role: 'user', content: 'Add a line to the recipe notes' } });
     // (the prompt's turn-start snapshot runs detached: its starts are the prompt's, so they are waited for, never counted
     // under the next event)
@@ -9581,9 +9582,10 @@ if (mineB() && (!TAGS || TAGS.includes('process-budget'))) { // each hook event 
     // (the prompt's one is the turn-start snapshot, detached so the prompt is not kept waiting (v2/lib.mjs snapshotLater);
     // stop was 4 git calls (ls-files, status, log, ls-tree): one status read now gives tracked and unchanged, git's log
     // runs only after a commit this turn, and HEAD's file list is read once a Stop; the third is the name sync's read of
-    // the committed files. The prompt's 4: the snapshot's node and its 3 git calls, to be 1 (plan, Task 2))
-    const budget = { session: 3, prompt: 4, pretoolEdit: 0, posttoolEdit: 0, pretoolBash: 0, posttoolBash: 0, stop: 3 }, over = Object.keys(budget).filter(k => got[k].length > budget[k]);
-    report(!over.length, 'process budget, in a git repository: pretool and posttool start no program, the prompt only its turn-start snapshot (4), session at most 3, stop at most 3', JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, v.slice(0, 8)]))));
+    // the committed files. The prompt's 3: the snapshot's node, one status read (was a diff and an ls-files) and git's
+    // hash of the changed files, which line-ending conversion keeps in git's hands)
+    const budget = { session: 3, prompt: 3, pretoolEdit: 0, posttoolEdit: 0, pretoolBash: 0, posttoolBash: 0, stop: 3 }, over = Object.keys(budget).filter(k => got[k].length > budget[k]);
+    report(!over.length, 'process budget, in a git repository: pretool and posttool start no program, the prompt only its turn-start snapshot (3), session at most 3, stop at most 3', JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, v.slice(0, 8)]))));
   } finally { giveBack(dir); }
 }
 if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {

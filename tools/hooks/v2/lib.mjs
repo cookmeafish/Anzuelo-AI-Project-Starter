@@ -2014,7 +2014,7 @@ export function snapshotDirty(sid, at0) {
   // judged against the last commit, or as changed. Lesson (a release chain on a loaded machine, 2026-11-11): a runbook
   // edited right after the prompt was read as its own start state, so "only the triggers changed" and no check held)
   const start = Date.parse(at0 || '') || Infinity, before = f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs < start; } catch { return false; } };
-  const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile() && before(f); } catch { return false; } });
+  const names = [...new Set(g(['status', '--porcelain', '--untracked-files=all']).filter(Boolean).map(l => l.replace(/^\S{1,2}\s+/, '').replace(/^.* -> /, '').replace(/^"|"$/g, '')))].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile() && before(f); } catch { return false; } }); // (one status read lists the changed and the untracked files: was a diff and an ls-files, two program starts. Leak 1b)
   const hashes = names.length && names.length <= 2000 ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
   // (the checks' own files as they were at the turn's start, each up to 256 KB: a change to them is judged against this
   // copy (REQ: hooks-tested). Oversight's design, 2026-11-09: the turn-start snapshot, no new hook)

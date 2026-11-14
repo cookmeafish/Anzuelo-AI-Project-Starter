@@ -48,8 +48,12 @@ Hooks per event in a fresh project (engine in .anzuelo/): session 2 git, prompt 
       (end.mjs had three readers). The third is the name sync's read of committed files. The test runs in a real
       repository and waits for the prompt's detached snapshot (its starts were counted under the next event).
       Budgets: session 3, prompt 4, pretool/posttool 0, stop 3; the old Stop code fails it with 5.
-- [ ] The turn-start snapshot's 3 git calls (diff, ls-files, hash-object) become 1 (`git status --porcelain=v2`
-      gives changed and untracked files with their index hashes).
+- [x] The turn-start snapshot's 3 git calls (diff, ls-files, hash-object) are 2: one status read lists the changed
+      and untracked files. Not 1: the snapshot needs each file's working-tree hash as git makes it, and with line-ending
+      conversion on (autocrlf) only git's own hash-object matches the later reads. Prompt budget 3; the old code fails
+      with 4 (the test now starts the turn with an uncommitted file, as real turns have).
+- [ ] Session start's 3 git calls (ls-files -oi, check-ignore --stdin, config core.hooksPath) become at most 1:
+      core.hooksPath read from .git/config directly, the ignored-file reads merged.
 
 ## Task 3: the suites start fewer programs
 **Files:** tools/starter/v2-sweep.mjs, tools/hooks/selfcheck.mjs, tools/hooks/v2/selftest.mjs
