@@ -1964,7 +1964,7 @@ export function traceGapsV2(acts, history = '') {
 }
 
 // Whether the turn opened the runbook: read it or a skill it names, ran its skill, or printed it whole (a grep only inspects).
-const wholeRead = (cmd, f) => shellParts(String(cmd || '').replace(/\\/g, '/')).parts.some(p => p.includes(f) && /^(?:\S*\/)?(cat|type|Get-Content|gc|more|less|bat)(\.exe)?\s/i.test(p) && !/\s-(TotalCount|Head|Tail|First|Last)\b/i.test(p));
+const wholeRead = (cmd, f) => shellParts(String(cmd || '').replace(/\\/g, '/')).parts.some(p => p.includes(f) && /^(?:\S*\/)?(cat|type|Get-Content|gc|more|less|bat|sed|awk|head|tail)(\.exe)?\s/i.test(p)); // (read in parts is read: sed, awk, head, tail; a grep only searches. Lesson (2026-11-13): a skill printed with sed was "not opened")
 export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' && (relp(c.input.file_path || '') === book.file || (book.skills || []).includes(relp(c.input.file_path || ''))))
   || (c.name === 'Skill' && String(c.input.skill || '').replace(/^.*:/, '') === book.name)
   || (/^(Bash|PowerShell)$/.test(c.name) && wholeRead(c.input.command, book.file)));
