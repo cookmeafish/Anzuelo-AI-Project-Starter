@@ -80,6 +80,9 @@ What the user saw in that hour, and why:
       agent changed work because of them) and false (met already, waived with a reason, or the answer showed it didn't
       apply). A check whose holds are mostly false over its last 20 stops holding: it moves to the start-of-turn
       reminder, and the release replay reports it to be fixed. Safety guards are never demoted.
+- [ ] Each hold's full item list is kept in a per-session history (not only the newest stop-details file), so a
+      replay reads every item. The review of 149 real holds could read only the first two of each
+      (tools/starter/reviews/2026-11-14-real-holds.md).
 - [ ] What is open is read from the work log as it is now, never a saved list: `hooks.mjs why` printed the list saved
       at the last Stop, so items just closed with `log done` still showed as open (2026-11-14). `why` recomputes from
       the current log, or says the time of the list it shows. Test: close 3 items, then Stop and `why`; neither lists
