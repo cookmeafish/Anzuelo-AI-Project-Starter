@@ -107,6 +107,8 @@ What the user saw in that hour, and why:
       most of the given words in order), not only its opening words; when several items match, it names them instead of
       picking one. Seen 2026-11-14: a long ask could be closed only by its first words, so an answered ask held the turn
       after two tries. Test: a long item closed by a phrase from its middle; an ambiguous phrase lists the candidates.
+- [x] (done: tools/hooks/state/stop-holds.jsonl, one line per hold with its time, session and whole reason, the newest
+      500 once it passes 2 MB; test failed on the old code; 422/422.)
 - [ ] Each hold's full item list is kept in a per-session history (not only the newest stop-details file), so a
       replay reads every item. The review of 149 real holds could read only the first two of each
       (tools/starter/reviews/2026-11-14-real-holds.md).

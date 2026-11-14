@@ -2050,6 +2050,17 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   const { fixGaps } = await import('./lib.mjs');
   const dbg = call('Read', { file_path: path.join(dir, 'skills/debug/SKILL.md') }, 'debug'), fix = call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' });
   const failRun = call('Bash', { command: 'node --test test/export.test.js' }, 'not ok 1 - exports the label\n# fail 1'), passRun = call('Bash', { command: 'node --test test/export.test.js' }, '# pass 1\n# fail 0');
+  // (every hold's full list is kept, one line each, in state/stop-holds.jsonl: the details file holds only the newest, and
+  // a review of 149 real holds could read the first two items of each. Plan quiet-screen, Task 3)
+  { const st = fs.mkdtempSync(path.join(os.tmpdir(), 'holds-')), hm = new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks-main.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href;
+    const probe = `const H = await import(${JSON.stringify(hm)}); const st = ${JSON.stringify(st)};
+      H.v2StopForm({ decision: 'block', reason: 'Not done yet:\\n- one\\n- two\\n- three\\n- four' }, {}, 'claude-code', st, 'holdsA');
+      H.v2StopForm({ decision: 'block', reason: 'Still not done:\\n- four' }, {}, 'claude-code', st, 'holdsA'); H.v2StopForm(null, {}, 'claude-code', st, 'holdsA');`;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: dir, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: dir } });
+    let rows = []; try { rows = fs.readFileSync(path.join(st, 'stop-holds.jsonl'), 'utf8').trim().split('\n').map(JSON.parse); } catch { }
+    fs.rmSync(st, { recursive: true, force: true });
+    report(rows.length === 2 && rows[0].session === 'holdsA' && /- one\n- two\n- three\n- four/.test(rows[0].reason) && /- four/.test(rows[1].reason) && !!rows[0].at,
+      'end: every hold\'s full list is kept in state/stop-holds.jsonl (time, session, the whole reason), a pass adds nothing', `${JSON.stringify(rows).slice(0, 300)} ${String(r.stderr).split('\n').find(l => /Error/.test(l)) || ''}`); }
   // (a never-again claim inside quotes, or in a sentence that disclaims it (another's report, not run, not verified), is
   // no claim of the agent's. Oversight's session, 2026-11-14: a reported claim held, then the correction quoting it held
   // again)

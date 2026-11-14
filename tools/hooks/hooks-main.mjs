@@ -5056,6 +5056,10 @@ export function v2StopForm(out, cfg = config(), host = HOST, state = STATE, sid 
   const details = path.join(state, detailsFile(sid));
   if (!out || out.decision !== 'block') { try { fs.rmSync(details, { force: true }); } catch { } return out; }
   try { fs.mkdirSync(state, { recursive: true }); fs.writeFileSync(details, `# What is left before this is done\n\n${out.reason}\n`); } catch { }
+  // (and every hold's full list kept, one line each, the newest 500: the details file holds only the last, and a review of
+  // 149 real holds could read the first two items of each. Plan quiet-screen, Task 3)
+  try { const h = path.join(state, 'stop-holds.jsonl'); fs.appendFileSync(h, JSON.stringify({ at: new Date().toISOString(), session: String(sid || ''), reason: String(out.reason || '') }) + '\n');
+    if (fs.statSync(h).size > 2 << 20) fs.writeFileSync(h, fs.readFileSync(h, 'utf8').trim().split('\n').slice(-500).join('\n') + '\n'); } catch { }
   const where = path.relative(PROJECT, details).split(path.sep).join('/');
   const reason = shortStop(out.reason, where);
   const style = cfg.stopStyle === 'feedback' || cfg.stopStyle === 'block' ? cfg.stopStyle : host === 'claude-code' ? 'feedback' : 'block';
