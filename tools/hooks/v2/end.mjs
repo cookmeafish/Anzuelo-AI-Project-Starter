@@ -49,12 +49,12 @@ const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if 
 const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
 const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts), ...rootTidyGaps(acts), ...fitStaleGaps({ root: ROOT, changed: changedOf(acts), since: Date.parse(acts.at || '') || 0 })];
 // REQ: plan-required (planreq.mjs). A file is new when neither git's last commit nor the turn-start snapshot has it and
-// it was made after the turn began; git is asked only once the cheap conditions hold.
-function planGaps(acts) {
+// it was made after the turn began; git is asked only once the cheap conditions hold, and once a Stop (headFiles: leak 1b)
+let HEAD_FILES = null; const headFiles = () => HEAD_FILES ??= new Set((r => r.status === 0 ? r.stdout.split('\n') : [])(spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 }))); function planGaps(acts) {
   const cfg = projectConfig(), changed = changedOf(acts), n = Number(cfg.planNewFiles) || 5, said = String(acts.said || acts.answer || '');
   if (checkOff('plan-required') || changed.length < n || !OPEN_WORK.test(said) || changed.some(p => /^docs\/plans\/.+\.md$/.test(p) || p === 'docs/STATUS.md')) return [];
   const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
-  let head = null; const inHead = p => { if (head === null) { const r = spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 }); head = new Set(r.status === 0 ? r.stdout.split('\n') : []); } return head.has(p); };
+  const inHead = p => headFiles().has(p);
   const born = p => { if (start[p] || inHead(p)) return false; try { return fs.statSync(at(p)).birthtimeMs > since - 1000; } catch { return false; } };
   const wroteSelf = new Set(acts.calls.filter(c => /^(Write|NotebookEdit)$/.test(c.name)).map(c => path.relative(ROOT, String(c.input?.file_path || c.input?.notebook_path || '')).replace(/\\/g, '/')));
   // (new files made by a command count as work too, as the old engine counted them: v2's worked() sees the edit tools only)
@@ -74,7 +74,7 @@ export function noteLinkedGaps(acts) {
   const notes = changedOf(acts).filter(isNote);
   if (!notes.length) return [];
   const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
-  const head = new Set((r => r.status === 0 ? r.stdout.split('\n') : [])(spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 })));
+  const head = headFiles();
   const born = p => { if (start[p] || head.has(p)) return false; try { return fs.statSync(at(p)).birthtimeMs > since - 1000; } catch { return false; } };
   const unlinked = notes.filter(p => { if (!born(p)) return false; let t = ''; try { t = fs.readFileSync(at(p), 'utf8'); } catch { return false; }
     return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
@@ -84,7 +84,7 @@ export function noteLinkedGaps(acts) {
 // Whether a file is new this turn: not in git's last commit or the turn-start snapshot, and made after the turn began.
 const bornNow = acts => {
   const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
-  let head = null; const inHead = p => { if (head === null) head = new Set((r => r.status === 0 ? r.stdout.split('\n') : [])(spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 }))); return head.has(p); };
+  const inHead = p => headFiles().has(p);
   // (a file the turn first touched with an edit, not a write, was there before it, as the proof check reads it. Lesson
   // (the v2 self-test): an edited root file in a folder without git was taken for a new one)
   const first = new Map(); for (const c of acts.calls || []) if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) { const f = path.relative(ROOT, path.resolve(ROOT, String(c.input?.file_path || c.input?.notebook_path || ''))).replace(/\\/g, '/'); if (!first.has(f)) first.set(f, c.name); }

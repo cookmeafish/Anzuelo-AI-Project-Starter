@@ -9554,15 +9554,23 @@ if (mineB() && (!TAGS || TAGS.includes('process-budget'))) { // each hook event 
   try {
     const pre = path.join(dir, '.cache', 'count-starts.cjs'), log = path.join(dir, '.cache', 'starts.log'), tp = path.join(dir, '.cache', 'budget.jsonl');
     fs.mkdirSync(path.dirname(pre), { recursive: true });
-    fs.writeFileSync(pre, `const cp=require('node:child_process'),fs=require('node:fs'),p=require('node:path');for(const k of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork']){const o=cp[k];cp[k]=function(c,a,...r){fs.appendFileSync(${JSON.stringify(log)},p.basename(String(c)).split(' ')[0]+' '+(Array.isArray(a)?String(a[0]||''):'')+'\\n');return o.call(this,c,a,...r)}}require('node:module').syncBuiltinESMExports();\n`);
+    fs.writeFileSync(pre, `const cp=require('node:child_process'),fs=require('node:fs'),p=require('node:path');for(const k of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork']){const o=cp[k];cp[k]=function(c,a,...r){fs.appendFileSync(${JSON.stringify(log)},p.basename(String(c)).split(' ')[0]+' '+(Array.isArray(a)?a.slice(0,3).join(' ').slice(0,60):'')+'\\n');return o.call(this,c,a,...r)}}require('node:module').syncBuiltinESMExports();\n`);
     const row = r => fs.appendFileSync(tp, JSON.stringify({ timestamp: new Date().toISOString(), ...r }) + '\n');
     const host = { NODE_OPTIONS: `--require ${pre}`, STARTER_NO_SELF_AUDIT: '', STARTER_ENGINE: 'v2' }, sid = 'budget1', base = { session_id: sid, transcript_path: tp };
     const starts = (cmd, input) => { fs.rmSync(log, { force: true }); run(dir, cmd, { ...base, ...input }, host); return fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : []; };
     const edit = { file_path: path.join(dir, 'docs', 'notes-budget.md'), old_string: 'a', new_string: 'b' }, bash = { command: 'git status' };
+    // (a git repository with its last commit, as every real project is: the Stop's git reads run for real)
+    for (const a of [['init', '-q'], ['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'start']]) spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
     const got = {};
     got.session = starts('session', { source: 'startup' });
+    // (the copy's own commit lands in the second the turn would start: a real turn starts after it)
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
     row({ type: 'user', message: { role: 'user', content: 'Add a line to the recipe notes' } });
+    // (the prompt's turn-start snapshot runs detached: its starts are the prompt's, so they are waited for, never counted
+    // under the next event)
     got.prompt = starts('prompt', { prompt: 'Add a line to the recipe notes' });
+    for (let i = 0; i < 50 && !fs.readdirSync(path.join(dir, 'tools/hooks/state')).some(n => n.startsWith('v2-dirty.')); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); got.prompt = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : [];
     got.pretoolEdit = starts('pretool', { tool_name: 'Edit', tool_input: edit });
     row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'e1', name: 'Edit', input: edit }] } }); fs.writeFileSync(edit.file_path, 'b\n');
     got.posttoolEdit = starts('posttool', { tool_name: 'Edit', tool_input: edit, tool_response: {} });
@@ -9571,9 +9579,11 @@ if (mineB() && (!TAGS || TAGS.includes('process-budget'))) { // each hook event 
     row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Added the line to docs/notes-budget.md.' }] } });
     got.stop = starts('stop', { stop_hook_active: false });
     // (the prompt's one is the turn-start snapshot, detached so the prompt is not kept waiting (v2/lib.mjs snapshotLater);
-    // stop's 4 git calls are today's, to be cut to 2: plan fewer-process-starts, Task 2)
-    const budget = { session: 2, prompt: 1, pretoolEdit: 0, posttoolEdit: 0, pretoolBash: 0, posttoolBash: 0, stop: 4 }, over = Object.keys(budget).filter(k => got[k].length > budget[k]);
-    report(!over.length, 'process budget: pretool and posttool start no program, the prompt only its turn-start snapshot, session at most 2, stop at most 4', JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, v.slice(0, 8)]))));
+    // stop was 4 git calls (ls-files, status, log, ls-tree): one status read now gives tracked and unchanged, git's log
+    // runs only after a commit this turn, and HEAD's file list is read once a Stop; the third is the name sync's read of
+    // the committed files. The prompt's 4: the snapshot's node and its 3 git calls, to be 1 (plan, Task 2))
+    const budget = { session: 3, prompt: 4, pretoolEdit: 0, posttoolEdit: 0, pretoolBash: 0, posttoolBash: 0, stop: 3 }, over = Object.keys(budget).filter(k => got[k].length > budget[k]);
+    report(!over.length, 'process budget, in a git repository: pretool and posttool start no program, the prompt only its turn-start snapshot (4), session at most 3, stop at most 3', JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, v.slice(0, 8)]))));
   } finally { giveBack(dir); }
 }
 if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {

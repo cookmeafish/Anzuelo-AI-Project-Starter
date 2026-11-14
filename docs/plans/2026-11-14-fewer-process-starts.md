@@ -43,8 +43,11 @@ Hooks per event in a fresh project (engine in .anzuelo/): session 2 git, prompt 
 - [x] A test counts the programs each hook event starts (descendants too) and fails over budget: pretool and posttool
       0, prompt 1 (its detached turn-start snapshot), session 2, stop 4 (selfcheck, process-budget). Measured in a
       starter copy: session 1 git, prompt 1 node, pretool/posttool 0, stop 4 git (ls-files, status, log, ls-tree).
-- [ ] Stop down to 2 git calls: one `git ls-tree HEAD` and one status read shared by every check in the turn (end.mjs
-      calls ls-tree in three places, lib.mjs ls-files, diff and log per file); then the budget goes to 2.
+- [x] Stop down from 5 git calls to 3 in a git repository: one status read gives tracked and unchanged (was ls-files
+      plus status), git's log only after a commit this turn (`.git/logs/HEAD` time), HEAD's file list read once a Stop
+      (end.mjs had three readers). The third is the name sync's read of committed files. The test runs in a real
+      repository and waits for the prompt's detached snapshot (its starts were counted under the next event).
+      Budgets: session 3, prompt 4, pretool/posttool 0, stop 3; the old Stop code fails it with 5.
 - [ ] The turn-start snapshot's 3 git calls (diff, ls-files, hash-object) become 1 (`git status --porcelain=v2`
       gives changed and untracked files with their index hashes).
 
