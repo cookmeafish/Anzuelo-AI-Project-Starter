@@ -195,7 +195,7 @@ export function splitUpgrade(dry = false) {
   if (!fs.existsSync(path.join(ENGINE, '.git'))) { console.error(`${ENGINE} is not a git clone: install the engine again (starter.mjs install)`); return 1; }
   const dirty = (engineGit('status', '--porcelain').stdout || '').trim();
   if (dirty) { console.error(`the engine folder has changes of its own:\n${dirty}\nA project's changes belong in .anzuelo/local (starter.mjs override <path>). Move them there, then upgrade.`); return 1; }
-  const b = basedOn(), old = engineHead(), from = b.at || old;
+  const resumed = /^[0-9a-f]{40}$/.test(process.env.ANZUELO_UPGRADED_FROM || ''), b = basedOn(), old = resumed ? process.env.ANZUELO_UPGRADED_FROM : engineHead(), from = b.at || old;
   // (a copy made since the last upgrade carries that commit from now on, before "at" moves forward)
   for (const f of localCopies()) b.files[f] ||= from;
   if (dry) {
@@ -224,9 +224,12 @@ export function splitUpgrade(dry = false) {
     console.log(`${log.join('\n')}\n\nDry run: nothing changed (${log.length} item(s) above).`);
     return 0;
   }
-  const pull = engineGit('pull', '--ff-only', '-q');
+  const pull = resumed ? { status: 0 } : engineGit('pull', '--ff-only', '-q');
   if (pull.status !== 0) { console.error(`git pull in ${ENGINE} failed:\n${pull.stderr}\nMerge it there by hand (an AI agent can), then run the upgrade again.`); saveBasedOn(b); return 1; }
   const now = engineHead();
+  // (every step after the pull is the pulled code's: this process still runs the old one. Field report, 2026-11-13: a
+  // fixed closing line showed the old text on the upgrade that brought the fix)
+  if (!resumed && old !== now) return spawnSync(process.execPath, [path.join(ENGINE, 'tools', 'starter.mjs'), ...process.argv.slice(2)], { cwd: process.cwd(), stdio: 'inherit', env: { ...process.env, ANZUELO_UPGRADED_FROM: old } }).status ?? 1;
   console.log(old === now ? `the engine is current (${now.slice(0, 7)})` : `engine ${old.slice(0, 7)} -> ${now.slice(0, 7)} (${(engineGit('rev-list', '--count', `${old}..${now}`).stdout || '').trim()} commit(s))`);
   // each local copy whose default changed since it was made: a three-way merge (its base, the new default, the copy)
   const merged = [], clash = [], tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-merge-'));
