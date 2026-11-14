@@ -650,8 +650,7 @@ function judge(data, { shadow = false } = {}) {
     waiting = true; return null;
   }
   const found = turnActs(rows);
-  const turn = { ...saved, at: saved.at || found.started || '' };
-  { const since = engineSince(), t = turn.at && new Date(Number.isNaN(+turn.at) ? turn.at : +turn.at); if (since && t && !Number.isNaN(+t) && t.toISOString() < since) return null; } // (a turn begun before the install was never under the engine: nothing held)
+  const turn = { ...saved, at: saved.at || found.started || '' }; { const since = engineSince(), t = turn.at && new Date(Number.isNaN(+turn.at) ? turn.at : +turn.at); if (since && t && !Number.isNaN(+t) && t.toISOString() < since) return null; } // (a turn begun before the install was never under the engine: nothing held)
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)
   const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
   const acts = withBackgroundOutputs({ ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls }, rows);

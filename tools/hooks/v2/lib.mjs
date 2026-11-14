@@ -724,8 +724,7 @@ export const earlierPrompts = (text, before) => String(text || '').split('\n').f
 // (read once per state (time, size) of the two files. Lesson (a project's report): 15 reads per Stop took 11 ms)
 let configMemo = {};
 // (a check the project switched off with the friction-suspend step, read as the old engine reads it)
-export const engineSince = () => LAYOUT.split ? engineSinceAt(LAYOUT.LOCAL) : '';
-export const checkOff = tag => (projectConfig().suspended || []).some(s => s && s.item === `check:${tag}`);
+export const engineSince = () => LAYOUT.split ? engineSinceAt(LAYOUT.LOCAL) : '', checkOff = tag => (projectConfig().suspended || []).some(s => s && s.item === `check:${tag}`);
 export const projectConfig = () => {
   const files = [fileURLToPath(new URL('../defaults.json', import.meta.url)), at('tools/hooks/config.json')], j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
   const key = files.map(f => { try { const s = fs.statSync(f); return `${s.mtimeMs}:${s.size}`; } catch { return '-'; } }).join('|');
