@@ -9718,14 +9718,20 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
       input: JSON.stringify({ session_id: 'upg1', tool_name: 'Edit', tool_input: { file_path: path.join(eng, 'docs/playbooks/plan.md'), old_string: 'a', new_string: 'b' } }) }).stdout || '';
     const o1 = st('override', 'docs/playbooks/plan.md'), o2 = st('override', 'AGENTS.md');
     const planL = path.join(loc, 'docs/playbooks/plan.md'), agL = path.join(loc, 'AGENTS.md');
-    fs.appendFileSync(planL, '\n- recipes: the project\'s own lesson\n');
+    // (the project's copy saved with CRLF endings, and a table both the project and the default add rows to at its end:
+    // both merge, nothing for the user to decide. Field report, 2026-11-14: each was a clash, and the project kept its
+    // old rules)
+    fs.appendFileSync(planL, '\n- recipes: the project\'s own lesson\n'); fs.writeFileSync(planL, fs.readFileSync(planL, 'utf8').replace(/\r?\n/g, '\r\n'));
+    const o3 = st('override', 'docs/checks/user-requirements.md'), urL = path.join(loc, 'docs/checks/user-requirements.md'), urRow = s => `| 99 | 2026-11-14 | ${s} | rule 3 | a test |\n`;
+    fs.writeFileSync(urL, fs.readFileSync(urL, 'utf8').replace(/\n*$/, '\n') + urRow('Invoices are sent only on weekdays'));
     const ag = fs.readFileSync(agL, 'utf8').split('\n'); ag[0] = '# Our own title'; fs.writeFileSync(agL, ag.join('\n'));
-    const SKIPH = /^(\.anzuelo\/engine|\.anzuelo\/local\/(\.cache|tools\/hooks\/state|based-on\.json|docs\/playbooks\/plan\.md|AGENTS\.md|DIRECTORY\.md)|\.git|\.claude|\.codex|\.agents|CLAUDE\.local\.md)(\/|$)/;
+    const SKIPH = /^(\.anzuelo\/engine|\.anzuelo\/local\/(\.cache|tools\/hooks\/state|based-on\.json|docs\/playbooks\/plan\.md|docs\/checks\/user-requirements\.md|AGENTS\.md|DIRECTORY\.md)|\.git|\.claude|\.codex|\.agents|CLAUDE\.local\.md)(\/|$)/;
     const hashAll = () => { const out = {}; const walk = r => { for (const e of fs.readdirSync(path.join(proj, r || '.'), { withFileTypes: true })) { const p = r ? `${r}/${e.name}` : e.name; if (SKIPH.test(p)) continue; if (e.isDirectory()) walk(p); else out[p] = createHash('sha1').update(fs.readFileSync(path.join(proj, p))).digest('hex'); } }; walk(''); return out; };
     const diffs = (a, c) => [...new Set([...Object.keys(a), ...Object.keys(c)])].filter(k => a[k] !== c[k]);
     const before = hashAll(), oldHead = (g(eng, 'rev-parse', 'HEAD').stdout || '').trim();
     const upPlan = path.join(up, 'docs/playbooks/plan.md'), pl = fs.readFileSync(upPlan, 'utf8').split('\n'); pl[8] = 'An invoice line the default added.'; fs.writeFileSync(upPlan, pl.join('\n'));
     const upAg = path.join(up, 'AGENTS.md'), ua = fs.readFileSync(upAg, 'utf8').split('\n'); ua[0] = '# The default\'s new title'; fs.writeFileSync(upAg, ua.join('\n'));
+    { const u = path.join(up, 'docs/checks/user-requirements.md'); fs.writeFileSync(u, fs.readFileSync(u, 'utf8').replace(/\n*$/, '\n') + urRow('Trips are booked only after the budget is checked')); }
     g(up, 'commit', '-qam', 'defaults changed');
     const newHead = (g(up, 'rev-parse', 'HEAD').stdout || '').trim();
     // (REQ: dry-run-writes-nothing, this layout: the dry run lists what the upgrade would do, and nothing in the project,
@@ -9748,6 +9754,12 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
       && fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md')) && b.at === newHead && b.files?.['docs/playbooks/plan.md'] === newHead && b.files?.['AGENTS.md'] === oldHead,
       'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged but for its dated line in docs/DECISIONS.md; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',
       JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: diffs(before, after), b }));
+    { const ur = fs.readFileSync(urL, 'utf8');
+      report(o3.status === 0 && /\r\n/.test(plan) && !/[^\r]\n/.test(plan) && /An invoice line the default added\./.test(plan) && /the project's own lesson/.test(plan)
+        && /Invoices are sent only on weekdays/.test(ur) && /Trips are booked only after the budget is checked/.test(ur) && !/^(<<<<<<<|=======|>>>>>>>)/m.test(ur + plan)
+        && !/(plan|user-requirements)\.md \(both changed/.test(upg.stdout) && !fs.existsSync(path.join(loc, '.cache/merge/docs/checks/user-requirements.md')),
+        'upgrade: a project\'s copy saved with CRLF endings merges the default\'s change and keeps its endings; rows both added at the end of a table are both kept; neither is left for the user',
+        JSON.stringify({ o3: o3.status, crlf: /\r\n/.test(plan), out: (upg.stdout || '').slice(0, 500), ur: ur.slice(-400) })); }
     // (the closing line names where the engine keeps records, and none with records off: an agent following a fixed
     // "docs/DECISIONS.md" would make a record file inside the app. Field report, 2026-11-13)
     {
