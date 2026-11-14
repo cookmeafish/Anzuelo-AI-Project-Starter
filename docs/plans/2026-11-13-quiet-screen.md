@@ -119,6 +119,10 @@ Seen in a project (2026-11-13): after a hold listing many open items, the agent 
 **Uses / provides:** none.
 - [ ] A user message is one item unless it lists separate instructions. Venting and complaints are not tracked
       sentence by sentence; the turn's work closes them.
+- [x] (done as: an "I'll ..." the turn went on to carry out with later tool calls, with no word putting it off (next,
+      later, then, after that, once, when), is narration and not held; a deferred one still is. Test from the real
+      turn: the two narrated lines are not held, "I'll add it to the changelog right after that" is; failed on the old
+      code; 418/418.)
 - [ ] A promise is tracked only from what a turn hands on: its final answer ("next turn I'll ..."), never the agent's
       step-by-step narration between tool calls that the same turn then carries out. Seen 2026-11-14: two holds for
       "I'll strip the status letters ..." and "I'll put the comment at the end of the line", both done in the commit a

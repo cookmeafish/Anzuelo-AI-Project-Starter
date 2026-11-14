@@ -1725,6 +1725,18 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     && /^Still not done \(do it now, or say in one line[\s\S]*export\.md item 1/.test(later?.reason || '') && !/Check that these items|last check/.test(later?.reason || '')
     && /last check for this request/.test(third?.reason || '') && fourth === null,
     'end: an agent that ignores the block gets a second naming the same item (no verify list), a third that says to report what is not done, and no fourth', [first?.reason, later?.reason, third?.reason, fourth]);
+  // (narration is not a promise: an "I'll ..." between tool calls that the turn then went on to carry out is not held as
+  // open. Lesson (2026-11-14): two holds for "I'll strip the status letters ..." and "I'll put the comment at the end of
+  // the line", both done by the next edit; a promise with nothing done after it stays open)
+  { const T0 = Date.now() - 60_000, stampAt = (s, r) => { const t = new Date(T0 + s * 1000).toISOString(); return Array.isArray(r) ? r.map(x => ({ ...x, timestamp: t })) : { ...r, timestamp: t }; };
+    const fix = (s, n) => stampAt(n, call('Edit', { file_path: path.join(dir, 'src/snap.js'), old_string: 'a', new_string: s }));
+    const rows = [stampAt(0, user('make the snapshot use one status read')), stampAt(5, say("The helper trims each line, so I'll strip the status letters with a pattern instead.")), fix('l.replace(/^\\S{1,2}\\s+/, "")', 10),
+      stampAt(15, say("It is one line over budget, so I'll put the comment at the end of the code line instead of on its own line.")), fix('x(); // (one status read)', 20), stampAt(25, say('Done: one status read, and the tests pass.'))];
+    const n1 = onStop({ transcript_path: transcript(rows), session_id: 'narr' });
+    const kept = [stampAt(0, user('make the snapshot use one status read')), stampAt(5, say("Doing the status read first; I'll add the snapshot to the changelog right after that.")), fix('one()', 10), stampAt(15, say('Done: one status read.'))];
+    const n2 = onStop({ transcript_path: transcript(kept), session_id: 'narr2' });
+    report(!/strip the status letters|put the comment at the end/.test(n1?.reason || '') && /add the snapshot to the changelog/.test(n2?.reason || ''),
+      'end: an "I\'ll ..." the turn carried out with its next tool calls is narration, not an open promise; one with nothing done after it is still held', JSON.stringify({ n1: (n1?.reason || '').slice(0, 300), n2: (n2?.reason || '').slice(0, 300) })); }
   // (a hold's list never grows between the rounds of one request: a later round lists only the first round's items still
   // unmet, never one the reply set off. Lesson (2026-11-13, an upset turn): 5, then 4, then 10 items, each round another
   // answer fragment for a user who had just complained about being bothered)
