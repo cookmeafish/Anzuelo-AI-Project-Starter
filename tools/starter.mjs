@@ -203,7 +203,12 @@ export function merge3(ours, base, theirs) {
     const run = (...o) => spawnSync('git', ['merge-file', '-p', ...o, '-L', 'this project', '-L', 'old default', '-L', 'new default', f('ours'), f('base'), f('theirs')], { encoding: 'utf8' });
     let m = run();
     if (m.status !== 0) { const d = run('--diff3').stdout || '', all = (d.match(/^<<<<<<< /gm) || []).length, added = (d.match(/^\|\|\|\|\|\|\| .*\n=======$/gm) || []).length;
-      if (all && all === added) m = run('--union'); }
+      if (all && all === added) { m = run('--union');
+        // (a numbered table both extended: the default's rows keep their numbers, a project row with one of them moves to
+        // the next free number, so a row cited by number means one row. Oversight, 2026-11-14)
+        const num = l => /^\| *(\d+) *\|/.exec(l)?.[1], th = new Set(lf(theirs).split('\n')), taken = new Set(lf(theirs).split('\n').map(num).filter(Boolean));
+        let next = Math.max(0, ...(m.stdout || '').split('\n').map(l => +num(l) || 0));
+        m.stdout = (m.stdout || '').split('\n').map(l => { const n = num(l); return n && !th.has(l) && taken.has(n) ? l.replace(/^\| *\d+ *\|/, `| ${++next} |`) : l; }).join('\n'); } }
     const text = crlf ? (m.stdout || '').replace(/\n/g, '\r\n') : m.stdout || '';
     return { ok: m.status === 0, text };
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
