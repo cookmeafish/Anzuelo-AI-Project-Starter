@@ -8,7 +8,7 @@ import os from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { roots, resolver } from '../paths.mjs';
+import { roots, resolver, engineSinceAt } from '../paths.mjs';
 import { shellParts } from '../shell.mjs';
 import { withOwnTemp, recordRunTime } from '../testtmp.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
@@ -724,6 +724,7 @@ export const earlierPrompts = (text, before) => String(text || '').split('\n').f
 // (read once per state (time, size) of the two files. Lesson (a project's report): 15 reads per Stop took 11 ms)
 let configMemo = {};
 // (a check the project switched off with the friction-suspend step, read as the old engine reads it)
+export const engineSince = () => LAYOUT.split ? engineSinceAt(LAYOUT.LOCAL) : '';
 export const checkOff = tag => (projectConfig().suspended || []).some(s => s && s.item === `check:${tag}`);
 export const projectConfig = () => {
   const files = [fileURLToPath(new URL('../defaults.json', import.meta.url)), at('tools/hooks/config.json')], j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
@@ -881,7 +882,7 @@ export function screenGaps(acts) {
 // ran after it: the end check runs the audit itself and asks only when it fails (replay: real problems in 5 of 8 runs).
 const STRUCTURE = /^(CLAUDE\.md|AGENTS\.md|DIRECTORY\.md|docs\/MENU\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/hooks\/(requirements|config)\.json$)/;
 export function healthGaps(acts, { run = true } = {}) {
-  if (!fs.existsSync(at('tools/audit.mjs'))) return [];
+  if (LAYOUT.split || !fs.existsSync(at('tools/audit.mjs'))) return []; // (an adopted app: the engine's audit is the starter's standard, never the app's health check. Field report, 2026-11-13: it judged the app's own rules and hit its 30 s limit at each Stop)
   const own = p => STRUCTURE.test(relp(p));
   const i = acts.calls.map((c, k) => [c, k]);
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
@@ -1098,8 +1099,8 @@ export const engineChecks = () => {
   // under v2): every app-pack project was asked to raise its version number with no version file set)
   // (a check switched off after friction is skipped, and a development copy adds the trial check, as the old engine.
   // Lesson (the plan-required port): v2 read only "disabled", so a suspended check still held turns)
-  const dev = fs.existsSync(at('.starter-dev')) ? DEV_CHECKS : [];
-  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...dev, ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false && !checkOff(r.tag));
+  const dev = fs.existsSync(at('.starter-dev')) ? DEV_CHECKS : [], noRecords = projectConfig().records === false, RECORD_TAGS = /changelog|status-handoff|decision|recorded$/; // ("records": false: no CHANGELOG, STATUS or DECISIONS asks. Field report, 2026-11-13)
+  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...dev, ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false && !checkOff(r.tag) && !(noRecords && RECORD_TAGS.test(r.tag)));
 };
 // (the runEach commands the engine ships, the only ones the end check runs on its own)
 const shippedRunEach = () => new Set((() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')).requirements || []; } catch { return []; } })()
@@ -1658,7 +1659,7 @@ export function claimGaps(acts, history = '') {
 // REQ: changelog (rule 12): work past the small-fix size with no changelog line this turn; never for engine state, the
 // engine's folder, the user's data (dataDirs) or a project with no docs/CHANGELOG.md. Replay: about 4% of work turns held.
 export function workChangelogGaps(acts) {
-  if (checkOff('changelog') || waivedTag('changelog', acts) || !fs.existsSync(at('docs/CHANGELOG.md'))) return [];
+  if (checkOff('changelog') || projectConfig().records === false || waivedTag('changelog', acts) || !fs.existsSync(at('docs/CHANGELOG.md'))) return [];
   const cfg = projectConfig(), data = [].concat(cfg.dataDirs || []).map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/?\**$/, '/'));
   const SHIPPED = /^(CLAUDE\.md|AGENTS\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/)/;
   // (the project's records are no work of their own: plans, STATUS, DECISIONS, reviews and specs' notes, memory)

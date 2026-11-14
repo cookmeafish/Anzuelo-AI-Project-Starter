@@ -35,7 +35,7 @@ import { frictionGaps } from './friction.mjs';
 import { VERBATIM_ENGINE } from './verbatim.mjs';
 import { NAMES_FILE, NAME_FILES, namesIn, nameProblems, headsOf, newLinesOf } from '../names.mjs';
 import { rootToolchainFile } from '../rootfiles.mjs';
-import { waivedTag, gitClaimGaps, notesOf, ownWords, fixGaps } from './lib.mjs';
+import { waivedTag, gitClaimGaps, notesOf, ownWords, fixGaps, engineSince } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft, wakeupsPending } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
@@ -651,6 +651,7 @@ function judge(data, { shadow = false } = {}) {
   }
   const found = turnActs(rows);
   const turn = { ...saved, at: saved.at || found.started || '' };
+  { const since = engineSince(), t = turn.at && new Date(Number.isNaN(+turn.at) ? turn.at : +turn.at); if (since && t && !Number.isNaN(+t) && t.toISOString() < since) return null; } // (a turn begun before the install was never under the engine: nothing held)
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)
   const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
   const acts = withBackgroundOutputs({ ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls }, rows);
@@ -668,7 +669,7 @@ function judge(data, { shadow = false } = {}) {
   const t0 = turn.at && new Date(Number.isNaN(+turn.at) ? turn.at : +turn.at);
   decided = { request: t0 && !Number.isNaN(+t0) ? t0.toISOString() : '', round: rounds + 1 };
   // (the cap ends the turn with its last steps not done: logged as such, never as a pass)
-  if (rounds >= MAX_BLOCKS) { decided.capped = true; return null; }
+  if (rounds >= (projectConfig().light ? 1 : MAX_BLOCKS)) { decided.capped = true; return null; } // (light mode: one round, never three. Field report, 2026-11-13)
   // REQ: pause-stops. The user asked to pause, stop or restart (in the request or a message typed during the turn): the
   // turn ends now, nothing more asked; the next session's checks pick up what is open (the guard still refused anything
   // unsafe during the work). Lesson (a field report): after "get to a good pausing point, I will restart the computer",
@@ -753,7 +754,7 @@ function judge(data, { shadow = false } = {}) {
   // all met, the files its own calls changed)
   if (!list.length && !check) { if (!shadow) { const b = worked(acts) ? chosen(turn, acts, runbooks()) : null, its = b ? b.items.filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts)) : [];
     passed = { acts, turn, rounds, evidence: { checked: worked(acts) || rounds > 0, book: its.length && its.every(it => met(it, acts) === true) ? b.file : '', written: changedOf(acts) } }; } return null; }
-  const parts = [], last = rounds + 1 === MAX_BLOCKS;
+  const parts = [], last = rounds + 1 >= (projectConfig().light ? 1 : MAX_BLOCKS);
   // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.
   // Lesson (2026-11-07): an agent resent the same answer to each repeat block, and the false item was never looked at)
   if (list.length) parts.push(`${again ? 'Still not done (do it now, or say in one line of the answer why it does not fit this work, as "<runbook>.md doesn\'t fit this task: <why>" or "item N doesn\'t fit: <why>"; resending the same answer does not count)' : 'Not done yet'}:\n${list.map(s => `- ${s}${(t => t.length ? ` [${t.join(', ')}]` : '')(stepTags(s).filter(x => !x.includes('#')))}`).join('\n')}`); // (with its name, for a waiver)

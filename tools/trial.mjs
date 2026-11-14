@@ -424,6 +424,31 @@ for (const [name, s] of Object.entries(SAMPLES)) {
       lc.light === true && lc.records === false && lc.appGates?.test === 'npm run test' && lc.appGates?.review === 'npm run e2e:drive' && (lc.suspended || []).some(s => s.item === 'check:a11y-checked')
         && hintLines <= 3 && !/docs\/STATUS\.md \(where things stand\)/.test(session) && rd('CLAUDE.md') === bigRules && rd('AGENTS.md') === '# Rules for another tool\nKeep answers short.\n',
       JSON.stringify({ light: lc.light, records: lc.records, appGates: lc.appGates, suspended: lc.suspended, hintLines, claude: rd('CLAUDE.md') === bigRules }));
+    // (a session open across the install: its turn from before is never held, its asks from before are never tracked,
+    // and a later turn of its own that edits the app's rules is judged in light mode (one round at most), with no record
+    // asks and without the engine's audit judging the app, within the Stop budget. A field report, 2026-11-13: held four
+    // rounds on asks from hours before the install, and 32 s per Stop, the engine's audit hitting its time limit)
+    {
+      const sid2 = 'across', tp2 = path.join(dir, '.anzuelo/local/.cache', `${sid2}.jsonl`), installAt = Date.parse(JSON.parse(rd('.anzuelo/local/pre-install.json') || '{}').at || '') || Date.now();
+      const r2 = (r, ms) => fs.appendFileSync(tp2, JSON.stringify({ timestamp: new Date(ms).toISOString(), ...r }) + '\n');
+      const stop2 = extra => { const t0 = Date.now(), r = spawnSync(process.execPath, [hk, 'stop'], { cwd: dir, encoding: 'utf8', env: henv, input: JSON.stringify({ session_id: sid2, transcript_path: tp2, ...extra }) }); return { ms: Date.now() - t0, out: r.stdout || '' }; };
+      const asks = ['move the recipe tools out of the ignored folder', 'have the path test skip that folder', 'copy the set in and run that test', 'fix those comments only', 'rename the pantry list', 'add a print view', 'sort the shopping list by aisle', 'remove the old export', 'check the oven timer page'];
+      asks.forEach((a, i) => r2({ type: 'user', message: { role: 'user', content: `Please ${a}.` } }, installAt - 3600_000 + i * 1000));
+      r2({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'b1', name: 'Edit', input: { file_path: path.join(dir, 'docs/guide.md'), old_string: 'x', new_string: 'y' } }] } }, installAt - 3000_000);
+      r2({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Working on it.' }] } }, installAt + 60_000);
+      const before = stop2({ stop_hook_active: false });
+      const now = Date.now(); r2({ type: 'user', message: { role: 'user', content: 'Add a line to the rules about naming buttons.' } }, now);
+      fs.appendFileSync(path.join(dir, 'CLAUDE.md'), '- Buttons are named for what they do.\n');
+      r2({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'a1', name: 'Edit', input: { file_path: path.join(dir, 'CLAUDE.md'), old_string: 'x', new_string: 'y' } }] } }, now + 500);
+      r2({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Done.' }] } }, now + 1000);
+      const after = [stop2({ stop_hook_active: false }), stop2({ stop_hook_active: true })];
+      const so2 = (await import('./hooks/paths.mjs')).stateOutside(path.join(dir, '.anzuelo/local'), dir); let log = [];
+      try { log = JSON.parse(fs.readFileSync(path.join(so2 || path.join(dir, '.anzuelo/local'), 'tools/hooks/state', `v2-log.${sid2}.json`), 'utf8')).items; } catch { }
+      const blocks = after.filter(a => /"decision":\s*"block"|left before this is done/.test(a.out)).length, said = before.out + after.map(a => a.out).join('');
+      check(name, 'a session open across the install: its turn from before is never held and its asks from before are never tracked; a later turn editing the app\'s rules is held at most once (light mode), with no record asks and no health check of the engine\'s, each Stop under 3 s',
+        !/left before this is done|"decision":\s*"block"/.test(before.out) && !log.some(i => asks.some(a => i.text.includes(a))) && blocks <= 1 && !/CHANGELOG|STATUS\.md|health check/.test(said) && [before, ...after].every(a => a.ms < 3000),
+        JSON.stringify({ before: before.out.slice(0, 200), log: log.map(i => i.text.slice(0, 40)), blocks, ms: [before, ...after].map(a => a.ms), after: after.map(a => a.out.slice(0, 200)) }));
+    }
   }
   // (its own .claude/settings.local.json merged: every key of the user's kept, the engine's hooks added)
   let local = {}; try { local = JSON.parse(rd('.claude/settings.local.json') || '{}'); } catch { }

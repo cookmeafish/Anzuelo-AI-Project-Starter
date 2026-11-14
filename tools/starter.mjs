@@ -530,7 +530,7 @@ if (cmd === 'link') {
   // reports): a rollback restored neither, and git's hooks path was left at the deleted engine)
   const PRE = ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json', 'CLAUDE.local.md'];
   // (fresh: the project had no engine of its own, so none of its files move in, and the uninstall brings none back)
-  fs.writeFileSync(path.join(loc, 'pre-install.json'), JSON.stringify({ fresh: !moved, hooksPath: (g(['config', '--get', 'core.hooksPath'], dest).stdout || '').trim(),
+  fs.writeFileSync(path.join(loc, 'pre-install.json'), JSON.stringify({ at: new Date().toISOString(), fresh: !moved, hooksPath: (g(['config', '--get', 'core.hooksPath'], dest).stdout || '').trim(),
     files: Object.fromEntries(PRE.map(f => [f, fs.existsSync(path.join(dest, f)) ? fs.readFileSync(path.join(dest, f), 'utf8') : null])) }, null, 2) + '\n');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-install-'));
   try {

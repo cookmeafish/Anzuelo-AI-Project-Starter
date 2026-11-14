@@ -36,7 +36,14 @@ g(['checkout', '-q', '-b', 'feature/trial-work']);
 const put = (f, t) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), t); };
 put('.claude/settings.json', JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'node scripts/own-lint.js' }] }] }, permissions: { allow: ['Bash(yarn test:*)'] } }, null, 2) + '\n');
 put('.claude/commands/release-notes.md', '# Release notes\nWrite the release notes from the "changes" list, with each item\'s \\`PR\\` number.\n');
-g(['add', '.claude']); g(['commit', '-q', '--no-verify', '-m', 'Add the project\'s own Claude settings']);
+// (and the shape of a large adopted AI app: its own agent rules of about 260 KB each, 56,000 git-ignored scratch files,
+// worktrees of its own under .claude/worktrees. A field report, 2026-11-13: an app of this shape took 32 s per Stop)
+const bigRules = `# Project rules\n${'- Keep the recipe logic in src/core; never call the network from a component; name each test for what it proves.\n'.repeat(2300)}`;
+put('CLAUDE.md', bigRules); put('AGENTS.md', bigRules);
+g(['add', '.claude', 'CLAUDE.md', 'AGENTS.md']); g(['commit', '-q', '--no-verify', '-m', 'Add the project\'s own Claude settings']);
+for (let i = 0; i < 55884; i++) { const d = path.join(dir, '.scratch', `run-${Math.floor(i / 300)}`); if (i % 300 === 0) fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `frame-${i}.json`), '{}'); }
+fs.appendFileSync(path.join(dir, '.git', 'info', 'exclude'), '\n.scratch/\n.claude/worktrees/\n');
+for (const w of ['a', 'b']) g(['worktree', 'add', '-q', '-b', `trial-wt-${w}`, path.join(dir, '.claude', 'worktrees', w)]);
 const tracked = g(['ls-files', '*.ts', '*.tsx']).stdout.split('\n').filter(Boolean).slice(0, 12);
 for (const f of tracked) fs.appendFileSync(path.join(dir, f), `\n// work in progress: "café" \\ tab\there\n`);
 for (let i = 1; i <= 10; i++) put(`packages/excalidraw/wip/draft-${i}.ts`, `export const draft${i} = "naïve \\"quote\\" ${i}";\n`);
@@ -89,6 +96,19 @@ const outside = status.filter(f => !f.startsWith('.anzuelo/') && !/(^|\/)(node_m
 const stray = outside.filter(f => !WIRING.test(f) && !(f in wip0.files)), wiring = outside.filter(f => WIRING.test(f)); // (the project's own work in progress is not the starter's)
 // 3b. the work in progress and the branch, untouched
 const wip1 = wip(), wipChanged = Object.keys({ ...wip0.files, ...wip1.files }).filter(f => wip0.files[f] !== wip1.files[f]);
+// 3c. the end of a turn in this shape: a session with a long transcript (about 4 MB) whose last turn edits the app's own
+// rules ends within its time, held at most once (light mode), with no health check of the engine's judging the app
+const stopTimes = (() => { const tp = path.join(os.tmpdir(), `anzuelo-stop-${Date.now().toString(36)}.jsonl`), hk = path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks', 'hooks.mjs');
+  if (!fs.existsSync(hk)) return { ms: [], error: 'no engine' };
+  const t = Date.now(), rows = [], filler = 'The recipe list now sorts by cooking time, and the timer page shows the next step. '.repeat(20);
+  for (let i = 0; i < 1200; i++) rows.push({ type: 'user', timestamp: new Date(t - 3600_000 + i * 1000).toISOString(), message: { role: 'user', content: `Step ${i}: please check the recipe page.` } }, { type: 'assistant', timestamp: new Date(t - 3600_000 + i * 1000 + 500).toISOString(), message: { role: 'assistant', content: [{ type: 'text', text: filler }] } });
+  rows.push({ type: 'user', timestamp: new Date(t).toISOString(), message: { role: 'user', content: 'Add a line to the rules about naming buttons.' } },
+    { type: 'assistant', timestamp: new Date(t + 500).toISOString(), message: { role: 'assistant', content: [{ type: 'tool_use', id: 'e1', name: 'Edit', input: { file_path: path.join(dir, 'CLAUDE.md'), old_string: 'x', new_string: 'y' } }] } },
+    { type: 'assistant', timestamp: new Date(t + 1000).toISOString(), message: { role: 'assistant', content: [{ type: 'text', text: 'Added the naming line to the rules.' }] } });
+  fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); const keep = fs.readFileSync(path.join(dir, 'CLAUDE.md')); fs.appendFileSync(path.join(dir, 'CLAUDE.md'), '- Buttons are named for what they do.\n');
+  const runs = [false, true].map(active => { const t0 = Date.now(), r = spawnSync(process.execPath, [hk, 'stop'], { cwd: dir, encoding: 'utf8', env: { ...env, CLAUDE_PROJECT_DIR: dir }, input: JSON.stringify({ session_id: 'trial-stop', transcript_path: tp, stop_hook_active: active }), maxBuffer: 64 << 20 }); return { ms: Date.now() - t0, out: r.stdout || '' }; });
+  fs.writeFileSync(path.join(dir, 'CLAUDE.md'), keep); fs.rmSync(tp, { force: true });
+  return { ms: runs.map(r => r.ms), outs: runs.map(r => r.out.slice(0, 200)), blocks: runs.filter(r => /left before this is done|"decision":\s*"block"/.test(r.out)).length, health: runs.some(r => /health check/.test(r.out)) }; })();
 // 4. a normal commit of the project's own work
 fs.writeFileSync(path.join(dir, 'TRIAL-NOTE.txt'), 'A note the project itself commits.\n');
 g(['add', 'TRIAL-NOTE.txt']); const commit = g(['commit', '-q', '-m', 'Add a trial note'], { env: { ...env, ANZUELO_SESSION_GATE: 'off' } });
@@ -127,6 +147,7 @@ const checks = [
   ['nothing of the starter outside .anzuelo/ but the wiring', !stray.length, stray.slice(0, 15).join(', ')],
   [`the ${uncommitted} uncommitted files, the ignored dependencies and data, and the branch are untouched`, !wipChanged.length && wip0.status === wip1.status && wip0.diff === wip1.diff && wip1.branch === 'feature/trial-work', `${wipChanged.slice(0, 10).join(', ')} | branch ${wip1.branch}`],
   ['a normal commit of the project\'s own work goes through', commit.status === 0, (commit.stderr || '').slice(0, 300)],
+  ['the end of a turn in this shape (a 4 MB transcript, rules files of 260 KB, 56,000 ignored files, worktrees) takes under 2 s, holds at most once and runs no health check of the engine\'s on the app', stopTimes.ms.length === 2 && stopTimes.ms.every(m => m < 2000) && stopTimes.blocks <= 1 && !stopTimes.health, JSON.stringify(stopTimes)],
   ['proof: a friend\'s clone has no engine file, no new reference to .anzuelo and no hooks path', !friendEngine.length && !friendRefs.length && !friendHooks, JSON.stringify({ friendEngine: friendEngine.slice(0, 5), friendRefs: friendRefs.slice(0, 5), friendHooks })],
   ['proof: the app\'s packager never packs the engine (npm pack, and electron-builder: a file list that leaves the engine out, or none at all, which packs everything and needs the owner\'s decision)', (!!packed || npmNot) && !packedEngine.length && !ebPacks.length && !ebAll,
     JSON.stringify({ packedEngine: packedEngine.slice(0, 5), ebPacks, electronBuilder: ebAll ? 'no file list: it packs the whole folder; ask the owner before adding an exclude' : ebFiles.length ? 'file list checked' : 'none', npm: packNote })],

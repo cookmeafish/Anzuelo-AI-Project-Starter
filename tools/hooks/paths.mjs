@@ -52,6 +52,8 @@ export const stateOutside = (local, project) => { try { if (JSON.parse(fs.readFi
   const t = testStateName(project); if (t) return path.join(os.tmpdir(), 'anzuelo-tests', 'state', t);
   return path.join(os.homedir(), '.anzuelo-state', `${path.basename(project).replace(/[^\w.-]+/g, '-')}-${createHash('sha1').update(path.resolve(project).toLowerCase()).digest('hex').slice(0, 8)}`); };
 export const testStateName = p => { const tmp = path.resolve(os.tmpdir()), r = path.relative(tmp, path.resolve(p)); return !r || r.startsWith('..') || path.isAbsolute(r) ? null : r.toLowerCase().replace(/[\\/]+/g, '~').replace(/[^\w.~-]+/g, '-'); };
+// When the engine came into the project (the install's record, else its file time): a turn or ask from before was never under it. Field report, 2026-11-13: held 4 rounds on asks from before the install
+export const engineSinceAt = local => { const f = path.join(local, 'pre-install.json'); try { return JSON.parse(fs.readFileSync(f, 'utf8')).at || fs.statSync(f).mtime.toISOString(); } catch { return ''; } };
 export const recordMap = local => { try { const m = JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).recordPaths || {}; return Object.fromEntries(Object.entries(m).filter(([k, v]) => RECORDS.test(norm(k)) && v).map(([k, v]) => [norm(k), norm(v)])); } catch { return {}; } };
 // resolver(r) gives where(p) (to read: local copy, else engine copy, else local) and whereWrite(p) (always local for
 // engine-made files, so an upgrade never meets a change of the project's).

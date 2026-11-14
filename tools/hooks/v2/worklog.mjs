@@ -2,7 +2,7 @@
 // it, or `hooks.mjs log done|wait`). User rule, 2026-11-12: nothing asked or promised is dropped.
 import fs from 'node:fs';
 import path from 'node:path';
-import { at } from './lib.mjs';
+import { at, engineSince } from './lib.mjs';
 import { keys } from './late.mjs';
 
 const file = sid => at(`tools/hooks/state/v2-log.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
@@ -28,7 +28,7 @@ const PROMISE = /\b(?:I'll|I will|I'm going to|next,? I'll|then I'll)\s+([^.\n]{
 // The log brought up to date: new asks, the agent's promises, each open item closed by a later text naming it.
 export function update(sid, { msgs = [], texts = [] } = {}) {
   const items = loadLog(sid), have = new Set(items.map(i => i.text));
-  const add = (text, from, when, status = 'open') => { if (!have.has(text)) { items.push({ text, from, at: when, status }); have.add(text); } };
+  const since = engineSince(), add = (text, from, when, status = 'open') => { if (since && String(when || '') < since) return; if (!have.has(text)) { items.push({ text, from, at: when, status }); have.add(text); } }; // (nothing asked or promised before the install is tracked)
   for (const m of msgs) for (const a of asksIn(m.text)) add(a, 'user', m.at || new Date().toISOString());
   // (not in quotes or code; one under a condition ("If it fails, I'll ...") waits on it, never held. Oversight, 2026-11-12)
   for (const x of texts) { const s = String(x.t).replace(/```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|“[^”\n]*”/g, ' ');
