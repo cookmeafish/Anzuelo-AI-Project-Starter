@@ -5,6 +5,10 @@ docs/STATUS.md, which here is the template new projects start from).
 
 ## Queue (oversight, for the user, 2026-11-12; in order, tick as done)
 - [x] 1. The work log (released in c2f1528, 2026-11-12; follow-up fixes from its first live day in the next release).
+- [ ] Order from 2026-11-14 (oversight): 1b's release (docs/plans/2026-11-14-fewer-process-starts.md) and its 3-chain
+  soak, then quiet-screen Tasks 2-5 with 3b and the Task 4 boxes (docs/plans/2026-11-13-quiet-screen.md), built from
+  the real holds in the projects' stop logs and proven by replaying them, ahead of the boundary tasks. Why: false
+  holds hit every project every day (that day 14/10/9, 9/8/7 and 5/4/2 items).
 - [ ] 1b. (2026-11-14, nonpaged: one release chain leaves +40 MB nonpaged, nearly all tag File (about 100k objects),
   paired one for one with paged tag D2d (a tag in ntoskrnl.exe). Probes, 1,000 starts each: every start of a program
   outside System32 (node.exe, git.exe, even a copy of whoami.exe in a temp folder) leaves one D2d and about one File
