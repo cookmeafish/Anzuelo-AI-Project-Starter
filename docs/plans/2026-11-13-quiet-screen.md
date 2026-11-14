@@ -128,6 +128,10 @@ Seen in a project (2026-11-13): after a hold listing many open items, the agent 
       "I'll strip the status letters ..." and "I'll put the comment at the end of the line", both done in the commit a
       few steps later. Test from that turn: two narrated "I'll" lines, then the commit, end with no hold; a final answer
       saying "I'll do X next turn" is tracked.
+- [x] (done: a promise naming an item still open or waiting adds nothing; one with its own condition after the verb (as
+      soon as, once, when, if, unless, until, after <an event>) waits; "right after that" stays open. Test: a waiting
+      item, then "I'll do them as soon as it's pushed" and "I'll upgrade the three projects once the release is out",
+      leave only a new promise open; failed on the old code with 3; 419/419.)
 - [ ] A promise that restates an item already open or waiting attaches to it, never a new item: before adding one,
       match it against the open and waiting items (shared key words). Seen 2026-11-14: an item set to wait ("upgrade
       the projects after the next release"), then the answer said so ("as soon as it's pushed"), and the restatement

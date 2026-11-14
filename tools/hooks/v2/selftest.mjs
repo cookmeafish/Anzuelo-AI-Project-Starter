@@ -4361,6 +4361,14 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     'worklog: a quoted example is no promise; "log done" finds a promise by its own text; a prompt a schedule fires is no new ask', { qItems, doneMsg, sItems });
   for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw', 'wlogq', 'wlogs', 'wlogc', 'wlogt']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
   report(!/Still open/.test(watched), 'worklog: a promise the turn armed a watcher or wakeup for is waiting, not held', watched.slice(0, 300));
+  // (a promise that restates a waiting item, or waits on something by its own words ("as soon as it's pushed", "once the
+  // release is out"), is no new open item. Oversight's session, 2026-11-14: an item set to wait, then the answer said so,
+  // and the restatement held the turn)
+  { const W = await import('./worklog.mjs'), sid = 'wlogr', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
+    W.update(sid, { texts: [{ t: "I'll upgrade the three projects to the new release.", at: t(0) }] }); W.logCommand(sid, 'wait', 'upgrade the three projects');
+    const open = W.update(sid, { texts: [{ t: "I'll do them as soon as it's pushed.", at: t(10) }, { t: "I'll upgrade the three projects once the release is out.", at: t(20) }, { t: "I'll rename the totals column.", at: t(30) }] });
+    for (const f of [`v2-log.${sid}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+    report(open.length === 1 && /rename the totals column/.test(open[0].text), 'worklog: a promise that restates a waiting item, or waits by its own words ("as soon as", "once"), adds no open item; a new one does', JSON.stringify(open.map(i => i.text))); }
   report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
     && !log.some(i => /object Object/.test(i.text)) && log.some(i => /coach popup/.test(i.text) && i.status === 'done')
