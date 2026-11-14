@@ -109,6 +109,10 @@ Seen in a project (2026-11-13): after a hold listing many open items, the agent 
       "I'll strip the status letters ..." and "I'll put the comment at the end of the line", both done in the commit a
       few steps later. Test from that turn: two narrated "I'll" lines, then the commit, end with no hold; a final answer
       saying "I'll do X next turn" is tracked.
+- [ ] A promise that restates an item already open or waiting attaches to it, never a new item: before adding one,
+      match it against the open and waiting items (shared key words). Seen 2026-11-14: an item set to wait ("upgrade
+      the projects after the next release"), then the answer said so ("as soon as it's pushed"), and the restatement
+      held the turn as a new promise. Test: an item in wait, then an answer restating it: no new item, no hold.
 - [ ] The "deliver exactly N" ask comes only from the user's own request. A number in a peer session's message, a
       resumed-session summary or the agent's own text ("why it allowed 4 rounds", "9 rounds" in a description) is no
       ask. Seen 2026-11-13: two holds for "4 rounds" and "9 rounds" that no one asked for.
