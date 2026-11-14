@@ -253,7 +253,10 @@ export function splitUpgrade(dry = false) {
     noteEngineChange(PROJECT, `carried ${carried.length} runEach command(s) onto the approved list, so the hook keeps running them: ${carried.join(' | ')}`); }
   const w = spawnSync(process.execPath, [path.join(ENGINE, 'tools', 'hooks', 'wire.mjs')], { cwd: PROJECT, encoding: 'utf8' });
   process.stdout.write(w.stdout || '');
-  if (old !== now) console.log(`what changed: ${path.join(ENGINE, 'tools', 'starter', 'STARTER-CHANGELOG.md').split(path.sep).join('/')} (lines since ${old.slice(0, 7)}); review them in docs/DECISIONS.md as before`);
+  // (the review notes go where the engine keeps records, or nowhere with records off; never a fixed docs/ path, which an
+  // agent would create inside the app. Field report, 2026-11-13: an adopted app with no records was told docs/DECISIONS.md)
+  if (old !== now) { let off = false; try { off = JSON.parse(fs.readFileSync(where('tools/hooks/config.json'), 'utf8')).records === false; } catch { }
+    console.log(`what changed: ${path.join(ENGINE, 'tools', 'starter', 'STARTER-CHANGELOG.md').split(path.sep).join('/')} (lines since ${old.slice(0, 7)})${off ? '' : `; review them in ${path.relative(PROJECT, whereWrite('docs/DECISIONS.md')).split(path.sep).join('/')} as before`}`); }
   if (old !== now) noteEngineChange(PROJECT, `upgraded to ${now.slice(0, 7)} (from ${old.slice(0, 7)}): what changed is in .anzuelo/engine/tools/starter/STARTER-CHANGELOG.md`);
   return w.status === 0 ? 0 : 1;
 }

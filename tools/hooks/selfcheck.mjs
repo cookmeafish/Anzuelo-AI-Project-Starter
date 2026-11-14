@@ -9748,6 +9748,16 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
       && fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md')) && b.at === newHead && b.files?.['docs/playbooks/plan.md'] === newHead && b.files?.['AGENTS.md'] === oldHead,
       'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged but for its dated line in docs/DECISIONS.md; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',
       JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: diffs(before, after), b }));
+    // (the closing line names where the engine keeps records, and none with records off: an agent following a fixed
+    // "docs/DECISIONS.md" would make a record file inside the app. Field report, 2026-11-13)
+    {
+      const cfg = path.join(loc, 'tools/hooks/config.json'), c = (() => { try { return JSON.parse(fs.readFileSync(cfg, 'utf8')); } catch { return {}; } })();
+      fs.mkdirSync(path.dirname(cfg), { recursive: true }); fs.writeFileSync(cfg, JSON.stringify({ ...c, records: false }, null, 2));
+      fs.appendFileSync(path.join(up, 'README.md'), '\nOne more line.\n'); g(up, 'commit', '-qam', 'one more');
+      const upg2 = st('upgrade'), line1 = /^what changed:.*$/m.exec(upg.stdout || '')?.[0] || '', line2 = /^what changed:.*$/m.exec(upg2.stdout || '')?.[0] || '';
+      report(/review them in \.anzuelo\/local\/docs\/DECISIONS\.md/.test(line1) && upg2.status === 0 && !!line2 && !/review them in/.test(line2) && !fs.existsSync(path.join(proj, 'docs/DECISIONS.md')),
+        'upgrade: with the engine in .anzuelo/engine the closing line names .anzuelo/local/docs/DECISIONS.md for the review, and none at all with records off; no record file is made in the project', JSON.stringify({ line1, line2, err: (upg2.stderr || '').slice(0, 300) }));
+    }
   // (a step that throws fails this test, never the whole suite. Lesson (2026-11-09): an install from a commit missing a
   // new engine file left no local copy, and the throw ended the suite with no total)
   } catch (e) { report(false, 'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged but for its dated line in docs/DECISIONS.md; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use', `threw: ${String(e?.message || e).slice(0, 300)}`);
