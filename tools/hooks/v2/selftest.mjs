@@ -761,14 +761,19 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
     // turn): a skill printed with sed was "not opened", one round of three)
     sedRead: u([user('build the export report'), call('Bash', { command: "sed -n '1,80p' docs/playbooks/export.md" }), edit, say('Playbook: export.md. Built it.')]),
     grepped: u([user('build the export report'), call('Bash', { command: 'grep -n totals docs/playbooks/export.md' }), edit, say('Playbook: export.md. Built it.')]),
+    // (every checkable item of the named runbook met by evidence (its test run, its file, its answer line): the work
+    // followed it, so "open it and check" does not hold. Plan quiet-screen, Task 3: reading the file is a means, not an
+    // outcome)
+    allMet: (() => { const cl = path.join(dir, 'docs/CHANGELOG.md'), had = fs.existsSync(cl) ? fs.readFileSync(cl) : null; fs.writeFileSync(cl, `${had || ''}\n- export report\n`);
+      try { return u([user('build the export report'), edit, call('Bash', { command: 'npm test' }, '5 passing'), call('Edit', { file_path: cl, old_string: 'a', new_string: 'b' }), say('Playbook: export.md. Built it; how it was checked: npm test, 5 passing.')]); } finally { if (had) fs.writeFileSync(cl, had); else fs.rmSync(cl, { force: true }); } })(),
   };
   if (was === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = was;
   const small = u([user('build the export report'), edit, say('Built it.')]);
   report(/^No runbook was opened for this work\. Open the closest one/.test(r.asked[0] || '') && !r.oneOff.length && !r.opened.length && !r.made.length && !r.round2.length
     && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length
     && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || '') && /^No runbook was opened/.test(r.relatedBefore[0] || '') && !r.namedMade.length
-    && !r.sedRead.length && /^Open docs\/playbooks\/export\.md and check/.test(r.grepped[0] || ''),
-    'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for (one printed in parts with sed counts as opened, a grep does not); _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
+    && !r.sedRead.length && /^Open docs\/playbooks\/export\.md and check/.test(r.grepped[0] || '') && !r.allMet.length,
+    'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for (one printed in parts with sed counts as opened, a grep does not); _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify({ allMet: r.allMet, sedRead: r.sedRead, grepped: r.grepped, ...r }).slice(0, 700));
 }
 // REQ: note-linked under v2: a new note that links to nothing is held; one with a link, a [[wiki link]] or a "## Related"
 // reason is not, nor a starter document (docs/CHANGELOG.md). (the old engine's check, ported)

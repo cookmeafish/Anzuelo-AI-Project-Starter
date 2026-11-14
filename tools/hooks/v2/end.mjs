@@ -241,14 +241,14 @@ export function unroutedGaps(turn, acts, again, books = runbooks()) {
   // (a runbook the turn wrote is one its writer knows: made for this work, it counts as opened. Lesson (the v2 sweep): a
   // runbook made for a new kind of task and named as followed was asked to be opened)
   const wrote = b => acts.calls.some(c => ['Write', 'Edit'].includes(c.name) && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(b.file));
-  const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !wrote(b) && !earlierCounts(b) && b.file !== turn.runbook);
+  const allMet = b => { const its = (b.items || []).filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts)); return its.length > 0 && its.every(it => met(it, acts) === true); }, notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !wrote(b) && !earlierCounts(b) && b.file !== turn.runbook && !allMet(b)); // (every checkable item met by evidence: the work followed it; reading the file is a means, not an outcome. Plan quiet-screen, Task 3)
   if (notOpened.length) return notOpened.map(b => `Open ${b.file} and check the work against its steps.`);
   if (made || NONE_FITS.test(said)) return [];
   // (b)
   if (fallback) return ['This work followed docs/playbooks/_fallback.md: leave a runbook for this kind of task behind (rule 2, the runbook-create skill), or say in one line why none is needed (a one-off).'];
   // (c)
   const openedBefore = goesOn && (acts.prior || []).some(c => c.name === 'Skill' || (c.name === 'Read' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))));
-  if (turn.runbook || anyOpened || openedBefore || smallChange(acts, changedOf(acts))) return [];
+  if (turn.runbook || anyOpened || openedBefore || books.some(b => named.includes(b.name) && allMet(b)) || smallChange(acts, changedOf(acts))) return [];
   return [`No runbook was opened for this work. Open the closest one${top.length ? ` (${top.join(', ')})` : ' (DIRECTORY.md lists them)'} and check the work against it, leave a new runbook for this kind of task (rule 2, the runbook-create skill), or say in one line why none fits (a one-off).`];
 }
 

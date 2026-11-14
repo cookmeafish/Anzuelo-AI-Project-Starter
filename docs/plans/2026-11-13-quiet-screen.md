@@ -73,6 +73,9 @@ What the user saw in that hour, and why:
 - [ ] A repeat-problem or open-plan item holds only the session that owns it. Sending the problem to the owning
       session counts as handled.
 - [ ] Status and changelog asks only when this turn changed a starter or project file of that kind.
+- [x] (the "open the runbook" part: a runbook named as followed whose checkable items are all met by evidence is not
+      sent back to be opened, and meets "no runbook was opened"; a runbook read in parts (sed, awk, head, tail) counts
+      as opened, a grep does not. Tests failed on the old code; 419/419. The verify list for judgment items is kept.)
 - [ ] When every "Done when" item of the routed runbook is met by evidence (a hook, a run, a file), "open the runbook"
       and "check the items are really done" don't hold: reading the file is a means, not an outcome. Test: the plan turn
       of the real hour (plan saved, `plan-tasks.mjs check` passed, plan linked) ends with no hold.
@@ -92,6 +95,10 @@ What the user saw in that hour, and why:
       written and committed this turn meets the "upset again: plan and sweep" item. Seen 2026-11-13 19:05 on an upset
       turn: 5, then 4, then 10 items, after the Issue, Scope and Root cause lines, the skill read and a committed plan.
       Test from that turn: at most one hold, and it never grows.
+- [ ] `hooks.mjs log done|wait "<words>"` finds the item by words from anywhere in it (a phrase from its middle, or
+      most of the given words in order), not only its opening words; when several items match, it names them instead of
+      picking one. Seen 2026-11-14: a long ask could be closed only by its first words, so an answered ask held the turn
+      after two tries. Test: a long item closed by a phrase from its middle; an ambiguous phrase lists the candidates.
 - [ ] Each hold's full item list is kept in a per-session history (not only the newest stop-details file), so a
       replay reads every item. The review of 149 real holds could read only the first two of each
       (tools/starter/reviews/2026-11-14-real-holds.md).
