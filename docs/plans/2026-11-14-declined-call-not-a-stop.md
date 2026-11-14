@@ -1,5 +1,5 @@
 ---
-status: open
+status: dropped - an engine rule letting agents continue past a declined call undermines the user's own "no" (refused by the permission system, rightly); the fix is a clear one-word question to the user instead, kept in oversight's memory
 ---
 # Plan: a declined harmless step never parks the work on the user
 
