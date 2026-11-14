@@ -594,8 +594,12 @@ if (isTemplate) sweep('shipped docs write names in markers', () => {
 
 sweep('tools compile', () => {
   const files = walk('', p => /\.(mjs|cjs)$/.test(p) && (p.startsWith('tools/') || p.startsWith(cfg.skillsDir + '/')));
-  const fail = [];
-  for (const f of files) { const r = spawnSync(process.execPath, ['--check', abs(f)], { encoding: 'utf8' }); if (r.status !== 0) fail.push(`${f}: ${(r.stderr || '').split('\n').find(l => /Error/.test(l)) || 'syntax error'}`); }
+  // (one process parses them all, as modules or scripts, never runs them: a node start per file was 18,000 starts a
+  // release run, and each start of a program outside System32 leaves a kernel record on Windows that only a restart
+  // frees. Leak 1b, 2026-11-14)
+  const PARSE = "const vm=require('vm'),fs=require('fs'),M=require('module');for(const f of JSON.parse(fs.readFileSync(0,'utf8'))){try{const s=fs.readFileSync(f.abs,'utf8');f.abs.endsWith('.cjs')?new vm.Script(M.wrap(s.replace(/^#!.*/,'')),{filename:f.abs}):new vm.SourceTextModule(s,{identifier:f.abs})}catch(e){console.log(JSON.stringify([f.rel,e.name+': '+e.message]))}}";
+  const r = spawnSync(process.execPath, ['--experimental-vm-modules', '--no-warnings', '-e', PARSE], { encoding: 'utf8', input: JSON.stringify(files.map(f => ({ rel: f, abs: abs(f) }))) });
+  const fail = r.status !== 0 ? [`the syntax check did not run: ${(r.stderr || String(r.error || '')).slice(0, 200)}`] : (r.stdout || '').split('\n').filter(Boolean).map(l => { const [f, e] = JSON.parse(l); return `${f}: ${e}`; });
   return { fail, note: `${files.length} scripts` };
 });
 

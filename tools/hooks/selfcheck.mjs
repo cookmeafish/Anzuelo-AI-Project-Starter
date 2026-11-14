@@ -9528,6 +9528,25 @@ if (mineB() && (!TAGS || TAGS.includes('permission-respected'))) { // engine run
       JSON.stringify([read0.stdout, set.stdout, unknown.stdout, wrong.stdout, agent.slice(0, 300), look.slice(0, 100)]));
   } finally { giveBack(dir); }
 }
+if (mineB() && (!TAGS || TAGS.includes('audit-compile'))) { // the audit's syntax check parses every script in one
+  // process: a node start per file was about 18,000 starts a release run, and on Windows each start of a program outside
+  // System32 leaves a kernel record only a restart frees (leak 1b, 2026-11-14). It still catches a broken module and a
+  // broken .cjs, and passes clean ones.
+  const dir = takeCopy();
+  try {
+    const pre = path.join(dir, '.cache', 'count-checks.cjs'), log = path.join(dir, '.cache', 'checks.log');
+    fs.mkdirSync(path.dirname(pre), { recursive: true });
+    fs.writeFileSync(pre, `const cp=require('node:child_process'),fs=require('node:fs');for(const k of ['spawn','spawnSync','execFile','execFileSync']){const o=cp[k];cp[k]=function(c,a,...r){if(Array.isArray(a)&&a.includes('--check'))fs.appendFileSync(${JSON.stringify(log)},'x');return o.call(this,c,a,...r)}}require('node:module').syncBuiltinESMExports();\n`);
+    const compile = () => { fs.rmSync(log, { force: true }); const r = nodeIn(dir, ['tools/audit.mjs'], { NODE_OPTIONS: `--require ${pre}` }); return { out: (/^(PASS|FAIL) +\d+\. tools compile[\s\S]*?(?=\n(PASS|FAIL|WARN|audit:))/m.exec(r.stdout || '') || [''])[0], starts: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').length : 0 }; };
+    const clean = compile();
+    fs.writeFileSync(path.join(dir, 'tools', 'zz-broken.mjs'), 'import fs from "node:fs";\nawait 1;\nexport const a = (;\n');
+    fs.writeFileSync(path.join(dir, 'tools', 'zz-broken.cjs'), 'const = 1;\n');
+    const broken = compile();
+    report(/^PASS/.test(clean.out) && /^FAIL/.test(broken.out) && /zz-broken\.mjs: SyntaxError/.test(broken.out) && /zz-broken\.cjs: SyntaxError/.test(broken.out) && clean.starts === 0 && broken.starts === 0,
+      'audit "tools compile": every script parsed in one process, no node --check per file; a broken module and a broken .cjs fail it, clean scripts pass',
+      JSON.stringify({ clean, broken }));
+  } finally { giveBack(dir); }
+}
 if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // the engine in .anzuelo/engine of a project: every tracked file sorted to its root by paths.mjs, then the hooks and
   // the audit run from there with the session in the project. The reminder, a guard, sync and the audit work, sync
