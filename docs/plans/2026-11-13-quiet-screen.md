@@ -58,7 +58,11 @@ What the user saw in that hour, and why:
 **Uses / provides:** none.
 - [ ] `node tools/hooks/hooks.mjs note "<line>"` appends quietly, with one short output line. The rules and
       learn-from-upset point to it.
-- [ ] Notes rotate per turn into an archive the engine still reads, so the live file holds only this turn's lines.
+- [x] Notes rotate per turn into an archive, so the live file holds only this turn's lines (v2/start.mjs rotateNotes,
+      at a new turn: earlier lines to .cache/turn-notes-archive.md under a dated heading, kept to 512 KB; skipped while
+      a peer session's turn is open). The repeat check keeps its own record (state/issues.json), so nothing that reads
+      earlier turns loses them. Test: 3 turns, then the live file holds only turn 3 and the archive turns 1 and 2;
+      with a peer turn open nothing moves (failed on the old code; 416/416).
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: after 3 turns the live notes file holds only the last turn's
       lines, and acknowledgement and fix checks still read the archive; ALL PASS.
 
@@ -80,6 +84,11 @@ What the user saw in that hour, and why:
       agent changed work because of them) and false (met already, waived with a reason, or the answer showed it didn't
       apply). A check whose holds are mostly false over its last 20 stops holding: it moves to the start-of-turn
       reminder, and the release replay reports it to be fixed. Safety guards are never demoted.
+- [ ] A hold's list never grows between the rounds of one turn: round N lists only round 1's items still unmet. Opening
+      a file by any read counts as opening it (a shell print or `sed` of the skill, not only the Read tool). A plan
+      written and committed this turn meets the "upset again: plan and sweep" item. Seen 2026-11-13 19:05 on an upset
+      turn: 5, then 4, then 10 items, after the Issue, Scope and Root cause lines, the skill read and a committed plan.
+      Test from that turn: at most one hold, and it never grows.
 - [ ] Each hold's full item list is kept in a per-session history (not only the newest stop-details file), so a
       replay reads every item. The review of 149 real holds could read only the first two of each
       (tools/starter/reviews/2026-11-14-real-holds.md).

@@ -921,6 +921,24 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     fs.rmSync(peerRec, { force: true }); if (keep) fs.writeFileSync(nf, keep); else fs.rmSync(nf, { force: true });
     report(/export dropped rows/.test(alone) && !/export dropped rows/.test(withPeer),
       'end: a line a peer session wrote to the shared notes during this turn is not this turn\'s, even when the peer\'s turn has ended (alone in the folder, the turn\'s added lines are its own)', JSON.stringify({ alone, withPeer })); }
+  // (the notes rotate per turn: a new turn moves the earlier turns' lines to .cache/turn-notes-archive.md, so the live
+  // file holds only this turn's and an Edit of it never shows the old lines again; never while a peer session's turn is
+  // open, whose lines would leave mid-turn. Plan quiet-screen, Task 2: the same old Issue lines shown 3 times an hour)
+  { const { onPrompt } = await import('./start.mjs'), { notesOf, loadTurn, saveTurn } = await import('./lib.mjs'), nf = path.join(dir, '.cache/turn-notes.md'), af = path.join(dir, '.cache/turn-notes-archive.md'), st = path.join(dir, 'tools/hooks/state');
+    const keep = [nf, af].map(f => fs.existsSync(f) ? fs.readFileSync(f) : null); fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, ''); fs.rmSync(af, { force: true }); fs.mkdirSync(st, { recursive: true });
+    for (const n of fs.readdirSync(st).filter(n => /^v2-turn\./.test(n))) fs.rmSync(path.join(st, n), { force: true });
+    const sid = 'rotnotes', line = i => `Issue: the invoice total was wrong in run ${i} | runbook: debug | fixed when: totals match the receipts`;
+    const turn = i => { onPrompt({ session_id: sid, prompt: `check the invoice totals, round ${i}` }); fs.appendFileSync(nf, `${line(i)}\nPlaybook: debug\n`); const t = loadTurn(sid); return t; };
+    const end = () => saveTurn(sid, { ...loadTurn(sid), ended: new Date().toISOString() });
+    turn(1); end(); turn(2); end(); const t3 = turn(3);
+    const live = fs.readFileSync(nf, 'utf8'), arch = fs.existsSync(af) ? fs.readFileSync(af, 'utf8') : '', mine = notesOf({ ...t3, session: sid, calls: [] });
+    end(); const peer = path.join(st, 'v2-turn.peeropen.json'); fs.writeFileSync(peer, JSON.stringify({ at: new Date().toISOString() }));
+    turn(4); const withPeer = fs.readFileSync(nf, 'utf8');
+    fs.rmSync(peer, { force: true }); for (const n of fs.readdirSync(st).filter(n => /^v2-turn\.rotnotes/.test(n))) fs.rmSync(path.join(st, n), { force: true });
+    [nf, af].forEach((f, i) => keep[i] ? fs.writeFileSync(f, keep[i]) : fs.rmSync(f, { force: true }));
+    report(/run 3/.test(live) && !/run [12]\b/.test(live) && /run 1\b/.test(arch) && /run 2\b/.test(arch) && /run 3/.test(mine) && /run 3/.test(withPeer) && /run 4/.test(withPeer),
+      'start: a new turn moves the earlier turns\' notes to the archive, so the live notes file holds only this turn\'s lines (and the end check still reads them); with a peer session\'s turn open nothing moves',
+      JSON.stringify({ live, arch: arch.slice(0, 300), mine, withPeer })); }
   // (a turn with no routed runbook that greps another runbook's triggers is not following it; printing it whole is.
   // Lesson (a project's report, 2026-11-12): a grep of a runbook's triggers line held a routing fix to its 7 items)
   { const by = command => missing({ runbook: null }, acts([user('make the field guide route to the gui runbook'), call('Bash', { command }), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done. Runbook: export.md')])).filter(s => /export\.md item/.test(s)).length;

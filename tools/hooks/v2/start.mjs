@@ -284,6 +284,15 @@ function remind(prompt) {
 
 const DIGEST = '[rules] route→open runbook · no runbook→create one · always/never→enforced rule · facts labeled+sourced+dated · ' +
   'questions get answers, not edits · originals/outputs protected · GUI change→screenshot loop · end with Finished + paths';
+// The live notes file to the archive, under a dated heading (the archive kept to its last 512 KB); skipped while another
+// session's turn is open in the folder (its record changed in the last 2 hours and not ended).
+const rotateNotes = sid => { try {
+  const nf = at('.cache/turn-notes.md'), body = fs.readFileSync(nf, 'utf8'); if (!body.trim()) return;
+  const st = at('tools/hooks/state'), me = `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`;
+  if (fs.readdirSync(st).some(n => { if (!/^v2-turn\./.test(n) || n === me) return false; try { const p = path.join(st, n); return Date.now() - fs.statSync(p).mtimeMs < 2 * 3600_000 && !JSON.parse(fs.readFileSync(p, 'utf8')).ended; } catch { return false; } })) return;
+  const af = at('.cache/turn-notes-archive.md'); let old = ''; try { old = fs.readFileSync(af, 'utf8'); } catch { }
+  const all = `${old}## ${new Date().toISOString().slice(0, 16)}\n${body.replace(/\n*$/, '\n')}`; fs.writeFileSync(af, all.length > 512 << 10 ? all.slice(-(512 << 10)).replace(/^[^\n]*\n/, '') : all); fs.writeFileSync(nf, '');
+} catch { } };
 export function onPrompt(data) {
   // (a host notice, like a background job ending, is not a request: the turn keeps its runbook and gets no reminder.
   // Lesson (live): a job's notice mid-turn cleared the routed runbook, and the end check held the turn to another one)
@@ -314,7 +323,9 @@ export function onPrompt(data) {
   // touched from one it changed)
   // (and the plans open when it began: REQ plan-open, planreq.mjs; and the notes file's size then, so only what the turn
   // adds to it is its own: notesOf)
-  else { const at0 = new Date().toISOString(); let openPlans = [];
+  // (and the earlier turns' notes move to the archive first, so the live file is this turn's alone and an Edit of it never
+  // shows old lines again; not while a peer's turn is open in the folder. Plan quiet-screen, Task 2)
+  else { const at0 = new Date().toISOString(); let openPlans = []; rotateNotes(data.session_id);
     try { openPlans = openPlansOf(fs.readdirSync(at('docs/plans')), p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } }).map(x => x.p); } catch { }
     saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...notesMark(), ...sore, ...tx, ...(openPlans.length ? { openPlans } : {}) }); snapshotLater(data.session_id, at0); }
   // (REQ: prompt-digest: a session whose start did not give the rules (no session-start record for it) hears a one-line
