@@ -83,6 +83,18 @@ What the user saw in that hour, and why:
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the two answers from the real hour pass with at most one hold
       each; ALL PASS.
 
+## Task 3b: a bulk close after a hold is confirmed, not taken on trust
+**Files:** tools/hooks/v2/worklog.mjs, tools/hooks/v2/end.mjs; test in tools/hooks/v2/selftest.mjs
+Seen in a project (2026-11-13): after a hold listing many open items, the agent closed them all at once with
+`log done`, among them an upset ask only partly done (its own count left many items without the result asked).
+`log done` takes any item with no evidence, so a mass close looks the same as real completion. No new interruption.
+- [ ] When one turn closes 3 or more items right after a hold, the end check lists them once, asking the answer to
+      give each as done (with what proves it), partly done (what is left) or declined (why).
+- [ ] An upset ask closed that way with no line in the answer stays open, marked partly done.
+- [ ] Test, from the real sequence in a neutral subject: a hold with 14 items, a bulk `log done`, an answer that
+      leaves out the remaining gap of the upset ask. Expected: that ask stays open, "partly"; the others closed
+      with their lines in the answer pass.
+
 ## Task 4: one message, one ask
 **Files:** tools/hooks/v2/worklog.mjs
 **Uses / provides:** none.
