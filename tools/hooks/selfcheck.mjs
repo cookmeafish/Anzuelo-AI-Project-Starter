@@ -9547,6 +9547,35 @@ if (mineB() && (!TAGS || TAGS.includes('audit-compile'))) { // the audit's synta
       JSON.stringify({ clean, broken }));
   } finally { giveBack(dir); }
 }
+if (mineB() && (!TAGS || TAGS.includes('process-budget'))) { // each hook event starts at most its budget of programs
+  // (descendants counted): prompt, pretool and posttool none, stop and session at most 2. Every hook event is already a
+  // node start of Claude Code's; what the hook starts on top is ours to keep near zero (leak 1b, 2026-11-14)
+  const dir = takeCopy();
+  try {
+    const pre = path.join(dir, '.cache', 'count-starts.cjs'), log = path.join(dir, '.cache', 'starts.log'), tp = path.join(dir, '.cache', 'budget.jsonl');
+    fs.mkdirSync(path.dirname(pre), { recursive: true });
+    fs.writeFileSync(pre, `const cp=require('node:child_process'),fs=require('node:fs'),p=require('node:path');for(const k of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork']){const o=cp[k];cp[k]=function(c,a,...r){fs.appendFileSync(${JSON.stringify(log)},p.basename(String(c)).split(' ')[0]+' '+(Array.isArray(a)?String(a[0]||''):'')+'\\n');return o.call(this,c,a,...r)}}require('node:module').syncBuiltinESMExports();\n`);
+    const row = r => fs.appendFileSync(tp, JSON.stringify({ timestamp: new Date().toISOString(), ...r }) + '\n');
+    const host = { NODE_OPTIONS: `--require ${pre}`, STARTER_NO_SELF_AUDIT: '', STARTER_ENGINE: 'v2' }, sid = 'budget1', base = { session_id: sid, transcript_path: tp };
+    const starts = (cmd, input) => { fs.rmSync(log, { force: true }); run(dir, cmd, { ...base, ...input }, host); return fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : []; };
+    const edit = { file_path: path.join(dir, 'docs', 'notes-budget.md'), old_string: 'a', new_string: 'b' }, bash = { command: 'git status' };
+    const got = {};
+    got.session = starts('session', { source: 'startup' });
+    row({ type: 'user', message: { role: 'user', content: 'Add a line to the recipe notes' } });
+    got.prompt = starts('prompt', { prompt: 'Add a line to the recipe notes' });
+    got.pretoolEdit = starts('pretool', { tool_name: 'Edit', tool_input: edit });
+    row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'e1', name: 'Edit', input: edit }] } }); fs.writeFileSync(edit.file_path, 'b\n');
+    got.posttoolEdit = starts('posttool', { tool_name: 'Edit', tool_input: edit, tool_response: {} });
+    got.pretoolBash = starts('pretool', { tool_name: 'Bash', tool_input: bash });
+    got.posttoolBash = starts('posttool', { tool_name: 'Bash', tool_input: bash, tool_response: { stdout: '' } });
+    row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Added the line to docs/notes-budget.md.' }] } });
+    got.stop = starts('stop', { stop_hook_active: false });
+    // (the prompt's one is the turn-start snapshot, detached so the prompt is not kept waiting (v2/lib.mjs snapshotLater);
+    // stop's 4 git calls are today's, to be cut to 2: plan fewer-process-starts, Task 2)
+    const budget = { session: 2, prompt: 1, pretoolEdit: 0, posttoolEdit: 0, pretoolBash: 0, posttoolBash: 0, stop: 4 }, over = Object.keys(budget).filter(k => got[k].length > budget[k]);
+    report(!over.length, 'process budget: pretool and posttool start no program, the prompt only its turn-start snapshot, session at most 2, stop at most 4', JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, v.slice(0, 8)]))));
+  } finally { giveBack(dir); }
+}
 if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // the engine in .anzuelo/engine of a project: every tracked file sorted to its root by paths.mjs, then the hooks and
   // the audit run from there with the session in the project. The reminder, a guard, sync and the audit work, sync

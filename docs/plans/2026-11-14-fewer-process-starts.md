@@ -40,8 +40,13 @@ Hooks per event in a fresh project (engine in .anzuelo/): session 2 git, prompt 
 
 ## Task 2: a process budget per hook event, enforced
 **Files:** tools/hooks/v2/selftest.mjs
-- [ ] A test counts the child processes each hook event starts in a fresh installed project: pretool and posttool 0,
-      prompt 0, stop at most 2 git calls, session at most 2. It fails when an event goes over its budget.
+- [x] A test counts the programs each hook event starts (descendants too) and fails over budget: pretool and posttool
+      0, prompt 1 (its detached turn-start snapshot), session 2, stop 4 (selfcheck, process-budget). Measured in a
+      starter copy: session 1 git, prompt 1 node, pretool/posttool 0, stop 4 git (ls-files, status, log, ls-tree).
+- [ ] Stop down to 2 git calls: one `git ls-tree HEAD` and one status read shared by every check in the turn (end.mjs
+      calls ls-tree in three places, lib.mjs ls-files, diff and log per file); then the budget goes to 2.
+- [ ] The turn-start snapshot's 3 git calls (diff, ls-files, hash-object) become 1 (`git status --porcelain=v2`
+      gives changed and untracked files with their index hashes).
 
 ## Task 3: the suites start fewer programs
 **Files:** tools/starter/v2-sweep.mjs, tools/hooks/selfcheck.mjs, tools/hooks/v2/selftest.mjs
