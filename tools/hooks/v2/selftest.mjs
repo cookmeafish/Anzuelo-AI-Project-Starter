@@ -4379,6 +4379,16 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const open = W.update(sid, { texts: [{ t: "I'll do them as soon as it's pushed.", at: t(10) }, { t: "I'll upgrade the three projects once the release is out.", at: t(20) }, { t: "I'll rename the totals column.", at: t(30) }] });
     for (const f of [`v2-log.${sid}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
     report(open.length === 1 && /rename the totals column/.test(open[0].text), 'worklog: a promise that restates a waiting item, or waits by its own words ("as soon as", "once"), adds no open item; a new one does', JSON.stringify(open.map(i => i.text))); }
+  // (log done finds an item by a phrase from anywhere in it, not only its opening words; several matches are named, never
+  // one picked. Oversight's session, 2026-11-14: a long ask closed only by its first words held the turn after two tries)
+  { const W = await import('./worklog.mjs'), sid = 'wlogm', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
+    W.update(sid, { msgs: [{ text: 'i want you to look over my recent requests to the recipe project and tell me if the engine is turning them into enforced rules, and list any that slipped through', at: t(0) }] });
+    const mid = W.logCommand(sid, 'done', 'the engine is turning them into enforced rules');
+    W.update(sid, { msgs: [{ text: 'rename the totals column in the invoice export', at: t(5) }, { text: 'rename the totals column in the receipt export', at: t(6) }] });
+    const both = W.logCommand(sid, 'done', 'rename the totals column'), left = W.loadLog(sid).filter(i => i.status === 'open').length;
+    fs.rmSync(path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), { force: true });
+    report(/^log: done "i want you to look over/.test(mid) && /matches 2 items/.test(both) && /invoice export/.test(both) && /receipt export/.test(both) && left === 2,
+      'worklog: log done closes an item by a phrase from its middle; a phrase that matches several items names them and closes none', JSON.stringify({ mid, both, left })); }
   report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
     && !log.some(i => /object Object/.test(i.text)) && log.some(i => /coach popup/.test(i.text) && i.status === 'done')

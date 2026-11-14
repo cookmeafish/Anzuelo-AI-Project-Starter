@@ -42,8 +42,8 @@ export function logCommand(sid, verb, text) {
   // (forgiving: the item's text without its " (your promise)" tag, a prefix of it, or half its words, never the
   // "will" filter, which is for answers. Oversight, 2026-11-12: its own exact text found no match)
   const base = i => i.text.replace(/ \(your promise\)$/, '').toLowerCase(), t = String(text).replace(/ \(your promise\)$/, '').trim().toLowerCase();
-  const share = i => { const w = keys(base(i)), k = new Set(keys(t)); return w.length > 0 && w.filter(x => k.has(x)).length >= Math.max(1, Math.round(w.length / 2)); };
-  const items = loadLog(sid), hit = items.find(i => i.status === 'open' && (base(i) === t || (t.length >= 12 && base(i).startsWith(t)) || share(i)));
+  const share = i => { const w = keys(base(i)), k = new Set(keys(t)); return w.length > 0 && w.filter(x => k.has(x)).length >= Math.max(1, Math.round(w.length / 2)); }, most = i => { const k = keys(t), w = new Set(keys(base(i))); return k.length >= 2 && k.filter(x => w.has(x)).length >= Math.ceil(k.length * 0.7); }; // (a phrase from anywhere in the item, or most of the given words: a long ask closed only by its opening words held a turn. Oversight's session, 2026-11-14)
+  const items = loadLog(sid), live = i => i.status === 'open' || (verb === 'done' && i.status === 'wait'), exact = items.filter(i => live(i) && base(i) === t), hits = exact.length ? exact : items.filter(i => live(i) && ((t.length >= 12 && base(i).includes(t)) || share(i) || most(i))), hit = hits.length === 1 ? hits[0] : null; if (verb !== 'add' && hits.length > 1) return `log: "${text}" matches ${hits.length} items, closed none; name one:\n${hits.map(i => `- ${i.text.slice(0, 120)}`).join('\n')}`;
   if (verb === 'add') items.push({ text: String(text).slice(0, 300), from: 'agent', at: new Date().toISOString(), status: 'open' });
   else if (hit && /^(done|wait)$/.test(verb)) hit.status = verb === 'done' ? 'done' : 'wait';
   else return `log: no open item matches "${text}"`;

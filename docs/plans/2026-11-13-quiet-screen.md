@@ -95,6 +95,12 @@ What the user saw in that hour, and why:
       written and committed this turn meets the "upset again: plan and sweep" item. Seen 2026-11-13 19:05 on an upset
       turn: 5, then 4, then 10 items, after the Issue, Scope and Root cause lines, the skill read and a committed plan.
       Test from that turn: at most one hold, and it never grows.
+- [x] (done: a phrase of 12+ characters from anywhere in the item, or most of the given words; several matches are
+      named and none closed; done also closes a waiting item. Test failed on the old code; 420/420.)
+- [ ] A claim inside quotes, or in a sentence that disclaims it (not verified, haven't run, X's report, per X), is no
+      claim; on a round after the hold, an answer that names the source or says it is unverified meets the item. Seen
+      2026-11-14 20:53: "another session reported a check now enforces it" held, then the correction quoting the phrase
+      and saying it was not run held again. Test from that pair.
 - [ ] `hooks.mjs log done|wait "<words>"` finds the item by words from anywhere in it (a phrase from its middle, or
       most of the given words in order), not only its opening words; when several items match, it names them instead of
       picking one. Seen 2026-11-14: a long ask could be closed only by its first words, so an answered ask held the turn
