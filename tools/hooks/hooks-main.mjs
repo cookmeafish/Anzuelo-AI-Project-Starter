@@ -5069,7 +5069,8 @@ export function v2StopForm(out, cfg = config(), host = HOST, state = STATE, sid 
 // full steps are. The runbook items to verify are one item; the last round says so.
 export function shortStop(full, where = 'tools/hooks/state/stop-details.md') {
   const text = String(full || ''), items = [];
-  for (const l of text.split('\n')) if (/^- \S/.test(l)) items.push(l.slice(2));
+  // (the items held, not the ones listed after "Also noted, not held": the user sees what the agent is asked for)
+  for (const l of text.split('\n')) { if (/^Also noted, not held\b/.test(l)) break; if (/^- \S/.test(l)) items.push(l.slice(2)); }
   const book = /Check that these items of (\S+) are really done/.exec(text)?.[1];
   if (book) items.push(`check the items of ${book} are really done`);
   // (the item's own words only: "docs/playbooks/x.md item 8: " stays in the details file, for the agent)
