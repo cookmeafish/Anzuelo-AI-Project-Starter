@@ -1735,8 +1735,14 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const n1 = onStop({ transcript_path: transcript(rows), session_id: 'narr' });
     const kept = [stampAt(0, user('make the snapshot use one status read')), stampAt(5, say("Doing the status read first; I'll add the snapshot to the changelog right after that.")), fix('one()', 10), stampAt(15, say('Done: one status read.'))];
     const n2 = onStop({ transcript_path: transcript(kept), session_id: 'narr2' });
-    report(!/strip the status letters|put the comment at the end/.test(n1?.reason || '') && /add the snapshot to the changelog/.test(n2?.reason || ''),
-      'end: an "I\'ll ..." the turn carried out with its next tool calls is narration, not an open promise; one with nothing done after it is still held', JSON.stringify({ n1: (n1?.reason || '').slice(0, 300), n2: (n2?.reason || '').slice(0, 300) })); }
+    // (what the sentence names must be touched by a later call: "I'll update README.md" then only a test run is still
+    // open; "I'll fix the regex, then rerun the tests" then the edit and the run is narration. Oversight, 2026-11-14)
+    const run = (cmd, n) => stampAt(n, call('Bash', { command: cmd }));
+    const n3 = onStop({ transcript_path: transcript([stampAt(0, user('fix the export')), stampAt(5, say("I'll update README.md with the new flag.")), run('node tools/hooks/v2/selftest.mjs', 10), stampAt(15, say('Done.'))]), session_id: 'narr3' });
+    const n4 = onStop({ transcript_path: transcript([stampAt(0, user('fix the export')), stampAt(5, say("I'll fix the regex, then rerun the tests.")), fix('rx = /a+/', 10), run('npm test', 15), stampAt(20, say('Fixed; the tests pass.'))]), session_id: 'narr4' });
+    report(!/strip the status letters|put the comment at the end/.test(n1?.reason || '') && /add the snapshot to the changelog/.test(n2?.reason || '') && /update README\.md/.test(n3?.reason || '') && !/fix the regex/.test(n4?.reason || ''),
+      'end: an "I\'ll ..." the turn carried out with its next tool calls is narration, not an open promise; one with nothing done after it is still held, and so is one naming a file no later call touched',
+      JSON.stringify({ n1: (n1?.reason || '').slice(0, 300), n2: (n2?.reason || '').slice(0, 200), n3: (n3?.reason || '').slice(0, 200), n4: (n4?.reason || '').slice(0, 200) })); }
   // (a hold's list never grows between the rounds of one request: a later round lists only the first round's items still
   // unmet, never one the reply set off. Lesson (2026-11-13, an upset turn): 5, then 4, then 10 items, each round another
   // answer fragment for a user who had just complained about being bothered)

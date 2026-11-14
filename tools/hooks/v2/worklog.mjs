@@ -24,7 +24,7 @@ export function asksIn(msg) {
 const FUTURE = /\b(?:I'll|I will|will|going to|next|later|after (?:this|that)|then I)\b/i;
 const named = (item, text) => { const w = keys(item); if (!w.length) return false; const need = Math.max(w.length >= 4 ? 2 : 1, Math.round(w.length / 2));
   return String(text).split(/(?<=[.!?\n])\s+/).filter(s => !FUTURE.test(s)).some(s => { const k = new Set(keys(s)); return w.filter(x => k.has(x)).length >= need; }); };
-const PROMISE = /\b(?:I'll|I will|I'm going to|next,? I'll|then I'll)\s+([^.\n]{8,160})/gi;
+const PROMISE = /\b(?:I'll|I will|I'm going to|next,? I'll|then I'll)\s+((?:[^.\n]|\.(?=\w)){8,160})/gi; // (a dot inside a word, as in a file name, does not end the promise: "update README.md" kept its file)
 // The log brought up to date: new asks, the agent's promises, each open item closed by a later text naming it.
 export function update(sid, { msgs = [], texts = [] } = {}) {
   const items = loadLog(sid), have = new Set(items.map(i => i.text));
