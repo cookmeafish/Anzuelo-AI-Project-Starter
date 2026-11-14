@@ -2050,6 +2050,12 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   const { fixGaps } = await import('./lib.mjs');
   const dbg = call('Read', { file_path: path.join(dir, 'skills/debug/SKILL.md') }, 'debug'), fix = call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' });
   const failRun = call('Bash', { command: 'node --test test/export.test.js' }, 'not ok 1 - exports the label\n# fail 1'), passRun = call('Bash', { command: 'node --test test/export.test.js' }, '# pass 1\n# fail 0');
+  // (a never-again claim inside quotes, or in a sentence that disclaims it (another's report, not run, not verified), is
+  // no claim of the agent's. Oversight's session, 2026-11-14: a reported claim held, then the correction quoting it held
+  // again)
+  { const { proofGaps } = await import('./lib.mjs'), pg = ans => { const a = acts([user('why does the export keep dropping rows again?'), ...call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' }), say(ans)]); a.complaint = true; return proofGaps(a).filter(s => /promises it can't happen again/.test(s)); };
+    const claim = pg('Fixed the export; a check now enforces it.'), reported = pg('Another session reported that a check now enforces it; I have not run it.'), quoted = pg('Correction: I wrote "a check now enforces it", but I haven\'t run that check.');
+    report(claim.length === 1 && !reported.length && !quoted.length, 'end: a never-again claim is held, but not one in quotes or in a sentence that disclaims it (another\'s report, not run)', JSON.stringify({ claim, reported, quoted })); }
   const fx = (rows, complaint = true) => { const a = acts(rows); a.complaint = complaint; return fixGaps(a); };
   const proven = fx([user('the export is broken'), dbg, failRun, fix, passRun, say('Fixed: the label was dropped.')]);
   const noDebug = fx([user('the export is broken'), failRun, fix, passRun, say('Fixed.')]);
