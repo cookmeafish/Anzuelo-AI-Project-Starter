@@ -6,7 +6,7 @@ import { at, engineSince } from './lib.mjs';
 import { keys } from './late.mjs';
 
 const file = sid => at(`tools/hooks/state/v2-log.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
-export const loadLog = sid => { try { return JSON.parse(fs.readFileSync(file(sid), 'utf8')).items || []; } catch { return []; } };
+export const loadLog = sid => { try { return JSON.parse(fs.readFileSync(file(sid), 'utf8')).items || []; } catch { return []; } }, stillOpen = (reason, items) => String(reason || '').split('\n').filter(l => { const m = /^- Still open: "(.+?)"\./.exec(l); return !m || !items.some(i => i.text === m[1] && i.status !== 'open'); }).join('\n'); // (a saved list read again (hooks.mjs why) without the items closed since: they showed as open after log done)
 const saveLog = (sid, items) => { if (!sid || process.env.V2_NO_STATE || process.env.STARTER_BENCH) return;
   try { fs.mkdirSync(path.dirname(file(sid)), { recursive: true }); fs.writeFileSync(file(sid), JSON.stringify({ items: items.slice(-100) })); } catch { } };
 // (thanks, a yes, "go on": no ask. Nor a message from another session, a helper or the host: not the user's)

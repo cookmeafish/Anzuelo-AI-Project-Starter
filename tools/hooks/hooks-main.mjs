@@ -5655,7 +5655,13 @@ if (isMain) {
   // (each session keeps its own details file: the newest is shown, or the one for a session named: why <session id>)
   if (cmd === 'why') { const want = process.argv[3]; let files = []; try { files = fs.readdirSync(STATE).filter(n => /^stop-details(\.[\w-]+)?\.md$/.test(n)).map(n => ({ n, t: fs.statSync(path.join(STATE, n)).mtimeMs })).sort((a, b) => b.t - a.t); } catch { }
     const pick = want ? files.find(f => f.n === detailsFile(want)) : files[0];
-    const d = pick ? read(path.join(STATE, pick.n)).trim() : ''; console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
+    let d = pick ? read(path.join(STATE, pick.n)).trim() : '';
+    // (the saved list, without the work-log items closed since, and when it was saved: items closed with log done
+    // showed as open. Plan quiet-screen, Task 3)
+    if (d) try { const pre = (/^stop-details\.([\w-]+)\.md$/.exec(pick.n) || [])[1] || '', lf = pre && fs.readdirSync(STATE).find(n => n.startsWith(`v2-log.${pre}`)), W = await import('./v2/worklog.mjs');
+      const items = lf ? (JSON.parse(read(path.join(STATE, lf)) || '{}').items || []) : [], kept = W.stillOpen(d, items), gone = d.split('\n').length - kept.split('\n').length;
+      d = `${kept}\n\n(the list from the last check, ${new Date(pick.t).toISOString().slice(11, 16)} UTC${gone ? `; ${gone} item${gone > 1 ? 's' : ''} closed since left out` : ''})`; } catch { }
+    console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
   // run a command and record its result in the run log, for agents whose tool history the hooks can't read
   if (cmd === 'run') {
     const line = process.argv.slice(3).join(' ');

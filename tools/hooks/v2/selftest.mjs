@@ -4396,6 +4396,12 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const open = W.update(sid, { texts: [{ t: "I'll do them as soon as it's pushed.", at: t(10) }, { t: "I'll upgrade the three projects once the release is out.", at: t(20) }, { t: "I'll rename the totals column.", at: t(30) }] });
     for (const f of [`v2-log.${sid}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
     report(open.length === 1 && /rename the totals column/.test(open[0].text), 'worklog: a promise that restates a waiting item, or waits by its own words ("as soon as", "once"), adds no open item; a new one does', JSON.stringify(open.map(i => i.text))); }
+  // (`hooks.mjs why` shows the saved list without the work-log items closed since: they showed as open after `log done`.
+  // Plan quiet-screen, Task 3)
+  { const W = await import('./worklog.mjs'), reason = 'Not done yet:\n- Still open: "rename the totals column (your promise)". Do it now.\n- Still open: "add the receipt export". Do it now.\n- Check: Add a dated line to docs/CHANGELOG.md';
+    const items = [{ text: 'rename the totals column (your promise)', status: 'done' }, { text: 'add the receipt export', status: 'open' }];
+    const out = typeof W.stillOpen === 'function' ? W.stillOpen(reason, items) : reason;
+    report(!/rename the totals column/.test(out) && /add the receipt export/.test(out) && /CHANGELOG/.test(out), 'worklog: why leaves out the work-log items closed since the list was saved, and keeps the rest', out); }
   // (log done finds an item by a phrase from anywhere in it, not only its opening words; several matches are named, never
   // one picked. Oversight's session, 2026-11-14: a long ask closed only by its first words held the turn after two tries)
   { const W = await import('./worklog.mjs'), sid = 'wlogm', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
