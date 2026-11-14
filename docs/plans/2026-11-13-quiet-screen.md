@@ -100,6 +100,9 @@ Seen in a project (2026-11-13): after a hold listing many open items, the agent 
 **Uses / provides:** none.
 - [ ] A user message is one item unless it lists separate instructions. Venting and complaints are not tracked
       sentence by sentence; the turn's work closes them.
+- [ ] The "deliver exactly N" ask comes only from the user's own request. A number in a peer session's message, a
+      resumed-session summary or the agent's own text ("why it allowed 4 rounds", "9 rounds" in a description) is no
+      ask. Seen 2026-11-13: two holds for "4 rounds" and "9 rounds" that no one asked for.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real upset message makes 1 item, and a 3-instruction
       message makes 3; ALL PASS.
 
