@@ -114,6 +114,13 @@ settings merge)
       are refused with one plain line: app changes go in the app's own folders so the people who use the app get them.
 - [ ] The session-start text for an installed project says it in one line: the engine's folder is only for the coding
       agent's own rules and notes, and everything the app or its users need goes in the app.
+- [x] The other direction: engine text never sends the agent to write an engine record inside the app. The upgrade's
+      closing line named a fixed docs/DECISIONS.md (an adopted app with records off, 2026-11-13): it now names
+      .anzuelo/local/docs/DECISIONS.md, or nothing with records off (selfcheck, engine-readonly tag).
+- [ ] Sweep every engine text an agent reads in an adopted app (skills, runbooks, reminders, end-check lines, command
+      output) for a record or note path into the app's docs/ (or .cache/), and route each through `whereWrite`, or
+      leave it out with records off. Test: an adopted project with records off; no line names a path outside
+      .anzuelo/ to write, and a turn following them makes no file in the app.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: writing a source file, an asset or an app doc under the engine's
       folder is refused; writing an engine record there passes; ALL PASS.
 
