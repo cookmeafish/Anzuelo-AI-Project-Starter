@@ -9752,10 +9752,10 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
     // "docs/DECISIONS.md" would make a record file inside the app. Field report, 2026-11-13)
     {
       const cfg = path.join(loc, 'tools/hooks/config.json'), c = (() => { try { return JSON.parse(fs.readFileSync(cfg, 'utf8')); } catch { return {}; } })();
-      fs.mkdirSync(path.dirname(cfg), { recursive: true }); fs.writeFileSync(cfg, JSON.stringify({ ...c, records: false }, null, 2));
-      fs.appendFileSync(path.join(up, 'README.md'), '\nOne more line.\n'); g(up, 'commit', '-qam', 'one more');
-      const upg2 = st('upgrade'), line1 = /^what changed:.*$/m.exec(upg.stdout || '')?.[0] || '', line2 = /^what changed:.*$/m.exec(upg2.stdout || '')?.[0] || '';
-      report(/review them in \.anzuelo\/local\/docs\/DECISIONS\.md/.test(line1) && upg2.status === 0 && !!line2 && !/review them in/.test(line2) && !fs.existsSync(path.join(proj, 'docs/DECISIONS.md')),
+      const next = records => { fs.mkdirSync(path.dirname(cfg), { recursive: true }); fs.writeFileSync(cfg, JSON.stringify({ ...c, records }, null, 2));
+        fs.appendFileSync(path.join(up, 'README.md'), '\nOne more line.\n'); g(up, 'commit', '-qam', 'one more'); const u = st('upgrade'); return { u, line: /^what changed:.*$/m.exec(u.stdout || '')?.[0] || '' }; };
+      const on = next(true), off = next(false), line1 = on.line, line2 = off.line, upg2 = off.u;
+      report(/review them in \.anzuelo\/local\/docs\/DECISIONS\.md/.test(line1) && on.u.status === 0 && upg2.status === 0 && !!line2 && !/review them in/.test(line2) && !fs.existsSync(path.join(proj, 'docs/DECISIONS.md')),
         'upgrade: with the engine in .anzuelo/engine the closing line names .anzuelo/local/docs/DECISIONS.md for the review, and none at all with records off; no record file is made in the project', JSON.stringify({ line1, line2, err: (upg2.stderr || '').slice(0, 300) }));
     }
   // (a step that throws fails this test, never the whole suite. Lesson (2026-11-09): an install from a commit missing a
