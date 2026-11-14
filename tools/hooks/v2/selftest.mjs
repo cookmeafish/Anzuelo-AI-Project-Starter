@@ -1725,6 +1725,16 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     && /^Still not done \(do it now, or say in one line[\s\S]*export\.md item 1/.test(later?.reason || '') && !/Check that these items|last check/.test(later?.reason || '')
     && /last check for this request/.test(third?.reason || '') && fourth === null,
     'end: an agent that ignores the block gets a second naming the same item (no verify list), a third that says to report what is not done, and no fourth', [first?.reason, later?.reason, third?.reason, fourth]);
+  // (a hold's list never grows between the rounds of one request: a later round lists only the first round's items still
+  // unmet, never one the reply set off. Lesson (2026-11-13, an upset turn): 5, then 4, then 10 items, each round another
+  // answer fragment for a user who had just complained about being bothered)
+  { onPrompt({ session_id: 'grows', prompt: 'add a csv export' });
+    const g1 = onStop({ transcript_path: transcript([user('add a csv export'), edit]), session_id: 'grows' });
+    const reply = 'Issue: the export missed a column | runbook: export | fixed when: every column is exported\nWorking on it.';
+    const g2 = onStop({ transcript_path: transcript([user('add a csv export'), edit, say(reply)]), session_id: 'grows', stop_hook_active: true, last_assistant_message: reply });
+    const items = r => (String(r?.reason || '').match(/^- .*$/gm) || []).map(s => s.replace(/ \[[^\]]*\]$/, ''));
+    report(items(g1).length > 0 && items(g2).every(s => items(g1).includes(s)) && !/"Issue:" line is in the answer/.test(g2?.reason || ''),
+      'end: a later round of one request lists only the first round\'s items still unmet, never one the reply set off (the list never grows)', JSON.stringify({ g1: items(g1), g2: items(g2) })); }
   onPrompt({ session_id: 'fixed', prompt: 'add a csv export' });
   // (REQ: skill-learn: round 1 names the runbook's own item and, in the same round, its lesson, so no later round brings
   // it; once both are done (the lesson written into it, or "Skill lesson: none - <why>") the next stop passes. Done

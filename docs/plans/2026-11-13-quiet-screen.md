@@ -84,6 +84,9 @@ What the user saw in that hour, and why:
       agent changed work because of them) and false (met already, waived with a reason, or the answer showed it didn't
       apply). A check whose holds are mostly false over its last 20 stops holding: it moves to the start-of-turn
       reminder, and the release replay reports it to be fixed. Safety guards are never demoted.
+- [x] (the list part: the first hold records its items in the turn state, firstItems; a later round of the request
+      keeps only those still unmet. Test: round 2's reply sets off a new item, which is not listed; failed on the old
+      code; 417/417.)
 - [ ] A hold's list never grows between the rounds of one turn: round N lists only round 1's items still unmet. Opening
       a file by any read counts as opening it (a shell print or `sed` of the skill, not only the Read tool). A plan
       written and committed this turn meets the "upset again: plan and sweep" item. Seen 2026-11-13 19:05 on an upset

@@ -741,7 +741,7 @@ function judge(data, { shadow = false } = {}) {
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)).filter(notFmt));
-  list.push(...S('skillLearn', () => skillLearnGaps(turn, acts, list, data.session_id || '', decided.request || '')).filter(kept(acts)));
+  list.push(...S('skillLearn', () => skillLearnGaps(turn, acts, list, data.session_id || '', decided.request || '')).filter(kept(acts))); const itemKey = s => s.replace(/\s+/g, ' ').slice(0, 60); if (again && Array.isArray(turn.firstItems)) list.splice(0, list.length, ...list.filter(s => turn.firstItems.includes(itemKey(s)))); // (a later round keeps only the first round's items still unmet: the list never grows. Lesson (2026-11-13, an upset turn): 5, then 4, then 10 items)
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
@@ -761,7 +761,7 @@ function judge(data, { shadow = false } = {}) {
   if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
   // (a Spanish request is told the Spanish labels of what it is held to, as the old engine did)
   if (list.length && isSpanish(acts.heard || '')) parts.push(labelsEsHint(list.join(' ').toLowerCase().replace(/\s+/g, '-')));
-  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now() });
+  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now(), firstItems: again && Array.isArray(turn.firstItems) ? turn.firstItems : list.map(itemKey) });
   if (check) parts.push(`Check that these items of ${check.file} are really done (one that doesn't fit: "item N doesn't fit: <why>"; none of them: "${check.file.replace(/^.*\//, '')} doesn't fit this task: <why>"):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
   // (after a block: a short note in the user's language of only what changed, the check left out, not the answer again.
   // The user, 2026-11-07: run the check before answering instead)
