@@ -191,6 +191,23 @@ function localCopies() {
 // clone's record of its remote, to see what an upgrade would take. Lesson (a field report, 2026-11-10): with the engine
 // in .anzuelo/engine, "upgrade --dry-run" ignored the flag, pulled and merged for real, and printed no list, so the
 // runbook's "dry run first" could not be followed)
+// A three-way merge of a project's copy (ours) with the default's change (base -> theirs): { ok, text }. Line endings
+// are matched first and the copy's own come back after. Where both sides only added lines at one spot (the project's
+// rows and the default's new rows at the end of a table), both are kept. Field report, 2026-11-14: a copy saved with
+// CRLF differed on every line and became one whole-file clash, and a table both extended was left for the user, so
+// the project ran its old rules from then on.
+export function merge3(ours, base, theirs) {
+  const lf = s => String(s).replace(/\r\n/g, '\n'), crlf = /\r\n/.test(ours), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-merge-'));
+  try {
+    const f = n => path.join(dir, n); fs.writeFileSync(f('ours'), lf(ours)); fs.writeFileSync(f('base'), lf(base)); fs.writeFileSync(f('theirs'), lf(theirs));
+    const run = (...o) => spawnSync('git', ['merge-file', '-p', ...o, '-L', 'this project', '-L', 'old default', '-L', 'new default', f('ours'), f('base'), f('theirs')], { encoding: 'utf8' });
+    let m = run();
+    if (m.status !== 0) { const d = run('--diff3').stdout || '', all = (d.match(/^<<<<<<< /gm) || []).length, added = (d.match(/^\|\|\|\|\|\|\| .*\n=======$/gm) || []).length;
+      if (all && all === added) m = run('--union'); }
+    const text = crlf ? (m.stdout || '').replace(/\n/g, '\r\n') : m.stdout || '';
+    return { ok: m.status === 0, text };
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
 export function splitUpgrade(dry = false) {
   if (!fs.existsSync(path.join(ENGINE, '.git'))) { console.error(`${ENGINE} is not a git clone: install the engine again (starter.mjs install)`); return 1; }
   const dirty = (engineGit('status', '--porcelain').stdout || '').trim();
@@ -207,17 +224,12 @@ export function splitUpgrade(dry = false) {
     const n = (engineGit('rev-list', '--count', `${old}..${up}`).stdout || '').trim();
     const log = [];
     log.push(old === up ? `the engine is current (${up.slice(0, 7)})` : ff ? `would upgrade the engine ${old.slice(0, 7)} -> ${up.slice(0, 7)} (${n} commit(s))` : `the engine's history and its remote's have split: the real upgrade stops at the pull, to be merged by hand in ${ENGINE}`);
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-merge-'));
-    try {
-      for (const [f, base] of Object.entries(b.files)) {
-        const mine = path.join(LOCAL, f), next = engineGit('show', `${up}:${f}`);
-        if (!fs.existsSync(mine) || next.status !== 0 || base === up || engineGit('diff', '--quiet', base, up, '--', f).status === 0) continue;
-        const was = engineGit('show', `${base}:${f}`), baseFile = path.join(tmp, 'base'), oursFile = path.join(tmp, 'ours'), theirs = path.join(tmp, 'theirs');
-        fs.writeFileSync(baseFile, was.status === 0 ? was.stdout : ''); fs.copyFileSync(mine, oursFile); fs.writeFileSync(theirs, next.stdout);
-        const m = spawnSync('git', ['merge-file', '-p', oursFile, baseFile, theirs], { encoding: 'utf8' });
-        log.push(m.status === 0 ? `would merge the default's change into this project's copy: ${f}` : `would list for the user (the project's change and the default's meet): ${f}`);
-      }
-    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    for (const [f, base] of Object.entries(b.files)) {
+      const mine = path.join(LOCAL, f), next = engineGit('show', `${up}:${f}`);
+      if (!fs.existsSync(mine) || next.status !== 0 || base === up || engineGit('diff', '--quiet', base, up, '--', f).status === 0) continue;
+      const was = engineGit('show', `${base}:${f}`);
+      log.push(merge3(fs.readFileSync(mine, 'utf8'), was.status === 0 ? was.stdout : '', next.stdout).ok ? `would merge the default's change into this project's copy: ${f}` : `would list for the user (the project's change and the default's meet): ${f}`);
+    }
     if (old !== up && ff) log.push('would make the wiring again (wire.mjs), and note the change in the project\'s engine log');
     const wouldCarry = carryRunEach(fs.existsSync(path.join(LOCAL, 'tools', 'hooks', 'requirements.json')) ? LOCAL : PROJECT, { dry: true });
     if (wouldCarry.length) log.push(`would approve ${wouldCarry.length} runEach command(s) the project's checks run on their own (selfCommands): ${wouldCarry.join(' | ')}`);
@@ -232,20 +244,16 @@ export function splitUpgrade(dry = false) {
   if (!resumed && old !== now) return spawnSync(process.execPath, [path.join(ENGINE, 'tools', 'starter.mjs'), ...process.argv.slice(2)], { cwd: process.cwd(), stdio: 'inherit', env: { ...process.env, ANZUELO_UPGRADED_FROM: old } }).status ?? 1;
   console.log(old === now ? `the engine is current (${now.slice(0, 7)})` : `engine ${old.slice(0, 7)} -> ${now.slice(0, 7)} (${(engineGit('rev-list', '--count', `${old}..${now}`).stdout || '').trim()} commit(s))`);
   // each local copy whose default changed since it was made: a three-way merge (its base, the new default, the copy)
-  const merged = [], clash = [], tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-merge-'));
-  try {
-    for (const [f, base] of Object.entries(b.files)) {
-      const mine = path.join(LOCAL, f);
-      if (!fs.existsSync(mine) || !fs.existsSync(path.join(ENGINE, f))) { delete b.files[f]; continue; }
-      if (base === now || engineGit('diff', '--quiet', base, now, '--', f).status === 0) { b.files[f] = now; continue; }
-      const was = engineGit('show', `${base}:${f}`);
-      const baseFile = path.join(tmp, 'base'), oursFile = path.join(tmp, 'ours');
-      fs.writeFileSync(baseFile, was.status === 0 ? was.stdout : ''); fs.copyFileSync(mine, oursFile);
-      const m = spawnSync('git', ['merge-file', '-p', '-L', 'this project', '-L', 'old default', '-L', 'new default', oursFile, baseFile, path.join(ENGINE, f)], { encoding: 'utf8' });
-      if (m.status === 0) { fs.writeFileSync(mine, m.stdout); b.files[f] = now; merged.push(f); }
-      else { const out = path.join(LOCAL, '.cache', 'merge', f); fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, m.stdout); clash.push(`${f} (both changed the same lines: ${path.relative(PROJECT, out).split(path.sep).join('/')} shows them; the project's copy is used until it is decided)`); }
-    }
-  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  const merged = [], clash = [];
+  for (const [f, base] of Object.entries(b.files)) {
+    const mine = path.join(LOCAL, f);
+    if (!fs.existsSync(mine) || !fs.existsSync(path.join(ENGINE, f))) { delete b.files[f]; continue; }
+    if (base === now || engineGit('diff', '--quiet', base, now, '--', f).status === 0) { b.files[f] = now; continue; }
+    const was = engineGit('show', `${base}:${f}`);
+    const m = merge3(fs.readFileSync(mine, 'utf8'), was.status === 0 ? was.stdout : '', fs.readFileSync(path.join(ENGINE, f), 'utf8'));
+    if (m.ok) { fs.writeFileSync(mine, m.text); b.files[f] = now; merged.push(f); fs.rmSync(path.join(LOCAL, '.cache', 'merge', f), { force: true }); }
+    else { const out = path.join(LOCAL, '.cache', 'merge', f); fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, m.text); clash.push(`${f} (both changed the same lines: ${path.relative(PROJECT, out).split(path.sep).join('/')} shows them; the project's copy is used until it is decided)`); }
+  }
   b.at = now; saveBasedOn(b);
   if (merged.length) console.log(`merged the default's changes into this project's copies: ${merged.join(', ')}`);
   if (clash.length) console.log(`for the user to decide (the project's change and the default's meet):\n- ${clash.join('\n- ')}`);
