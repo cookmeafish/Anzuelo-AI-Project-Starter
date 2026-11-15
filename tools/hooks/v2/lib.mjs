@@ -131,12 +131,12 @@ let booksMemo = { sig: null, out: null };
 // (a "trigger_regex:" routes like the triggers, in every route. Lesson (2026-11-12): only the old router read it)
 const triggerReOf = fm => { const s = /^trigger_regex:\s*(.+)$/m.exec(fm)?.[1]?.trim(); try { return s ? new RegExp(s, 'i') : null; } catch { return null; } };
 export function runbooks() {
-  const files = [];
-  for (const d of RUNBOOK_DIRS) { let names = []; try { names = listAll(d); } catch { continue; } files.push(...names.filter(f => f.endsWith('.md') && !f.startsWith('_')).map(f => `${d}/${f}`)); }
+  const files = [], dirs = RUNBOOK_DIRS.filter(d => d !== 'tools/starter/runbooks' || fs.existsSync(path.join(LAYOUT.PROJECT, '.starter-template'))); // (the starter's own runbooks in the starter only: an installed engine ships them, and a project was routed to them. Oversight's review, 2026-11-15)
+  for (const d of dirs) { let names = []; try { names = listAll(d); } catch { continue; } files.push(...names.filter(f => f.endsWith('.md') && !f.startsWith('_')).map(f => `${d}/${f}`)); }
   const sig = sigOf(files);
   if (booksMemo.sig === sig) return booksMemo.out.map(b => ({ ...b }));
   const out = [];
-  for (const d of RUNBOOK_DIRS) {
+  for (const d of dirs) {
     let names = []; try { names = listAll(d); } catch { continue; }
     for (const f of names.filter(f => f.endsWith('.md') && !f.startsWith('_'))) {
       const file = `${d}/${f}`, text = read(file), fm = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] || '';

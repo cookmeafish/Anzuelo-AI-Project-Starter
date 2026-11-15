@@ -13,7 +13,7 @@ export const isTaskRequest = (p, taskVerbs, relayed = false) => {
 
 // The runbook whose name, summary and triggers share the most content words with a request (word stems of 5 letters,
 // so "invoices" meets "invoice" and "boxes" meets "boxed"), when at least two are shared. Generic runbooks are left out.
-export const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much'.split(' ').map(w => w.slice(0, 5)));
+export const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much every being test tests time times multi multiple trans other still each really sure'.split(' ').map(w => w.slice(0, 5))); // (filler never counts toward a guess: "every", "trans", "being", "test", "time" and "multi" sent a content build, a test question and a rule question to unrelated runbooks. Oversight's review, 2026-11-15)
 // Text without its accents: "añade" is "anade", "línea" is "linea".
 export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '');
 // Common Spanish words of a request, in English, so a Spanish request finds an English runbook by its words too.

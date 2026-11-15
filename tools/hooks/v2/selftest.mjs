@@ -1774,6 +1774,16 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const same = ask(); fs.writeFileSync(path.join(r0, 'tools/x.mjs'), 'export const a = 2;\n'); const edited = ask();
     fs.rmSync(r0, { recursive: true, force: true });
     report(same === 'true' && edited === 'false' && none === 'false', 'end: a release proof naming the commit of the turn\'s engine files meets the self-test ask; an edit after it, or no proof, does not', JSON.stringify({ none, same, edited })); }
+  // (routing guesses: filler words never count, and a project never sees the starter's own runbooks. Oversight's review,
+  // 2026-11-15: "every, trans", "test, multi, time" and "rule, being" sent requests to unrelated runbooks)
+  { const { closestRunbook } = await import('../near.mjs'), { runbooks: rbs } = await import('./lib.mjs'), core = () => false;
+    const books = [{ name: 'revise-text', file: 'docs/playbooks/revise-text.md', triggers: ['proofread every paragraph', 'translate this text'], fm: { summary: 'edit text being revised' } },
+      { name: 'trigger-words', file: 'docs/playbooks/trigger-words.md', triggers: ['whitelist the word'], fm: { summary: 'a word that is not me being upset, a rule word' } },
+      { name: 'invoices', file: 'docs/playbooks/invoices.md', triggers: ['send the invoices'], fm: { summary: 'monthly invoices to customers' } }];
+    const filler = closestRunbook('build every lesson page with transitions between them', books, core), rule = closestRunbook('make a rule about being on time', books, core), real = closestRunbook('prepare the monthly customer invoices', books, core);
+    const sr = path.join(dir, 'tools/starter/runbooks'); fs.mkdirSync(sr, { recursive: true }); fs.writeFileSync(path.join(sr, 'improvement-loop.md'), '---\nname: improvement-loop\ntriggers: do multiple tests\n---\n# Loop\n');
+    const marker = fs.existsSync(path.join(dir, '.starter-template')), inProject = marker ? null : rbs().some(b => /tools\/starter\/runbooks/.test(b.file)); fs.rmSync(path.join(dir, 'tools/starter'), { recursive: true, force: true });
+    report(!filler && !rule && real?.file === 'docs/playbooks/invoices.md' && inProject !== true, 'route: filler words never make a runbook guess, a real match still does, and a project never lists the starter\'s own runbooks', JSON.stringify({ filler, rule, real, marker, inProject })); }
   // (with the engine in .anzuelo/engine, a command an end-check item names runs from the engine's folder when the project
   // has no copy, and every command the engine's check texts name exists in the engine, so the rewrite has a target.
   // Field report (2026-11-15): an item's "node tools/..." pointed at nothing in an installed project)

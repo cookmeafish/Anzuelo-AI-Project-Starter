@@ -199,7 +199,8 @@ function remind(prompt) {
   const taskVerbs = (() => { try { return new RegExp(projectConfig().taskVerbs || '(?!)', 'i'); } catch { return /(?!)/; } })();
   const near = !book && !skill && isTaskRequest(prompt, taskVerbs, toOtherSession(prompt))
     ? closestRunbook(prompt, runbooks().map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), coreRunbook) : null;
-  const pick = near ? `Closest runbook: ${near.file} (shared words: ${near.words.join(', ')}). If it fits this job, open and follow it; if not, pick the one in DIRECTORY.md that fits.`
+  const sure = near && (near.words.length >= 3 || near.score >= 1); // (in light mode only a confident guess is shown, and every guess names the file where the layout keeps it. Oversight's review, 2026-11-15: guesses named docs/playbooks/ paths that live under .anzuelo/engine there)
+  const pick = near && (sure || !projectConfig().light) ? `Closest runbook: ${path.relative(ROOT, at(near.file)).replace(/\\/g, '/')} (shared words: ${near.words.join(', ')}). If it fits this job, open and follow it; if not, pick the one in DIRECTORY.md that fits.`
     : has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '';
   // REQ: praise-captured (at the request, a hint only). Praise in the user's own words (praise.mjs, shared with the old
   // engine) names what to do with it; the end check never holds a turn for praise on its own. Oversight (2026-11-10):
