@@ -19,7 +19,6 @@ prompt: route: "remove the old starter from my project" still routes to the engi
 prompt: route: "what are the best options for backups" still routes to research
 prompt: route: a Spanish debug request gets the debug skill
 prompt: route: a phrase about the user's own notes routes ("add this fact to my notes")
-prompt: starter-runbooks: a project never routes to the starter's own runbooks
 prompt: starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop
 prompt: starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop
 prompt: starter-runbooks: in the starter, a report from another session routes to the field-report runbook
