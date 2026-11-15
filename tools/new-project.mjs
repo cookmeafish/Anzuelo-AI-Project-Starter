@@ -318,7 +318,7 @@ function shippedLines(rel) {
     for (const l of (git('show', `${c}:${rel}`).stdout || '').split(/\r?\n/)) set.add(l.trim());
   return (shippedLinesCache[rel] = set);
 }
-const movedLessons = [], movedSections = [], legacyScenarios = [], untracked = [], editedPayload = [];
+const movedLessons = [], movedSections = [], legacyScenarios = [], untracked = [], editedPayload = [], replacedCore = [];
 // every version of a file the starter shipped (from its git history), newest first
 function shippedTexts(rel) {
   const git = (...a) => spawnSync('git', a, { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 });
@@ -514,7 +514,20 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     return null;
   })();
   if (!dry) for (const f of SNAP.filter(f => fs.existsSync(path.join(dest, f)))) { const b = path.join(backupDir, f + '.orig'); fs.mkdirSync(path.dirname(b), { recursive: true }); fs.copyFileSync(path.join(dest, f), b); }
-  for (const f of ENGINE) if (fs.existsSync(path.join(STARTER, f))) put(f, { overwrite: true });
+  // (a core engine file is always refreshed, but a copy the project changed (no version the starter shipped) is saved first and
+  // named, with where it is and how to keep a change: starter.mjs override. Oversight, 2026-11-15: a project change is never lost unseen)
+  const lfc = t => String(t).replace(/\r\n/g, '\n');
+  for (const f of ENGINE) if (fs.existsSync(path.join(STARTER, f))) {
+    const to = path.join(dest, f), mine = fs.existsSync(to) ? lfc(fs.readFileSync(to, 'utf8')) : null;
+    if (mine !== null && mine !== lfc(fs.readFileSync(path.join(STARTER, f), 'utf8')) && !shippedTexts(f).some(t => lfc(t) === mine)) {
+      const saved = path.join(backupDir, 'changed-by-project', f);
+      if (!dry) { fs.mkdirSync(path.dirname(saved), { recursive: true }); fs.copyFileSync(to, saved); }
+      const where = path.relative(dest, saved).replace(/\\/g, '/');
+      log.push(`replaced ${f} (changed by this project: its copy is saved at ${where}; to keep a change, node tools/starter.mjs override ${f})`);
+      replacedCore.push([f, where]);
+    }
+    put(f, { overwrite: true });
+  }
   for (const f of ENGINE_IF_MISSING) if (fs.existsSync(path.join(STARTER, f))) put(f);
   // GUI used to be core: a project that has its runbook now has the gui pack. Each installed pack's engine files are refreshed.
   const cp = path.join(dest, 'tools', 'hooks', 'config.json');
@@ -811,6 +824,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const a of addedChecks) items.push(`check: ${a}; it now runs in this project's hooks (to switch it off, set its "enabled" to false)`);
   for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, replace the entry with the one in tools/hooks/engine-checks.json)`);
   if (legacyScenarios.length) items.push(`scenarios: ${legacyScenarios.length} of this project's own test scenarios were in the retired test-hooks.mjs (${legacyScenarios.slice(0, 4).join('; ').replace(/: /g, ' - ')}${legacyScenarios.length > 4 ? '; ...' : ''}); move them into tools/hooks/project-scenarios.mjs from tools/hooks/legacy-scenarios.txt, then delete that file`);
+  for (const [f, where] of replacedCore) items.push(`file: ${f}, changed in this project and replaced by the engine's version; the project's copy is saved at ${where} (to keep a change, node tools/starter.mjs override ${f})`);
   for (const [as, rel] of editedPayload) items.push(`file: ${as}, edited in this project so kept; the starter's newer version differs (compare it with ${rel} in the starter and take what fits)`);
   // (REQ: changelog. The user's own data folders are content, not project work: a changelog line per data edit is noise.
   // Offered once, for folders that look like data, by name or by holding mostly data files; the project decides.

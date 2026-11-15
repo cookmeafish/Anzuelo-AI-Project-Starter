@@ -9702,13 +9702,19 @@ if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
     const vrRel = 'packs/gui/files/docs/checks/visual-review.md', cur = fs.readFileSync(path.join(ROOT, vrRel), 'utf8').replace(/\r\n/g, '\n');
     const older = (spawnSync('git', ['log', '--format=%H', '--', vrRel], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean).map(c => spawnSync('git', ['show', `${c}:${vrRel}`], { cwd: ROOT, encoding: 'utf8' }).stdout || '').find(t => t && t.replace(/\r\n/g, '\n') !== cur) || cur;
     if (hasGui) { fs.appendFileSync(shot, '\n// our own step: a real key press for the keyboard test\n'); fs.writeFileSync(vr, older); }
+    // (and a core engine file the project changed: replaced, but its copy saved first and named. Oversight, 2026-11-15)
+    const hm = path.join(dir, 'tools/hooks/hooks-main.mjs'), coreEdit = '\n// a project change to a core engine file\n'; fs.appendFileSync(hm, coreEdit);
     g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'project');
     const dryOut = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--dry-run', '--no-selftest'], { encoding: 'utf8', timeout: 600000 }).stdout || '';
     const r = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--no-selftest'], { encoding: 'utf8', timeout: 600000 });
     const kept = hasGui && /our own step: a real key press/.test(fs.readFileSync(shot, 'utf8'));
     const refreshed = hasGui && fs.readFileSync(vr, 'utf8').replace(/\r\n/g, '\n') === cur;
-    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed,
-      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed', JSON.stringify({ status: r.status, hasGui, kept, refreshed, dry: dryOut.split('\n').filter(l => /screenshot|visual-review/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
+    const coreNow = fs.readFileSync(hm, 'utf8'), coreReplaced = !coreNow.includes('a project change to a core engine file');
+    const savedDir = path.join(dir, '.cache', 'upgrade-backup'), savedCopy = (() => { try { for (const s of fs.readdirSync(savedDir)) { const f = path.join(savedDir, s, 'changed-by-project', 'tools/hooks/hooks-main.mjs'); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8'); } } catch { } return ''; })();
+    const dec = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();
+    const coreNamed = /replaced tools[\\/]hooks[\\/]hooks-main\.mjs \(changed by this project/.test(dryOut) && /tools\/hooks\/hooks-main\.mjs, changed in this project and replaced/.test(`${dec}\n${r.stdout}`);
+    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed && coreReplaced && savedCopy.includes('a project change to a core engine file') && coreNamed,
+      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed; a changed core engine file is replaced, its copy saved and named', JSON.stringify({ status: r.status, hasGui, kept, refreshed, coreReplaced, saved: !!savedCopy, coreNamed, dry: dryOut.split('\n').filter(l => /screenshot|visual-review|hooks-main/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upgrade-clean'))) {
