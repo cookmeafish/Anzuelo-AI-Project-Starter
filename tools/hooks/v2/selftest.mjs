@@ -3302,6 +3302,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     ['git-safety', bash(g + 'reset --' + 'hard HEAD~3'), base],
     ['outward-gate|git-safety', bash(g + 'push origin main'), base],
     ['browser-guard', bash('start ' + 'chrome --remote-debugging-port=9222'), base],
+    ['browser-guard', bash('"C:\\Program Files\\Google\\Chrome\\Application\\' + 'chrome.exe" --remote-debugging-port=9222'), base],
     ['skill-mirror', { tool_name: 'Edit', tool_input: { file_path: R + '.claude/skills/plan/SKILL.md', old_string: 'a', new_string: 'b' } }, base],
     ['protect-originals', bash('rm -' + 'rf originals/2024'), prot],
     ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + protName, old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: [protName] }],
@@ -3317,6 +3318,17 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     report(!delNew && /protect-originals/.test(delOld), 'pretool: under v2 a delete of a file this turn created in an originals folder goes through; one there before is refused', JSON.stringify({ delNew: delNew.slice(0, 120), delOld: delOld.slice(0, 120) })); }
   const got = refuse.map(([tag, d, cfg]) => [tag, guard({ session_id: '', ...d }, cfg) || '']);
   const same = refuse.every(([, d, cfg]) => guard({ session_id: '', ...d }, cfg) === guard({ session_id: '', ...d }, { ...cfg, engine: 'v1' }));
+  // (the browser's name inside a read-only query or a heredoc's text is no launch. Oversight, 2026-11-15: a process count and a notes heredoc were refused)
+  { const ok = ['tasklist //FI "IMAGENAME eq ' + 'chrome.exe" | wc -l', "cat >> notes.md <<'EOF'\nThe user's browser (" + 'chrome.exe) stays closed during tests.\nEOF', 'Get-Process ' + 'msedge.exe -ErrorAction SilentlyContinue'].map(c => guard({ session_id: '', ...bash(c) }, base) || '');
+    report(ok.every(r => !/browser-guard/.test(r)), 'guard: the browser\'s name inside a read-only query or a heredoc\'s text is no launch; launches still refuse', JSON.stringify(ok.map(r => r.slice(0, 120)))); }
+  // (an inline interpreter fed a heredoc ("python - <<EOF") that rewrites source files is refused like node -e; a read-only one
+  // and a scratchpad write pass. Oversight, 2026-11-15: three such scripts in one project, one broke a JS string with "\n")
+  { const hy = c => /REQ: shell-hygiene/.test(guard({ session_id: '', ...bash(c) }, base) || '');
+    const real = ["python - <<'EOF'\nimport io,re\nfor p in ['src/speech/local/web.js','src/platform/index.js','src/features/voice-mode/VoicePanel.jsx']:\n    s=io.open(p,encoding='utf8',newline='').read()\n    s=s.replace('a','b')\n    io.open(p,'w',encoding='utf8',newline='').write(s)\nEOF",
+      "python - <<'EOF'\nimport io\np='dev/voice/check-voice.mjs'; s=io.open(p,encoding='utf8',newline='').read()\ns=s.replace('x','y')\nio.open(p,'w',encoding='utf8',newline='').write(s); print('ok')\nEOF",
+      "python - <<'EOF'\nimport io\np='src/features/voice-mode/VoicePanel.jsx'\ns=io.open(p,encoding='utf8',newline='').read()\nio.open(p,'w',encoding='utf8',newline='').write(s)\nEOF"];
+    const pass = ["python - <<'EOF'\nprint(open('src/app.js').read()[:200])\nEOF", `node -e "require('fs').writeFileSync(require('os').tmpdir() + '/scratch-note.js', 'x')"`];
+    report(real.every(hy) && !pass.some(hy), 'guard: an inline "python -" heredoc that rewrites source files is refused; a read-only one and a temp write pass', JSON.stringify({ real: real.map(hy), pass: pass.map(hy) })); }
   // (removed now, not only at exit: the release's speed record is written before exit, and names the commit only on a clean tree)
   fs.rmSync(path.join(ROOT, protName), { force: true });
   report(got.every(([tag, r]) => new RegExp(`REQ: (${tag})\\b`).test(r)) && same && IN_WORK_GUARDS.test('REQ: no-secrets'),
@@ -4513,9 +4525,21 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const first = W.asksIn(`${P}\nturn this outline into lesson pages`), mid = W.asksIn(`add the export button\n${P}\nand rename the totals column`);
     report(first.length === 1 && /lesson pages/.test(first[0]) && !first.some(a => /Worth a look|pasted_content/.test(a)) && mid.length === 2 && !mid.some(a => /Worth a look|pasted_content/.test(a)),
       'worklog: a message that opens with a pasted block is logged from the user\'s own words, and pasted text is never an item', JSON.stringify({ first, mid })); }
+  // (a promise naming inline code keeps those words, and an item logged with doubled spaces still closes by a phrase.
+  // Oversight, 2026-11-15: "a `sed` print ... a `grep` of it" was logged as "a   print ... a   of it", and log done found nothing)
+  { const W = await import('./worklog.mjs'), sid = 'wcode', at = new Date().toISOString();
+    W.update(sid, { texts: [{ t: "I'll add two cases to this test: a `sed` print of the runbook counts as opening it, and a `grep` of it still doesn't.", at }] });
+    const kept = W.loadLog(sid).map(i => i.text), lf = path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`);
+    fs.writeFileSync(lf, JSON.stringify({ items: [{ text: 'add two cases to this test: a   print of the runbook counts as opening it (your promise)', from: 'promise', at, status: 'open' }] }));
+    const closed = W.logCommand(sid, 'done', 'a print of the runbook counts as opening it'); fs.rmSync(lf, { force: true });
+    report(kept.some(t => /a sed print of the runbook/.test(t) && /a grep of it/.test(t)) && /^log: done/.test(closed), 'worklog: a promise keeps the words in its inline code, and doubled spaces never block log done', JSON.stringify({ kept, closed })); }
   // (the host's usage-limit notes are not asks; a typed request still is. Oversight, 2026-11-15: they were listed as open)
   { const W = await import('./worklog.mjs'), host = W.asksIn('Your claude.ai usage limit has reset. Continue the task you were working on when the limit was reached; do not repeat work that is already complete.\n[Earlier usage-limit notes no longer apply. Continue working normally.]'), typed = W.asksIn('rename the totals column in the export');
-    report(!host.length && typed.length === 1, 'worklog: the host\'s usage-limit notes are never logged as asks; a typed request is', JSON.stringify({ host, typed })); }
+    const intr = W.asksIn('[Request interrupted by user for tool use]\nfix the header colour'), sid = 'whost', lf = path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), at = new Date().toISOString();
+    fs.mkdirSync(path.dirname(lf), { recursive: true }); fs.writeFileSync(lf, JSON.stringify({ items: ['Your claude.ai usage limit has reset.', 'Continue the task you were working on when the limit was reached; do not repeat work that is already complete.', '[Request interrupted by user for tool use]', 'add the export'].map(text => ({ text, from: 'user', at, status: 'open' })) }));
+    const left = W.loadLog(sid).map(i => i.text); fs.rmSync(lf, { force: true });
+    report(!host.length && typed.length === 1 && intr.length === 1 && intr[0] === 'fix the header colour' && left.length === 1 && left[0] === 'add the export',
+      'worklog: the host\'s usage-limit and interruption notes are never asks, items logged before this drop out when read, and a typed request is kept', JSON.stringify({ host, typed, intr, left })); }
   // (a phrase found in exactly one item closes it, even when another item shares a word: word overlap is only for when no
   // phrase matches. Oversight, 2026-11-15: a unique phrase was listed as ambiguous beside an item sharing "check")
   { const W = await import('./worklog.mjs'), sid = 'wlogu', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
