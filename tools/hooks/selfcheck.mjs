@@ -3546,7 +3546,9 @@ const CATALOG_REQS = (() => {
 const CATALOG_V2 = {
   edit: { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The catalog changes are written into data/ (when file: notes/catalog-*.md) (file: data/**)\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' },
   tools: [{ name: 'Write', input: { file_path: 'notes/catalog-notes.md' } }],
-  expect: { block: true, tags: ['data-valid'], says: /always\.md item 1: The catalog changes[\s\S]*Then, once data\/x is written: docs\/checks\/always\.md item 2: The validator passes/ } };
+  // (the follow-on is named, but not held while data/ is unwritten: it comes under "Also noted, not held". Lesson (a project,
+  // 2026-11-14 21:51): a hold of 21 items listed "Then, once outputs/x is written" steps for an output never made)
+  expect: { block: true, tags: ['data-valid'], says: /always\.md item 1: The catalog changes[\s\S]*Also noted, not held[^\n]*\n(?:- .*\n)*- Then, once data\/x is written: docs\/checks\/always\.md item 2: The validator passes/ } };
 // the runbooks and skills there at the turn start, as the prompt hook records them (a fixture's copies are all new)
 const KNOWN = dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 7200_000).toISOString(), prompt: 'earlier', runbooks: fs.readdirSync(path.join(dir, 'docs/playbooks')), skills: fs.readdirSync(path.join(dir, 'skills')) }) });
 const MEAL_TURN = { edit: MEAL_CHECK, prompt: 'plan meals for the week', tools: [pb('meal-plan')], prep: KNOWN };
