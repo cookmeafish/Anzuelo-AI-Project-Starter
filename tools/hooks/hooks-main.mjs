@@ -5056,6 +5056,10 @@ export function v2StopForm(out, cfg = config(), host = HOST, state = STATE, sid 
   const details = path.join(state, detailsFile(sid));
   if (!out || out.decision !== 'block') { try { fs.rmSync(details, { force: true }); } catch { } return out; }
   try { fs.mkdirSync(state, { recursive: true }); fs.writeFileSync(details, `# What is left before this is done\n\n${out.reason}\n`); } catch { }
+  // (and every hold's full list kept, one line each, the newest 500: the details file holds only the last, and a review of
+  // 149 real holds could read the first two items of each. Plan quiet-screen, Task 3)
+  try { const h = path.join(state, 'stop-holds.jsonl'); fs.appendFileSync(h, JSON.stringify({ at: new Date().toISOString(), session: String(sid || ''), reason: String(out.reason || '') }) + '\n');
+    if (fs.statSync(h).size > 2 << 20) fs.writeFileSync(h, fs.readFileSync(h, 'utf8').trim().split('\n').slice(-500).join('\n') + '\n'); } catch { }
   const where = path.relative(PROJECT, details).split(path.sep).join('/');
   const reason = shortStop(out.reason, where);
   const style = cfg.stopStyle === 'feedback' || cfg.stopStyle === 'block' ? cfg.stopStyle : host === 'claude-code' ? 'feedback' : 'block';
@@ -5065,7 +5069,8 @@ export function v2StopForm(out, cfg = config(), host = HOST, state = STATE, sid 
 // full steps are. The runbook items to verify are one item; the last round says so.
 export function shortStop(full, where = 'tools/hooks/state/stop-details.md') {
   const text = String(full || ''), items = [];
-  for (const l of text.split('\n')) if (/^- \S/.test(l)) items.push(l.slice(2));
+  // (the items held, not the ones listed after "Also noted, not held": the user sees what the agent is asked for)
+  for (const l of text.split('\n')) { if (/^Also noted, not held\b/.test(l)) break; if (/^- \S/.test(l)) items.push(l.slice(2)); }
   const book = /Check that these items of (\S+) are really done/.exec(text)?.[1];
   if (book) items.push(`check the items of ${book} are really done`);
   // (the item's own words only: "docs/playbooks/x.md item 8: " stays in the details file, for the agent)
@@ -5651,7 +5656,13 @@ if (isMain) {
   // (each session keeps its own details file: the newest is shown, or the one for a session named: why <session id>)
   if (cmd === 'why') { const want = process.argv[3]; let files = []; try { files = fs.readdirSync(STATE).filter(n => /^stop-details(\.[\w-]+)?\.md$/.test(n)).map(n => ({ n, t: fs.statSync(path.join(STATE, n)).mtimeMs })).sort((a, b) => b.t - a.t); } catch { }
     const pick = want ? files.find(f => f.n === detailsFile(want)) : files[0];
-    const d = pick ? read(path.join(STATE, pick.n)).trim() : ''; console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
+    let d = pick ? read(path.join(STATE, pick.n)).trim() : '';
+    // (the saved list, without the work-log items closed since, and when it was saved: items closed with log done
+    // showed as open. Plan quiet-screen, Task 3)
+    if (d) try { const pre = (/^stop-details\.([\w-]+)\.md$/.exec(pick.n) || [])[1] || '', lf = pre && fs.readdirSync(STATE).find(n => n.startsWith(`v2-log.${pre}`)), W = await import('./v2/worklog.mjs');
+      const items = lf ? (JSON.parse(read(path.join(STATE, lf)) || '{}').items || []) : [], kept = W.stillOpen(d, items), gone = d.split('\n').length - kept.split('\n').length;
+      d = `${kept}\n\n(the list from the last check, ${new Date(pick.t).toISOString().slice(11, 16)} UTC${gone ? `; ${gone} item${gone > 1 ? 's' : ''} closed since left out` : ''})`; } catch { }
+    console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
   // run a command and record its result in the run log, for agents whose tool history the hooks can't read
   if (cmd === 'run') {
     const line = process.argv.slice(3).join(' ');

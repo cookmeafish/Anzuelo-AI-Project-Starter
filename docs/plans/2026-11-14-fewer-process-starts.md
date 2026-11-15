@@ -64,5 +64,9 @@ Hooks per event in a fresh project (engine in .anzuelo/): session 2 git, prompt 
 
 ## Task 4: proof
 - [ ] Recount per suite. Expected: total starts per chain down by at least two thirds.
-- [ ] Multi-chain soak: pool tags before and after each of 3 chains; nonpaged File growth per chain down in
-      proportion, and the pool otherwise flat.
+- [x] Multi-chain soak (2026-11-14, release 4015384, frozen copy, 60 s settle after each step; a read-only analysis of
+      the holds ran during run 1, about 10 node processes): D2d added per step, before / runs 1, 2, 3:
+      v2 4,047 / 3,892, 3,558, 7,312; old suite 25,182 / 17,707, 18,558, 18,392; v2-sweep 52,755 / 22,485, 22,570,
+      24,989; trial 18,915 / 12,867, 13,170, 14,015; audit 317 / 72, 497, 83. Per run 101k before, 57k to 65k now
+      (about 40% fewer), steady across runs: each start still leaves one record, so the pool grows in proportion to
+      starts, not flat. Left: the suites' own node starts per hook call (Task 3).

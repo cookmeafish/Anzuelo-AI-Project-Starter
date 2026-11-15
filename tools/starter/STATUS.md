@@ -9,6 +9,13 @@ docs/STATUS.md, which here is the template new projects start from).
   soak, then quiet-screen Tasks 2-5 with 3b and the Task 4 boxes (docs/plans/2026-11-13-quiet-screen.md), built from
   the real holds in the projects' stop logs and proven by replaying them, ahead of the boundary tasks. Why: false
   holds hit every project every day (that day 14/10/9, 9/8/7 and 5/4/2 items).
+- [ ] After the quiet-screen boxes (oversight, 2026-11-14, from an audit the user asked for: do standing asks become
+  enforced rules?): (1) a requirement row whose tag checks only part of it: project-rule's Done when maps each clause to
+  the line or test that checks it, or marks it "judgment" with a Done when line; the audit fails a row of several
+  clauses with one tag ("split or map each clause"); test: a 3-clause row with one tag fails. (2) Standing asks phrased
+  as "every/each/all <thing> ... (in|across) the app / on every page / everywhere" count as standing requirements like
+  always/never/must, and the end check keeps them until the row exists (3 of the last 6 had no row after an hour);
+  test from the phrasing pattern in general terms.
 - [ ] 1b. (2026-11-14, nonpaged: one release chain leaves +40 MB nonpaged, nearly all tag File (about 100k objects),
   paired one for one with paged tag D2d (a tag in ntoskrnl.exe). Probes, 1,000 starts each: every start of a program
   outside System32 (node.exe, git.exe, even a copy of whoami.exe in a temp folder) leaves one D2d and about one File

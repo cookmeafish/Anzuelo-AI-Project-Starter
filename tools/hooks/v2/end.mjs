@@ -241,14 +241,14 @@ export function unroutedGaps(turn, acts, again, books = runbooks()) {
   // (a runbook the turn wrote is one its writer knows: made for this work, it counts as opened. Lesson (the v2 sweep): a
   // runbook made for a new kind of task and named as followed was asked to be opened)
   const wrote = b => acts.calls.some(c => ['Write', 'Edit'].includes(c.name) && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(b.file));
-  const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !wrote(b) && !earlierCounts(b) && b.file !== turn.runbook);
+  const allMet = b => { const its = (b.items || []).filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts)); return its.length > 0 && its.every(it => met(it, acts) === true); }, notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !wrote(b) && !earlierCounts(b) && b.file !== turn.runbook && !allMet(b)); // (every checkable item met by evidence: the work followed it; reading the file is a means, not an outcome. Plan quiet-screen, Task 3)
   if (notOpened.length) return notOpened.map(b => `Open ${b.file} and check the work against its steps.`);
   if (made || NONE_FITS.test(said)) return [];
   // (b)
   if (fallback) return ['This work followed docs/playbooks/_fallback.md: leave a runbook for this kind of task behind (rule 2, the runbook-create skill), or say in one line why none is needed (a one-off).'];
   // (c)
   const openedBefore = goesOn && (acts.prior || []).some(c => c.name === 'Skill' || (c.name === 'Read' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))));
-  if (turn.runbook || anyOpened || openedBefore || smallChange(acts, changedOf(acts))) return [];
+  if (turn.runbook || anyOpened || openedBefore || books.some(b => named.includes(b.name) && allMet(b)) || smallChange(acts, changedOf(acts))) return [];
   return [`No runbook was opened for this work. Open the closest one${top.length ? ` (${top.join(', ')})` : ' (DIRECTORY.md lists them)'} and check the work against it, leave a new runbook for this kind of task (rule 2, the runbook-create skill), or say in one line why none fits (a one-off).`];
 }
 
@@ -727,7 +727,7 @@ function judge(data, { shadow = false } = {}) {
     // the final answer and never named after. A terse "Done." after the work is no proof)
     const open = W.update(String(data.session_id), { msgs: W.typedMsgs(rows), texts }).filter(i => i.at >= (turn.at || '')), fin = texts.at(-1)?.at || '';
     const took = W.loadLog(String(data.session_id)).some(i => i.from === 'user' && i.status === 'done' && i.at >= (turn.at || '')), armed = watchersArmed(sessionRows).length + wakeupsPending(sessionRows).length > 0; // (a promise a watcher or wakeup is armed for is waiting)
-    return open.filter(i => i.from === 'user' ? took : i.at < fin && !armed).map(i => `Still open: "${i.text}". Do it now, after a one-line update to the user, or say in one line it is declined (why) or waits on the user (what).`); });
+    const narrated = i => { const after = (acts.calls || []).filter(c => !c.auto && (c.at || 0) > Date.parse(i.at || '')), names = [...String(i.text).matchAll(/`([^`]+)`|([\w./\\-]+\.[a-z][a-z0-9]{0,4})\b/gi)].map(m => (m[1] || m[2]).toLowerCase()); return !/\b(next|later|after (that|this|it|the)|afterwards?|once|when|tomorrow|soon)\b/i.test(i.text) && after.length > 0 && names.every(n => after.some(c => JSON.stringify(c.input || {}).toLowerCase().replace(/\\\\/g, '/').includes(n.replace(/\\/g, '/')))); }; return open.filter(i => i.from === 'user' ? took : i.at < fin && !armed && !narrated(i)).map(i => `Still open: "${i.text}". Do it now, after a one-line update to the user, or say in one line it is declined (why) or waits on the user (what).`); }); // (an "I'll ..." the turn went on to carry out, with no word putting it off, is narration, not a promise. Lesson (2026-11-14): "I'll strip the status letters ..." held, done by the next edit)
   // (keep working: a turn that ticked a box of the project's queue is told the next open one, once)
   const nextUp = S('queue', () => { if (again || !W.tickedQueue(acts.calls)) return []; const q = W.queueOpen(f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } })[0];
     return q ? [`Next in the queue (${q.file}): "${q.text.slice(0, 160)}". Give the user a one-line update and start it now, unless it waits on the user (then say so).`] : []; });
@@ -741,7 +741,7 @@ function judge(data, { shadow = false } = {}) {
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)).filter(notFmt));
-  list.push(...S('skillLearn', () => skillLearnGaps(turn, acts, list, data.session_id || '', decided.request || '')).filter(kept(acts)));
+  list.push(...S('skillLearn', () => skillLearnGaps(turn, acts, list, data.session_id || '', decided.request || '')).filter(kept(acts))); const itemKey = s => s.replace(/\s+/g, ' ').slice(0, 60); if (again && Array.isArray(turn.firstItems)) list.splice(0, list.length, ...list.filter(s => turn.firstItems.includes(itemKey(s)))); const rankOf = s => /^(Still open|the answer (says|promises|names)|this (security|secret))|security|secret|health check|CRASHED|is not proven/i.test(s) ? 0 : /^(Open \S+\.md and check|Then, once )|^\S+\.md item \d+:|No runbook was opened/.test(s) ? 2 : 1, noted = list.map((s, i) => [s, i]).sort((x, y) => rankOf(x[0]) - rankOf(y[0]) || x[1] - y[1]).map(x => x[0]); list.splice(0, list.length, ...noted.splice(0, 5)); // (a later round keeps only the first round's items still unmet: the list never grows; and a hold asks for at most 5, open asks, claims and safety first, the rest noted once. Lessons: 5, then 4, then 10 items on an upset turn (2026-11-13); one hold of 21 (2026-11-14))
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
@@ -757,11 +757,11 @@ function judge(data, { shadow = false } = {}) {
   // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.
   // Lesson (2026-11-07): an agent resent the same answer to each repeat block, and the false item was never looked at)
   if (list.length) parts.push(`${again ? 'Still not done (do it now, or say in one line of the answer why it does not fit this work, as "<runbook>.md doesn\'t fit this task: <why>" or "item N doesn\'t fit: <why>"; resending the same answer does not count)' : 'Not done yet'}:\n${list.map(s => `- ${s}${(t => t.length ? ` [${t.join(', ')}]` : '')(stepTags(s).filter(x => !x.includes('#')))}`).join('\n')}`); // (with its name, for a waiver)
-  if (often && list.length) parts.push(often);
+  if (often && list.length) parts.push(often); if (noted.length && !again) parts.push(`Also noted, not held (do them if they apply; no reply needed):\n${noted.map(s => `- ${s}${(t => t.length ? ` [${t.join(', ')}]` : '')(stepTags(s).filter(x => !x.includes('#')))}`).join('\n')}`);
   if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
   // (a Spanish request is told the Spanish labels of what it is held to, as the old engine did)
   if (list.length && isSpanish(acts.heard || '')) parts.push(labelsEsHint(list.join(' ').toLowerCase().replace(/\s+/g, '-')));
-  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now() });
+  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now(), firstItems: again && Array.isArray(turn.firstItems) ? turn.firstItems : list.map(itemKey) });
   if (check) parts.push(`Check that these items of ${check.file} are really done (one that doesn't fit: "item N doesn't fit: <why>"; none of them: "${check.file.replace(/^.*\//, '')} doesn't fit this task: <why>"):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
   // (after a block: a short note in the user's language of only what changed, the check left out, not the answer again.
   // The user, 2026-11-07: run the check before answering instead)

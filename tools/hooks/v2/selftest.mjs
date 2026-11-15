@@ -757,13 +757,23 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
     relatedBefore: u([user('build the export report'), edit, say('Built it.')], false, before),
     // (a runbook written this turn and named as followed: its writer knows it, no ask)
     namedMade: u([user('build the export report'), call('Write', { file_path: path.join(dir, 'docs/playbooks/export.md'), content: '# Export' }), edit, say('Playbook: export.md. Built it.')]),
+    // (read in parts by a shell print is read: sed, awk, head, tail; a grep only searches. Lesson (2026-11-13, an upset
+    // turn): a skill printed with sed was "not opened", one round of three)
+    sedRead: u([user('build the export report'), call('Bash', { command: "sed -n '1,80p' docs/playbooks/export.md" }), edit, say('Playbook: export.md. Built it.')]),
+    grepped: u([user('build the export report'), call('Bash', { command: 'grep -n totals docs/playbooks/export.md' }), edit, say('Playbook: export.md. Built it.')]),
+    // (every checkable item of the named runbook met by evidence (its test run, its file, its answer line): the work
+    // followed it, so "open it and check" does not hold. Plan quiet-screen, Task 3: reading the file is a means, not an
+    // outcome)
+    allMet: (() => { const cl = path.join(dir, 'docs/CHANGELOG.md'), had = fs.existsSync(cl) ? fs.readFileSync(cl) : null; fs.writeFileSync(cl, `${had || ''}\n- export report\n`);
+      try { return u([user('build the export report'), edit, call('Bash', { command: 'npm test' }, '5 passing'), call('Edit', { file_path: cl, old_string: 'a', new_string: 'b' }), say('Playbook: export.md. Built it; how it was checked: npm test, 5 passing.')]); } finally { if (had) fs.writeFileSync(cl, had); else fs.rmSync(cl, { force: true }); } })(),
   };
   if (was === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = was;
   const small = u([user('build the export report'), edit, say('Built it.')]);
   report(/^No runbook was opened for this work\. Open the closest one/.test(r.asked[0] || '') && !r.oneOff.length && !r.opened.length && !r.made.length && !r.round2.length
     && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length
-    && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || '') && /^No runbook was opened/.test(r.relatedBefore[0] || '') && !r.namedMade.length,
-    'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for; _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
+    && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || '') && /^No runbook was opened/.test(r.relatedBefore[0] || '') && !r.namedMade.length
+    && !r.sedRead.length && /^Open docs\/playbooks\/export\.md and check/.test(r.grepped[0] || '') && !r.allMet.length,
+    'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for (one printed in parts with sed counts as opened, a grep does not); _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify({ allMet: r.allMet, sedRead: r.sedRead, grepped: r.grepped, ...r }).slice(0, 700));
 }
 // REQ: note-linked under v2: a new note that links to nothing is held; one with a link, a [[wiki link]] or a "## Related"
 // reason is not, nor a starter document (docs/CHANGELOG.md). (the old engine's check, ported)
@@ -921,6 +931,24 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     fs.rmSync(peerRec, { force: true }); if (keep) fs.writeFileSync(nf, keep); else fs.rmSync(nf, { force: true });
     report(/export dropped rows/.test(alone) && !/export dropped rows/.test(withPeer),
       'end: a line a peer session wrote to the shared notes during this turn is not this turn\'s, even when the peer\'s turn has ended (alone in the folder, the turn\'s added lines are its own)', JSON.stringify({ alone, withPeer })); }
+  // (the notes rotate per turn: a new turn moves the earlier turns' lines to .cache/turn-notes-archive.md, so the live
+  // file holds only this turn's and an Edit of it never shows the old lines again; never while a peer session's turn is
+  // open, whose lines would leave mid-turn. Plan quiet-screen, Task 2: the same old Issue lines shown 3 times an hour)
+  { const { onPrompt } = await import('./start.mjs'), { notesOf, loadTurn, saveTurn } = await import('./lib.mjs'), nf = path.join(dir, '.cache/turn-notes.md'), af = path.join(dir, '.cache/turn-notes-archive.md'), st = path.join(dir, 'tools/hooks/state');
+    const keep = [nf, af].map(f => fs.existsSync(f) ? fs.readFileSync(f) : null); fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, ''); fs.rmSync(af, { force: true }); fs.mkdirSync(st, { recursive: true });
+    for (const n of fs.readdirSync(st).filter(n => /^v2-turn\./.test(n))) fs.rmSync(path.join(st, n), { force: true });
+    const sid = 'rotnotes', line = i => `Issue: the invoice total was wrong in run ${i} | runbook: debug | fixed when: totals match the receipts`;
+    const turn = i => { onPrompt({ session_id: sid, prompt: `check the invoice totals, round ${i}` }); fs.appendFileSync(nf, `${line(i)}\nPlaybook: debug\n`); const t = loadTurn(sid); return t; };
+    const end = () => saveTurn(sid, { ...loadTurn(sid), ended: new Date().toISOString() });
+    turn(1); end(); turn(2); end(); const t3 = turn(3);
+    const live = fs.readFileSync(nf, 'utf8'), arch = fs.existsSync(af) ? fs.readFileSync(af, 'utf8') : '', mine = notesOf({ ...t3, session: sid, calls: [] });
+    end(); const peer = path.join(st, 'v2-turn.peeropen.json'); fs.writeFileSync(peer, JSON.stringify({ at: new Date().toISOString() }));
+    turn(4); const withPeer = fs.readFileSync(nf, 'utf8');
+    fs.rmSync(peer, { force: true }); for (const n of fs.readdirSync(st).filter(n => /^v2-turn\.rotnotes/.test(n))) fs.rmSync(path.join(st, n), { force: true });
+    [nf, af].forEach((f, i) => keep[i] ? fs.writeFileSync(f, keep[i]) : fs.rmSync(f, { force: true }));
+    report(/run 3/.test(live) && !/run [12]\b/.test(live) && /run 1\b/.test(arch) && /run 2\b/.test(arch) && /run 3/.test(mine) && /run 3/.test(withPeer) && /run 4/.test(withPeer),
+      'start: a new turn moves the earlier turns\' notes to the archive, so the live notes file holds only this turn\'s lines (and the end check still reads them); with a peer session\'s turn open nothing moves',
+      JSON.stringify({ live, arch: arch.slice(0, 300), mine, withPeer })); }
   // (a turn with no routed runbook that greps another runbook's triggers is not following it; printing it whole is.
   // Lesson (a project's report, 2026-11-12): a grep of a runbook's triggers line held a routing fix to its 7 items)
   { const by = command => missing({ runbook: null }, acts([user('make the field guide route to the gui runbook'), call('Bash', { command }), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done. Runbook: export.md')])).filter(s => /export\.md item/.test(s)).length;
@@ -1707,6 +1735,43 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     && /^Still not done \(do it now, or say in one line[\s\S]*export\.md item 1/.test(later?.reason || '') && !/Check that these items|last check/.test(later?.reason || '')
     && /last check for this request/.test(third?.reason || '') && fourth === null,
     'end: an agent that ignores the block gets a second naming the same item (no verify list), a third that says to report what is not done, and no fourth', [first?.reason, later?.reason, third?.reason, fourth]);
+  // (narration is not a promise: an "I'll ..." between tool calls that the turn then went on to carry out is not held as
+  // open. Lesson (2026-11-14): two holds for "I'll strip the status letters ..." and "I'll put the comment at the end of
+  // the line", both done by the next edit; a promise with nothing done after it stays open)
+  { const T0 = Date.now() - 60_000, stampAt = (s, r) => { const t = new Date(T0 + s * 1000).toISOString(); return Array.isArray(r) ? r.map(x => ({ ...x, timestamp: t })) : { ...r, timestamp: t }; };
+    const fix = (s, n) => stampAt(n, call('Edit', { file_path: path.join(dir, 'src/snap.js'), old_string: 'a', new_string: s }));
+    const rows = [stampAt(0, user('make the snapshot use one status read')), stampAt(5, say("The helper trims each line, so I'll strip the status letters with a pattern instead.")), fix('l.replace(/^\\S{1,2}\\s+/, "")', 10),
+      stampAt(15, say("It is one line over budget, so I'll put the comment at the end of the code line instead of on its own line.")), fix('x(); // (one status read)', 20), stampAt(25, say('Done: one status read, and the tests pass.'))];
+    const n1 = onStop({ transcript_path: transcript(rows), session_id: 'narr' });
+    const kept = [stampAt(0, user('make the snapshot use one status read')), stampAt(5, say("Doing the status read first; I'll add the snapshot to the changelog right after that.")), fix('one()', 10), stampAt(15, say('Done: one status read.'))];
+    const n2 = onStop({ transcript_path: transcript(kept), session_id: 'narr2' });
+    // (what the sentence names must be touched by a later call: "I'll update README.md" then only a test run is still
+    // open; "I'll fix the regex, then rerun the tests" then the edit and the run is narration. Oversight, 2026-11-14)
+    const run = (cmd, n) => stampAt(n, call('Bash', { command: cmd }));
+    const n3 = onStop({ transcript_path: transcript([stampAt(0, user('fix the export')), stampAt(5, say("I'll update README.md with the new flag.")), run('node tools/hooks/v2/selftest.mjs', 10), stampAt(15, say('Done.'))]), session_id: 'narr3' });
+    const n4 = onStop({ transcript_path: transcript([stampAt(0, user('fix the export')), stampAt(5, say("I'll fix the regex, then rerun the tests.")), fix('rx = /a+/', 10), run('npm test', 15), stampAt(20, say('Fixed; the tests pass.'))]), session_id: 'narr4' });
+    report(!/strip the status letters|put the comment at the end/.test(n1?.reason || '') && /add the snapshot to the changelog/.test(n2?.reason || '') && /update README\.md/.test(n3?.reason || '') && !/fix the regex/.test(n4?.reason || ''),
+      'end: an "I\'ll ..." the turn carried out with its next tool calls is narration, not an open promise; one with nothing done after it is still held, and so is one naming a file no later call touched',
+      JSON.stringify({ n1: (n1?.reason || '').slice(0, 300), n2: (n2?.reason || '').slice(0, 200), n3: (n3?.reason || '').slice(0, 200), n4: (n4?.reason || '').slice(0, 200) })); }
+  // (a hold's list never grows between the rounds of one request: a later round lists only the first round's items still
+  // unmet, never one the reply set off. Lesson (2026-11-13, an upset turn): 5, then 4, then 10 items, each round another
+  // answer fragment for a user who had just complained about being bothered)
+  { onPrompt({ session_id: 'grows', prompt: 'add a csv export' });
+    const g1 = onStop({ transcript_path: transcript([user('add a csv export'), edit]), session_id: 'grows' });
+    const reply = 'Issue: the export missed a column | runbook: export | fixed when: every column is exported\nWorking on it.';
+    const g2 = onStop({ transcript_path: transcript([user('add a csv export'), edit, say(reply)]), session_id: 'grows', stop_hook_active: true, last_assistant_message: reply });
+    const items = r => (String(r?.reason || '').match(/^- .*$/gm) || []).map(s => s.replace(/ \[[^\]]*\]$/, ''));
+    report(items(g1).length > 0 && items(g2).every(s => items(g1).includes(s)) && !/"Issue:" line is in the answer/.test(g2?.reason || ''),
+      'end: a later round of one request lists only the first round\'s items still unmet, never one the reply set off (the list never grows)', JSON.stringify({ g1: items(g1), g2: items(g2) }));
+    // (at most 5 items a hold, open asks and safety first; the rest are named once as noted, not held. Lesson (a project,
+    // 2026-11-14 21:51): one hold of 21 items, most from runbooks the work never touched)
+    onPrompt({ session_id: 'cap5', prompt: 'add a csv export' });
+    const ans = 'Issue: the export missed a column | runbook: export | fixed when: every column is exported\nAdded the export. All tests passed.';
+    const many = onStop({ transcript_path: transcript([user('add a csv export'), edit, say(ans)]), session_id: 'cap5', last_assistant_message: ans });
+    const held = (/Not done yet:\n((?:- .*\n?)+)/.exec(many?.reason || '') || ['', ''])[1].trim().split('\n').filter(Boolean);
+    const firstBook = held.findIndex(s => /playbooks\/export\.md/.test(s)), lastUpset = held.map(s => /\[upset-learned\]/.test(s)).lastIndexOf(true);
+    report(held.length === 5 && lastUpset >= 0 && (firstBook < 0 || lastUpset < firstBook) && /Say first whether it holds/.test(held.join('\n')) && /Also noted, not held/.test(many?.reason || ''),
+      'end: a hold asks for at most 5 items, the complaint\'s own items before runbook steps, and names the rest once as noted', String(many?.reason || '').slice(0, 1500)); }
   onPrompt({ session_id: 'fixed', prompt: 'add a csv export' });
   // (REQ: skill-learn: round 1 names the runbook's own item and, in the same round, its lesson, so no later round brings
   // it; once both are done (the lesson written into it, or "Skill lesson: none - <why>") the next stop passes. Done
@@ -1994,6 +2059,23 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
   const { fixGaps } = await import('./lib.mjs');
   const dbg = call('Read', { file_path: path.join(dir, 'skills/debug/SKILL.md') }, 'debug'), fix = call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' });
   const failRun = call('Bash', { command: 'node --test test/export.test.js' }, 'not ok 1 - exports the label\n# fail 1'), passRun = call('Bash', { command: 'node --test test/export.test.js' }, '# pass 1\n# fail 0');
+  // (every hold's full list is kept, one line each, in state/stop-holds.jsonl: the details file holds only the newest, and
+  // a review of 149 real holds could read the first two items of each. Plan quiet-screen, Task 3)
+  { const st = fs.mkdtempSync(path.join(os.tmpdir(), 'holds-')), hm = new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks-main.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href;
+    const probe = `const H = await import(${JSON.stringify(hm)}); const st = ${JSON.stringify(st)};
+      H.v2StopForm({ decision: 'block', reason: 'Not done yet:\\n- one\\n- two\\n- three\\n- four' }, {}, 'claude-code', st, 'holdsA');
+      H.v2StopForm({ decision: 'block', reason: 'Still not done:\\n- four' }, {}, 'claude-code', st, 'holdsA'); H.v2StopForm(null, {}, 'claude-code', st, 'holdsA');`;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: dir, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: dir } });
+    let rows = []; try { rows = fs.readFileSync(path.join(st, 'stop-holds.jsonl'), 'utf8').trim().split('\n').map(JSON.parse); } catch { }
+    fs.rmSync(st, { recursive: true, force: true });
+    report(rows.length === 2 && rows[0].session === 'holdsA' && /- one\n- two\n- three\n- four/.test(rows[0].reason) && /- four/.test(rows[1].reason) && !!rows[0].at,
+      'end: every hold\'s full list is kept in state/stop-holds.jsonl (time, session, the whole reason), a pass adds nothing', `${JSON.stringify(rows).slice(0, 300)} ${String(r.stderr).split('\n').find(l => /Error/.test(l)) || ''}`); }
+  // (a never-again claim inside quotes, or in a sentence that disclaims it (another's report, not run, not verified), is
+  // no claim of the agent's. Oversight's session, 2026-11-14: a reported claim held, then the correction quoting it held
+  // again)
+  { const { proofGaps } = await import('./lib.mjs'), pg = ans => { const a = acts([user('why does the export keep dropping rows again?'), ...call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' }), say(ans)]); a.complaint = true; return proofGaps(a).filter(s => /promises it can't happen again/.test(s)); };
+    const claim = pg('Fixed the export; a check now enforces it.'), reported = pg('Another session reported that a check now enforces it; I have not run it.'), quoted = pg('Correction: I wrote "a check now enforces it", but I haven\'t run that check.');
+    report(claim.length === 1 && !reported.length && !quoted.length, 'end: a never-again claim is held, but not one in quotes or in a sentence that disclaims it (another\'s report, not run)', JSON.stringify({ claim, reported, quoted })); }
   const fx = (rows, complaint = true) => { const a = acts(rows); a.complaint = complaint; return fixGaps(a); };
   const proven = fx([user('the export is broken'), dbg, failRun, fix, passRun, say('Fixed: the label was dropped.')]);
   const noDebug = fx([user('the export is broken'), failRun, fix, passRun, say('Fixed.')]);
@@ -4315,6 +4397,30 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     'worklog: a quoted example is no promise; "log done" finds a promise by its own text; a prompt a schedule fires is no new ask', { qItems, doneMsg, sItems });
   for (const s of ['wlog4', 'wlogp', 'wlog1', 'wlogf', 'wlogw', 'wlogq', 'wlogs', 'wlogc', 'wlogt']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
   report(!/Still open/.test(watched), 'worklog: a promise the turn armed a watcher or wakeup for is waiting, not held', watched.slice(0, 300));
+  // (a promise that restates a waiting item, or waits on something by its own words ("as soon as it's pushed", "once the
+  // release is out"), is no new open item. Oversight's session, 2026-11-14: an item set to wait, then the answer said so,
+  // and the restatement held the turn)
+  { const W = await import('./worklog.mjs'), sid = 'wlogr', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
+    W.update(sid, { texts: [{ t: "I'll upgrade the three projects to the new release.", at: t(0) }] }); W.logCommand(sid, 'wait', 'upgrade the three projects');
+    const open = W.update(sid, { texts: [{ t: "I'll do them as soon as it's pushed.", at: t(10) }, { t: "I'll upgrade the three projects once the release is out.", at: t(20) }, { t: "I'll rename the totals column.", at: t(30) }] });
+    for (const f of [`v2-log.${sid}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+    report(open.length === 1 && /rename the totals column/.test(open[0].text), 'worklog: a promise that restates a waiting item, or waits by its own words ("as soon as", "once"), adds no open item; a new one does', JSON.stringify(open.map(i => i.text))); }
+  // (`hooks.mjs why` shows the saved list without the work-log items closed since: they showed as open after `log done`.
+  // Plan quiet-screen, Task 3)
+  { const W = await import('./worklog.mjs'), reason = 'Not done yet:\n- Still open: "rename the totals column (your promise)". Do it now.\n- Still open: "add the receipt export". Do it now.\n- Check: Add a dated line to docs/CHANGELOG.md';
+    const items = [{ text: 'rename the totals column (your promise)', status: 'done' }, { text: 'add the receipt export', status: 'open' }];
+    const out = typeof W.stillOpen === 'function' ? W.stillOpen(reason, items) : reason;
+    report(!/rename the totals column/.test(out) && /add the receipt export/.test(out) && /CHANGELOG/.test(out), 'worklog: why leaves out the work-log items closed since the list was saved, and keeps the rest', out); }
+  // (log done finds an item by a phrase from anywhere in it, not only its opening words; several matches are named, never
+  // one picked. Oversight's session, 2026-11-14: a long ask closed only by its first words held the turn after two tries)
+  { const W = await import('./worklog.mjs'), sid = 'wlogm', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
+    W.update(sid, { msgs: [{ text: 'i want you to look over my recent requests to the recipe project and tell me if the engine is turning them into enforced rules, and list any that slipped through', at: t(0) }] });
+    const mid = W.logCommand(sid, 'done', 'the engine is turning them into enforced rules');
+    W.update(sid, { msgs: [{ text: 'rename the totals column in the invoice export', at: t(5) }, { text: 'rename the totals column in the receipt export', at: t(6) }] });
+    const both = W.logCommand(sid, 'done', 'rename the totals column'), left = W.loadLog(sid).filter(i => i.status === 'open').length;
+    fs.rmSync(path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), { force: true });
+    report(/^log: done "i want you to look over/.test(mid) && /matches 2 items/.test(both) && /invoice export/.test(both) && /receipt export/.test(both) && left === 2,
+      'worklog: log done closes an item by a phrase from its middle; a phrase that matches several items names them and closes none', JSON.stringify({ mid, both, left })); }
   report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
     && !log.some(i => /object Object/.test(i.text)) && log.some(i => /coach popup/.test(i.text) && i.status === 'done')

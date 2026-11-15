@@ -1883,7 +1883,7 @@ export function fixGaps(acts) {
 }
 export function proofGaps(acts) {
   // (the claim patterns need no io: built once, and the turn's io only when the answer has a claim)
-  const a = String(acts.answer || ''), R = proofPure ||= makeProof({});
+  const a = String(acts.answer || '').replace(/"[^"\n]*"|“[^”\n]*”|`[^`\n]*`/g, '""').split(/(?<=[.!?\n])\s+/).filter(s => !/\b(not (yet )?(verified|confirmed|checked|run)|have(n'?t| not) (run|checked|verified|confirmed)|unverified|reported|according to|per (the|their|its|an?)\b|(their|its|[\w-]+'s) (own )?report)/i.test(s)).join(' '), R = proofPure ||= makeProof({}); // (a claim in quotes, or in a sentence that disclaims it (someone's report, not run), is not the agent's. Oversight's session, 2026-11-14)
   const neverAgain = a.split(/(?<=[.!?\n])\s+/).find(s => R.NEVER_AGAIN.test(s) && !describesClaim(s) && !/\b(make sure|making sure|to keep|try to|helps?|less likely)\b/i.test(s));
   const enforced = neverAgain ? '' : R.enforcedClaim(a), complaint = !!acts.complaint;
   if (!complaint && !enforced) return [];
@@ -1964,7 +1964,7 @@ export function traceGapsV2(acts, history = '') {
 }
 
 // Whether the turn opened the runbook: read it or a skill it names, ran its skill, or printed it whole (a grep only inspects).
-const wholeRead = (cmd, f) => shellParts(String(cmd || '').replace(/\\/g, '/')).parts.some(p => p.includes(f) && /^(?:\S*\/)?(cat|type|Get-Content|gc|more|less|bat)(\.exe)?\s/i.test(p) && !/\s-(TotalCount|Head|Tail|First|Last)\b/i.test(p));
+const wholeRead = (cmd, f) => shellParts(String(cmd || '').replace(/\\/g, '/')).parts.some(p => p.includes(f) && /^(?:\S*\/)?(cat|type|Get-Content|gc|more|less|bat|sed|awk|head|tail)(\.exe)?\s/i.test(p)); // (read in parts is read: sed, awk, head, tail; a grep only searches. Lesson (2026-11-13): a skill printed with sed was "not opened")
 export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' && (relp(c.input.file_path || '') === book.file || (book.skills || []).includes(relp(c.input.file_path || ''))))
   || (c.name === 'Skill' && String(c.input.skill || '').replace(/^.*:/, '') === book.name)
   || (/^(Bash|PowerShell)$/.test(c.name) && wholeRead(c.input.command, book.file)));

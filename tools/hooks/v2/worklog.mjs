@@ -6,7 +6,7 @@ import { at, engineSince } from './lib.mjs';
 import { keys } from './late.mjs';
 
 const file = sid => at(`tools/hooks/state/v2-log.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
-export const loadLog = sid => { try { return JSON.parse(fs.readFileSync(file(sid), 'utf8')).items || []; } catch { return []; } };
+export const loadLog = sid => { try { return JSON.parse(fs.readFileSync(file(sid), 'utf8')).items || []; } catch { return []; } }, stillOpen = (reason, items) => String(reason || '').split('\n').filter(l => { const m = /^- Still open: "(.+?)"\./.exec(l); return !m || !items.some(i => i.text === m[1] && i.status !== 'open'); }).join('\n'); // (a saved list read again (hooks.mjs why) without the items closed since: they showed as open after log done)
 const saveLog = (sid, items) => { if (!sid || process.env.V2_NO_STATE || process.env.STARTER_BENCH) return;
   try { fs.mkdirSync(path.dirname(file(sid)), { recursive: true }); fs.writeFileSync(file(sid), JSON.stringify({ items: items.slice(-100) })); } catch { } };
 // (thanks, a yes, "go on": no ask. Nor a message from another session, a helper or the host: not the user's)
@@ -24,7 +24,7 @@ export function asksIn(msg) {
 const FUTURE = /\b(?:I'll|I will|will|going to|next|later|after (?:this|that)|then I)\b/i;
 const named = (item, text) => { const w = keys(item); if (!w.length) return false; const need = Math.max(w.length >= 4 ? 2 : 1, Math.round(w.length / 2));
   return String(text).split(/(?<=[.!?\n])\s+/).filter(s => !FUTURE.test(s)).some(s => { const k = new Set(keys(s)); return w.filter(x => k.has(x)).length >= need; }); };
-const PROMISE = /\b(?:I'll|I will|I'm going to|next,? I'll|then I'll)\s+([^.\n]{8,160})/gi;
+const PROMISE = /\b(?:I'll|I will|I'm going to|next,? I'll|then I'll)\s+((?:[^.\n]|\.(?=\w)){8,160})/gi; // (a dot inside a word, as in a file name, does not end the promise: "update README.md" kept its file)
 // The log brought up to date: new asks, the agent's promises, each open item closed by a later text naming it.
 export function update(sid, { msgs = [], texts = [] } = {}) {
   const items = loadLog(sid), have = new Set(items.map(i => i.text));
@@ -32,7 +32,7 @@ export function update(sid, { msgs = [], texts = [] } = {}) {
   for (const m of msgs) for (const a of asksIn(m.text)) add(a, 'user', m.at || new Date().toISOString());
   // (not in quotes or code; one under a condition ("If it fails, I'll ...") waits on it, never held. Oversight, 2026-11-12)
   for (const x of texts) { const s = String(x.t).replace(/```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|“[^”\n]*”/g, ' ');
-    for (const p of s.matchAll(PROMISE)) if (!/:\s*$/.test(p[1])) add(`${p[1].trim()} (your promise)`, 'promise', x.at, /\b(if|when|once|unless|after|should)\b[^.!?\n]*$/i.test(s.slice(0, p.index).split(/[.!?\n]/).pop() || '') ? 'wait' : 'open'); }
+    for (const p of s.matchAll(PROMISE)) if (!/:\s*$/.test(p[1]) && !items.some(it => it.status !== 'done' && named(it.text.replace(/ \(your promise\)$/, ''), p[1]))) add(`${p[1].trim()} (your promise)`, 'promise', x.at, /\b(if|when|once|unless|after|should)\b[^.!?\n]*$/i.test(s.slice(0, p.index).split(/[.!?\n]/).pop() || '') || /\b(as soon as|once|when|if|unless|until|after (?!(that|this|it)\b))/i.test(p[1]) ? 'wait' : 'open'); } // (a promise that restates an item still open or waiting attaches to it; one waiting by its own words ("as soon as it's pushed") waits. Oversight's session, 2026-11-14)
   for (const it of items) if (it.status === 'open' && texts.some(x => x.at > it.at && named(it.text.replace(/ \(your promise\)$/, ''), x.t))) it.status = 'done';
   saveLog(sid, items);
   return items.filter(i => i.status === 'open');
@@ -42,8 +42,8 @@ export function logCommand(sid, verb, text) {
   // (forgiving: the item's text without its " (your promise)" tag, a prefix of it, or half its words, never the
   // "will" filter, which is for answers. Oversight, 2026-11-12: its own exact text found no match)
   const base = i => i.text.replace(/ \(your promise\)$/, '').toLowerCase(), t = String(text).replace(/ \(your promise\)$/, '').trim().toLowerCase();
-  const share = i => { const w = keys(base(i)), k = new Set(keys(t)); return w.length > 0 && w.filter(x => k.has(x)).length >= Math.max(1, Math.round(w.length / 2)); };
-  const items = loadLog(sid), hit = items.find(i => i.status === 'open' && (base(i) === t || (t.length >= 12 && base(i).startsWith(t)) || share(i)));
+  const share = i => { const w = keys(base(i)), k = new Set(keys(t)); return w.length > 0 && w.filter(x => k.has(x)).length >= Math.max(1, Math.round(w.length / 2)); }, most = i => { const k = keys(t), w = new Set(keys(base(i))); return k.length >= 2 && k.filter(x => w.has(x)).length >= Math.ceil(k.length * 0.7); }; // (a phrase from anywhere in the item, or most of the given words: a long ask closed only by its opening words held a turn. Oversight's session, 2026-11-14)
+  const items = loadLog(sid), live = i => i.status === 'open' || (verb === 'done' && i.status === 'wait'), exact = items.filter(i => live(i) && base(i) === t), hits = exact.length ? exact : items.filter(i => live(i) && ((t.length >= 12 && base(i).includes(t)) || share(i) || most(i))), hit = hits.length === 1 ? hits[0] : null; if (verb !== 'add' && hits.length > 1) return `log: "${text}" matches ${hits.length} items, closed none; name one:\n${hits.map(i => `- ${i.text.slice(0, 120)}`).join('\n')}`;
   if (verb === 'add') items.push({ text: String(text).slice(0, 300), from: 'agent', at: new Date().toISOString(), status: 'open' });
   else if (hit && /^(done|wait)$/.test(verb)) hit.status = verb === 'done' ? 'done' : 'wait';
   else return `log: no open item matches "${text}"`;

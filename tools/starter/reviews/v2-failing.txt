@@ -69,7 +69,6 @@ stop: unresolved-carryover: the same work continues and last turn's CHANGELOG li
 stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked
 stop: waiting end: what the full check would ask stays on record for the next Stop
 unresolved-carryover: notices once per turn, none for a mid-turn message, last turn's misses once
-upset-acknowledged: a record covers a range or list of items ("Done 1-12:", "Skip 2, 4:"); only records written this turn count, not earlier turns' lines in the notes file
 upset-acknowledged: an Issue line shown in the agent's text is copied to the notes, and nothing is held without one (REQ quiet-work)
 upset-acknowledged: an upset message holds nothing during work (REQ quiet-work); the user still sees "acknowledged" once the Issue line is written, with no checklist pushed to the agent; "Issue: none" shows nothing
 waive command: an agent without hooks waives a step with the command, and check no longer asks for it
