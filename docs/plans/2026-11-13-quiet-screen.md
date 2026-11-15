@@ -109,9 +109,11 @@ What the user saw in that hour, and why:
       holding a force-push string as a JSON value passes; a real force-push, one inside bash -c, and one passed to
       execSync still refuse; the browser cases replayed through the same helper.
 - [ ] A closing yes/no question about doing something the user already asked for (an open work-log item from the user's
-      own words with shared key terms) holds once: "the user already asked for this (<item, time>): do it, or say why it
-      needs a new decision" (2026-11-15: a session parked on "should I build X?" after two upset asks for X). Test: that
-      pair holds; a question about something never asked passes. After the helper above.
+      own words with shared key terms) holds once, but only when the answer gives no reason for a new decision (a project
+      rule, security, cost, irreversibility): "the user already asked for this (<item, time>): do it, or say why it needs
+      a new decision". Test: a plain "should I build X?" after the user asked for X holds; the real case (2026-11-15),
+      whose answer named the project rule that forbids X, passes; a question about something never asked passes. After
+      the helper above.
 - [ ] A path the answer names is checked against the project roots named in the same sentence or paragraph, the roots of
       sessions that messaged this turn, and the starter's pack sources, before "does not exist" (2026-11-15: an answer
       about another project's tools/screenshot.mjs was held, though the file exists there). Test: that answer passes; a
