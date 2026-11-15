@@ -124,6 +124,11 @@ Every batch: the pre-chain quick runs; the next batch starts while a chain runs;
 oversight (commit, open count, next batch).
 
 ## Now
+- 2026-11-15 (usage limit): app-port has, unreleased, the reusable-work check, installed-layout command paths, log-done
+  matching, paged-after-cleanup, own-TEMP release, hook-text A, C, D. Both chains were started on the newest commit
+  (logs ~/.anzuelo-frozen/logs/two-chains-<sha>.txt). Next: if BOTH PASS, push with
+  `bash tools/starter/release/push-release.sh <sha> "<proof message>"`; then docs/plans/2026-11-15-proof-before-done.md
+  (Task 1 first), then hook-text B-I and the fewer-files plan. The entry below is older.
 - PAUSED 2026-11-14 20:20 for a Windows restart: app-port at 425c53f (copy-first release scripts), not released; main is
   8de3c1f (release eabdb68, pushed). Working tree clean, nothing half-edited.
   - Chain on 425c53f: chain A FAILED in the v2 self-test before the stop. Release test case 5 ("a working-checkout edit
