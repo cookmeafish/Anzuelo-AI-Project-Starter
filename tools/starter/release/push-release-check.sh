@@ -14,7 +14,8 @@ head_of() { git --git-dir="$T/remote.git" rev-parse main; }
 run() { bash "$S/push-release.sh" "$1" "Proof: test" "$T/main" "$T/work" origin > "$T/out.txt" 2>&1; echo $?; }
 # 1. main has a code change the release lacks: stop, nothing pushed
 setup r1; cd "$T/main"; echo c > other.mjs; g add -A; g commit -qm "code on main"; before=$(head_of); rc=$(run r1)
-[ "$rc" != 0 ] && [ "$(head_of)" = "$before" ] && echo "PASS refused merge: exit $rc, nothing pushed" || { echo "FAIL refused merge: exit $rc"; cat "$T/out.txt"; }
+# (stopped by its own check, not by any error: a syntax error also exits non-zero and once passed this case)
+[ "$rc" = 1 ] && grep -q "stopped, nothing pushed" "$T/out.txt" && [ "$(head_of)" = "$before" ] && echo "PASS refused merge: exit $rc, nothing pushed" || { echo "FAIL refused merge: exit $rc"; cat "$T/out.txt"; }
 # 2. main has only a plan change: merged and pushed
 setup r2; cd "$T/main"; echo p > docs/plans/p.md; g add -A; g commit -qm "plan"; rc=$(run r2)
 [ "$rc" = 0 ] && git --git-dir="$T/remote.git" show main:code.mjs | grep -q b && git --git-dir="$T/remote.git" show main:docs/plans/p.md >/dev/null 2>&1 && echo "PASS plans-only divergence merged and pushed" || { echo "FAIL plans-only: exit $rc"; cat "$T/out.txt"; }
@@ -22,3 +23,6 @@ setup r2; cd "$T/main"; echo p > docs/plans/p.md; g add -A; g commit -qm "plan";
 setup r3; rc=$(run r3)
 [ "$rc" = 0 ] && git --git-dir="$T/remote.git" show main:code.mjs | grep -q b && echo "PASS fast-forward pushed" || { echo "FAIL fast-forward: exit $rc"; cat "$T/out.txt"; }
 cd /; rm -rf "$T"
+# 4. each release script's body sits in braces, parsed before it runs, so an edit during a run cannot change it
+bad=""; for f in push-release.sh two-chains.sh frozen-chain.sh; do grep -qx '{' "$S/$f" && [ "$(grep -v '^$' "$S/$f" | tail -1)" = "}" ] || bad="$bad $f"; done
+[ -z "$bad" ] && echo "PASS release scripts parse whole before running" || echo "FAIL release scripts not wrapped in braces:$bad"

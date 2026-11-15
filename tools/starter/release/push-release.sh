@@ -7,6 +7,8 @@
 # Starter-only; its test: tools/starter/release/push-release-check.sh (run by the v2 self-test; not named *.test.*, which
 # an installed app's test runner would collect from the engine folder).
 set -euo pipefail
+# (the whole body in braces, parsed before it runs: an edit during a run cannot change it. Lesson (2026-11-15))
+{
 HERE=$(cd "$(dirname "$0")" && pwd)
 SHA="$1"; MSG="$2"
 MAIN="${3:-$(cd "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)}"; WORK="${4:-$(cd "$HERE/../../.." && pwd)}"; REMOTE="${5:-origin}"
@@ -29,3 +31,4 @@ fi
 git push "$REMOTE" main
 git log --oneline -1
 if [ "$WORK" != "$MAIN" ]; then cd "$WORK"; git merge --no-edit -q main; git log --oneline -1; fi
+}

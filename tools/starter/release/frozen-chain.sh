@@ -2,8 +2,11 @@
 # Frozen release chain for one commit: a worktree on a branch, wire, begin, then v2 selftest, selfcheck, v2-sweep, trial
 # and audit, each gated on its exit code, then the leak check. Prints PASS/FAIL per step; stops at the first failure.
 # Usage (from a checkout of the starter): sh tools/starter/release/frozen-chain.sh <commit> [rerun name]
-# Starter-only. The release runbook: tools/starter/runbooks/release.md.
+# Starter-only. The release steps: tools/starter/runbooks/improvement-loop.md, step 1.
 set -u
+# (the whole body in braces: the shell parses it before running any of it, so an edit to this file during a run cannot
+# change what the run does. Lesson (2026-11-15): an edit mid-run shifted the text and the chain died on a syntax error)
+{
 HERE=$(cd "$(dirname "$0")" && pwd)
 # (the starter's repository: the one this checkout belongs to, a worktree's included)
 REPO=$(cd "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
@@ -42,3 +45,5 @@ echo "CHAIN PASS $SHA in $DIR"
 # (the push guard refuses a proof whose time limits were only noted; say it here, before any push is tried)
 grep -q '"speed"' tools/hooks/engine-proof.json && node -e "const p=require('./tools/hooks/engine-proof.json');process.exit(p.speed&&p.speed.stop&&p.speed.v2?0:1)" \
   && echo "speed: judged, push allowed" || { echo "SPEED NOT JUDGED: no push. $(grep -h '^speed:\|NOTE  release' .cache/chain-selftest.txt | head -2)"; }
+exit 0
+}

@@ -5,6 +5,8 @@
 # ends the pair. Logs: ~/.anzuelo-frozen/logs/ (two-chains-<key>.txt, chain-<key>.log).
 # Usage (from a checkout of the starter): bash tools/starter/release/two-chains.sh <commit> [rerun name]
 # Then, when both pass: bash tools/starter/release/push-release.sh <commit> "<proof message>". Starter-only.
+# (the whole body in braces, parsed before it runs: an edit during the hour-long run cannot change it. Lesson (2026-11-15))
+{
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
 WORK=$(cd "$HERE/../../.." && pwd)
@@ -36,3 +38,4 @@ touch "$L/two-chains-$KEY.done"
 echo "TWO-CHAINS DONE" >> "$OUT"
 [ "$fail" = 0 ] && echo "BOTH PASS: push with push-release.sh $SHA" >> "$OUT"
 exit $fail
+}
