@@ -1774,6 +1774,34 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const same = ask(); fs.writeFileSync(path.join(r0, 'tools/x.mjs'), 'export const a = 2;\n'); const edited = ask();
     fs.rmSync(r0, { recursive: true, force: true });
     report(same === 'true' && edited === 'false' && none === 'false', 'end: a release proof naming the commit of the turn\'s engine files meets the self-test ask; an edit after it, or no proof, does not', JSON.stringify({ none, same, edited })); }
+  // (with the engine in .anzuelo/engine, a command an end-check item names runs from the engine's folder when the project
+  // has no copy, and every command the engine's check texts name exists in the engine, so the rewrite has a target.
+  // Field report (2026-11-15): an item's "node tools/..." pointed at nothing in an installed project)
+  { const { enginePaths } = await import('./end.mjs'), { resolver } = await import('../paths.mjs'), eng = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+    const p0 = fs.mkdtempSync(path.join(os.tmpdir(), 'split-')), E = path.join(p0, '.anzuelo', 'engine'), L = path.join(p0, '.anzuelo', 'local'), put = f => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); };
+    put(path.join(E, 'tools', 'audit.mjs')); put(path.join(p0, 'tools', 'own.mjs')); put(path.join(L, 'skills', 'modular-code', 'scripts', 'modularity.mjs'));
+    const lay = { split: true, ENGINE: E, PROJECT: p0, LOCAL: L }, where = resolver(lay).where;
+    const out = enginePaths('Run node tools/audit.mjs, node skills/modular-code/scripts/modularity.mjs, node tools/own.mjs and node tools/gone.mjs.', lay, where);
+    const plain = enginePaths('Run node tools/audit.mjs.', { split: false, ENGINE: E, PROJECT: p0 }); fs.rmSync(p0, { recursive: true, force: true });
+    // (the sweep: every command the engine's check texts name ships in the starter, as an engine file, a library skill or a pack file)
+    const texts = ['tools/hooks/engine-checks.json', 'tools/hooks/base-checks.mjs', ...fs.readdirSync(path.join(eng, 'tools/hooks/v2')).filter(f => /\.mjs$/.test(f) && f !== 'selftest.mjs').map(f => `tools/hooks/v2/${f}`)];
+    const packs = fs.readdirSync(path.join(eng, 'packs')).filter(d => fs.existsSync(path.join(eng, 'packs', d, 'files')));
+    const ships = n => fs.existsSync(path.join(eng, n)) || fs.existsSync(path.join(eng, 'library', n)) || packs.some(d => fs.existsSync(path.join(eng, 'packs', d, 'files', n)));
+    const named = [...new Set(texts.flatMap(f => [...fs.readFileSync(path.join(eng, f), 'utf8').matchAll(/\bnode\s+((?:tools|skills)\/[\w./-]+\.m?js)\b/g)].map(m => m[1])))], gone = named.filter(n => !ships(n));
+    report(out === 'Run node .anzuelo/engine/tools/audit.mjs, node .anzuelo/local/skills/modular-code/scripts/modularity.mjs, node tools/own.mjs and node tools/gone.mjs.' && plain === 'Run node tools/audit.mjs.' && named.length > 5 && !gone.length,
+      'end: with the engine in .anzuelo/engine, a command an item names runs from where the layout keeps it (local copy, enabled pack or library skill, engine) when the project root has none; every command the check texts name ships in the starter', JSON.stringify({ out, plain, named: named.length, gone })); }
+  // (a procedure done outside the project's files, a command script in a scratch folder or one instruction sent to 2+
+  // sessions, with no runbook asks once if it is a new kind of task; a scratch calculation does not. Lesson (2026-11-15):
+  // pausing and reopening every session lived only in a scratchpad and memory)
+  { const scratch = path.join(os.tmpdir(), 'scratch-proc'), ask = /new kind of task with no runbook/;
+    const run = (sid, rows) => { onPrompt({ session_id: sid, prompt: 'do the thing we talked about' }); return onStop({ transcript_path: transcript([user('do the thing we talked about'), ...rows]), session_id: sid })?.reason || ''; };
+    const pauseMsg = 'Please pause safely: stop new runs, stop chains with stop-tests, commit finished work, write a resume note in STATUS, reply paused.';
+    const cmd = run('proc1', [call('Write', { file_path: path.join(scratch, 'reopen-sessions.cmd'), content: 'wt -d C:\\x claude --resume 1\n' }), say('Wrote the reopen script.')]);
+    const msgs = run('proc2', [...['a', 'b', 'c'].map(n => call('SendMessage', { to: `session-${n}`, message: pauseMsg })), say('Sent the pause request to 3 sessions.')]);
+    const calc = run('proc3', [call('Write', { file_path: path.join(scratch, 'sum.py'), content: 'print(sum(range(10)) * 1.07)\n' }), say('The total is 48.15.')]);
+    const oneOff = run('proc4', [call('Write', { file_path: path.join(scratch, 'once.cmd'), content: 'echo x\n' }), say('Done. This is a one-off.')]);
+    report(ask.test(cmd) && ask.test(msgs) && !ask.test(calc) && !ask.test(oneOff), 'end: a command script written anywhere, or one instruction sent to 2+ sessions, with no runbook asks once if it is a new kind of task; a scratch calculation or a stated one-off does not',
+      JSON.stringify({ cmd: cmd.slice(0, 200), msgs: msgs.slice(0, 200), calc: calc.slice(0, 200), oneOff: oneOff.slice(0, 200) })); }
   // (a runbook a later message of the turn routed holds only when the turn touched its kind: opened it, changed a file its
   // items name, or ran a command they name. Lesson (a project, 2026-11-14 21:51): a hold of 21 items, most from runbooks
   // routed by some message of a long turn, for outputs never made and questions never asked)
@@ -4460,6 +4488,13 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     fs.rmSync(path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), { force: true });
     report(/^log: done "i want you to look over/.test(mid) && /matches 2 items/.test(both) && /invoice export/.test(both) && /receipt export/.test(both) && left === 2,
       'worklog: log done closes an item by a phrase from its middle; a phrase that matches several items names them and closes none', JSON.stringify({ mid, both, left })); }
+  // (a phrase found in exactly one item closes it, even when another item shares a word: word overlap is only for when no
+  // phrase matches. Oversight, 2026-11-15: a unique phrase was listed as ambiguous beside an item sharing "check")
+  { const W = await import('./worklog.mjs'), sid = 'wlogu', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
+    W.update(sid, { msgs: [{ text: 'add a real check for the onboarding rule to the suite', at: t(0) }, { text: 'check it does all three', at: t(1) }] });
+    const one = W.logCommand(sid, 'done', 'a real check for the onboarding rule'), open = W.loadLog(sid).filter(i => i.status === 'open').map(i => i.text);
+    fs.rmSync(path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), { force: true });
+    report(/^log: done "add a real check/.test(one) && open.length === 1 && /all three/.test(open[0]), 'worklog: a phrase found in exactly one item closes it, though another item shares a word', JSON.stringify({ one, open })); }
   report(/Still open: "also put emojis in the section headings"/.test(later), 'worklog: an ask named only in a promise ("I\'ll ... next") stays open after a terse "Done."', later.slice(0, 300));
   report(/Still open: "choose which account the stats come from"/.test(four) && /Still open: "progress that updates itself"/.test(four) && /Still open: "a refresh button on the stats page"/.test(four) && !/coach/.test(four)
     && !log.some(i => /object Object/.test(i.text)) && log.some(i => /coach popup/.test(i.text) && i.status === 'done')

@@ -78,11 +78,11 @@ Lessons from orchestrating by hand (2026-11-10 to 2026-11-12):
 **Files:** tools/starter.mjs (a `sessions` command), a runbook and its generated skill, tools/hooks/v2/selftest.mjs
 **Why:** a machine restart (2026-11-14) needed every session paused safely, reopened and continued; it was done by hand
 from one session's memory and a scratch script. Session ids and folders come from a state file, never from the starter.
-- [ ] `node tools/starter.mjs sessions pause`: sends every peer session a standard safe-pause request (no new runs;
+- [ ] A new "sessions pause" command in tools/starter.mjs (to build): sends every peer session a standard safe-pause request (no new runs;
       stop chains with stop-tests, never by killing processes; commit finished work; a resume note in its STATUS; close
       app helper windows; reply "paused"), waits for each reply, and records each session's id and folder in a state
       file outside the projects.
-- [ ] `node tools/starter.mjs sessions reopen`: from that file, opens each as a Windows Terminal tab running
+- [ ] A new "sessions reopen" command (to build): from that file, opens each as a Windows Terminal tab running
       `claude --resume <id>` in its folder, with every CLAUDE_* variable cleared first (tabs launched from inside a
       session inherited its variables and started as child sessions, without transcript saving or peer messaging);
       waits until each is reachable for messages, then sends "continue from your resume note".

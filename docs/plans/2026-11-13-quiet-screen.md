@@ -83,6 +83,19 @@ What the user saw in that hour, and why:
       they haven't returned, a file still being written); it is judged on the turn that merges their results. Test: a
       turn with live background agents and partial files ends with no hold (a project, 2026-11-13: 3 rounds of 6, 5
       and 5 items while 8 helpers ran).
+- [ ] In an adopted app, light mode and records off drop only the record asks (CHANGELOG, STATUS, DECISIONS), never
+      rule enforcement: a rule request still needs one held line asking for an enforcement in the app's own way (a test
+      in its suite, a check in its own scripts or hooks, or a Done when line in its own process file), never in
+      .anzuelo (2026-11-15: a "make a rule to always" request got only a paragraph, no check, and nothing asked). Test:
+      an adopted copy with light:true and records:false, plus a rule request, gets one held line asking for the
+      enforcement.
+- [ ] In an adopted app, the no-verbatim check never reads the app's own rules files: rule 14 is for text the starter
+      shares, and an app may quote its user, dated, on purpose (2026-11-15: a false hold on the app's own CLAUDE.md).
+      Test: an adopted copy whose CLAUDE.md gains a quoted line gets no hold.
+- [ ] Rule detection at the prompt skips quoted text and a prompt identical to one seen earlier in the session (a
+      scheduled repeat): a repeating scheduled round that quoted the user's past "make sure" and "always" got the
+      rule-request reminder and the full checklist (2026-11-15). Test: the same prompt with quoted rule words, sent
+      twice, gets no rule request either time; a fresh "from now on, always X" is flagged.
 - [ ] An armed watcher the answer says it is waiting on is waiting, not missing: no "a watcher you started is still
       armed" hold when the answer names what it waits for (a session held 3 rounds while legitimately waiting on a
       one-minute startup check, 2026-11-15). Test: a turn that arms a watcher and says it waits on it ends with no

@@ -2,11 +2,9 @@
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
 import '../hidewin.mjs'; import { fitStaleGaps } from '../fitstale.mjs'; // child processes start hidden (no console windows)
 import { withNote, correctionsOf } from '../correct.mjs';
-import fs from 'node:fs';
-import path from 'node:path';
+import fs from 'node:fs'; import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { passLine } from './lines.mjs';
-import * as W from './worklog.mjs';
+import { passLine } from './lines.mjs'; import * as W from './worklog.mjs';
 import { planRequired, OPEN_WORK, planOpen } from '../planreq.mjs';
 import { keyWords, closestRunbook, coreRunbook, userWords as userWordsOf } from '../near.mjs';
 import { appendHistory } from '../history.mjs';
@@ -24,12 +22,9 @@ function planOpenGaps(turn, acts, again) {
   let planNames = []; try { planNames = fs.readdirSync(at('docs/plans')); } catch { }
   const msg = planOpen({ workTurn: worked(acts) || changed.length > 0, prompt: String(acts.heard || ''), changed, cmds, relayed: !!relayedBody(String(acts.heard || '')), startPlans },
     { read, planNames, runbookNames: runbooks().map(b => b.name), keyWords });
-  return msg ? [msg] : [];
-}
-import { labelsEsHint } from '../labels.mjs';
-import { unansweredLate, asksOnly, keys as keyWordsLate } from './late.mjs';
-import { PAUSE_ASK } from '../pause.mjs';
-import { externalStopSteps } from '../extstop.mjs';
+  return msg ? [msg] : []; }
+import { labelsEsHint } from '../labels.mjs'; import { unansweredLate, asksOnly, keys as keyWordsLate } from './late.mjs';
+import { PAUSE_ASK } from '../pause.mjs'; import { externalStopSteps } from '../extstop.mjs';
 import { reviewExcuse } from '../excuse.mjs';
 import { frictionGaps } from './friction.mjs';
 import { VERBATIM_ENGINE } from './verbatim.mjs';
@@ -40,7 +35,7 @@ import { wakeGaps, watchersArmed, watcherLeft, wakeupsPending } from '../wakeups
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
 import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, checkOff, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen, smallChange } from './lib.mjs';
-import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, staleCitedGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
+import { ROOT, LAYOUT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, staleCitedGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
 // (ANZUELO_V2_TIMING=1 prints each step's time to stderr, to find what a slower Stop spends; off, it costs nothing)
@@ -60,8 +55,7 @@ let HEAD_FILES = null; const headFiles = () => HEAD_FILES ??= new Set((r => r.st
   // (new files made by a command count as work too, as the old engine counted them: v2's worked() sees the edit tools only)
   const msg = planRequired({ changed, said, workTurn: true, setup: fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')), wroteSelf, born,
     generated: new Set(), notWork: p => inGlobs(p, cfg.notWork || []), exists: p => fs.existsSync(at(p)) }, n);
-  return msg ? [msg] : [];
-}
+  return msg ? [msg] : []; }
 
 // REQ: note-linked. A new note (docs/knowledge, docs/notes, docs/*.md, knowledgeDirs; not templates or the starter's
 // documents) links to related notes (a .md link, a [[wiki link]] or "## Related" saying why it stands alone).
@@ -94,8 +88,7 @@ const bornNow = acts => {
 // while the root holds only what people open first (rootAllowed) and what a language or tool needs there (the shared
 // tools/hooks/rootfiles.mjs). A file already in the root is the project's own layout.
 export function rootTidyGaps(acts) {
-  if (checkOff('root-tidy')) return [];
-  const cfg = projectConfig(), cands = changedOf(acts).filter(p => p && !p.includes('/') && !inGlobs(p, [].concat(cfg.rootAllowed || [])) && fs.existsSync(at(p)));
+  if (checkOff('root-tidy')) return []; const cfg = projectConfig(), cands = changedOf(acts).filter(p => p && !p.includes('/') && !inGlobs(p, [].concat(cfg.rootAllowed || [])) && fs.existsSync(at(p)));
   if (!cands.length) return [];
   const born = bornNow(acts), rootFiles = () => { try { return fs.readdirSync(ROOT, { withFileTypes: true }).filter(e => e.isFile()).map(e => e.name); } catch { return []; } };
   const loose = cands.filter(p => !rootToolchainFile(p, { match: (n, gs) => inGlobs(n, [].concat(gs || [])), rootFiles }) && born(p));
@@ -107,8 +100,7 @@ export function rootTidyGaps(acts) {
 // in the lines the turn wrote only (lines git's last commit had are not this turn's). The engine's own files and the
 // project's namesIgnore are skipped.
 export function nameVarGaps(acts) {
-  if (checkOff('name-var')) return [];
-  const files = changedOf(acts).filter(p => p !== NAMES_FILE && NAME_FILES.test(p) && fs.existsSync(at(p)));
+  if (checkOff('name-var')) return []; const files = changedOf(acts).filter(p => p !== NAMES_FILE && NAME_FILES.test(p) && fs.existsSync(at(p)));
   if (!files.length) return [];
   const nm = namesIn(ROOT);
   if (!Object.keys(nm).length) return [];
@@ -221,6 +213,12 @@ export function missing(turn, acts, books = runbooks()) {
 // (b) _fallback.md was followed and no runbook left behind; (c) work past the small-fix size opened and made none: open
 // the closest (top 3 named), leave one, or say why none fits. Not a question, a relayed message or the setup turn.
 const NONE_FITS = /\b(no|none of the|not an?)\s+(existing\s+)?runbooks?\b[^.\n]{0,60}\b(fits?|applies|apply|needed|covers?)\b|\bone-?off\b|\bno runbook (is )?needed\b/i;
+// (a procedure done outside the project's files, a command script written anywhere (the scratchpad too) or one instruction sent to 2+ peer sessions, with no runbook routed, opened or written, asks once if it is a new kind of task. Lesson (2026-11-15): pausing and reopening every session, and the release scripts, lived only in a scratchpad and memory, unseen by the runbook check)
+export function procedureGaps(turn, acts, again, books = runbooks()) { const p = c => String(c.input?.file_path || '').replace(/\\/g, '/'), root = at('').replace(/\\/g, '/');
+  if (again || checkOff('runbook-exists') || turn.runbook || NONE_FITS.test(`${acts.said || ''}\n${acts.answer || ''}`) || books.some(b => opened(b, acts)) || acts.calls.some(c => c.name === 'Write' && /(^|\/)docs\/playbooks\/[^/]+\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(p(c)))) return [];
+  const script = acts.calls.some(c => c.name === 'Write' && (/\.(sh|cmd|bat|ps1)$/i.test(p(c)) || (/\.(m?js|cjs|py)$/i.test(p(c)) && !p(c).startsWith(root) && /\b(spawn|exec|execSync|child_process|subprocess|Start-Process)\b/.test(String(c.input?.content || ''))))), sent = acts.calls.filter(c => c.name === 'SendMessage').map(c => ({ to: String(c.input?.to || ''), w: new Set(String(c.input?.message || '').toLowerCase().match(/[a-z]{4,}/g) || []) }));
+  const same = sent.some((a, i) => sent.some((b, j) => j > i && a.to !== b.to && a.w.size > 5 && [...a.w].filter(x => b.w.has(x)).length >= 0.6 * Math.min(a.w.size, b.w.size)));
+  return script || same ? [`This looks like a new kind of task with no runbook (${script ? 'a command script' : 'the same instruction sent to several sessions'}). Leave a runbook for it (rule 2, the runbook-create skill; one that would help other projects goes to the starter through docs/starter-feedback.md), or say in one line why it is a one-off.`] : []; }
 export function unroutedGaps(turn, acts, again, books = runbooks()) {
   if (again || checkOff('runbook-exists') || !worked(acts) || /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') || fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) return [];
   const said = `${acts.said || ''}\n${acts.answer || ''}\n${notesOf(acts)}`;
@@ -300,7 +298,9 @@ export function toVerify(turn, acts, books = runbooks()) {
 // (while a helper started this turn still works, the turn is not over: no check yet, and the turn stays open, so the
 // Stop after the helper reports back judges the whole of it)
 let waiting = false, passed = null, decided = {};
-export function onStop(data, opts = {}) {
+export const enginePaths = (s, lay = LAYOUT, where = at) => !lay.split ? s : String(s).replace(/\bnode\s+((?:tools|skills)\/[\w./-]+\.m?js)\b/g, (m, p) => { const w = where(p); return fs.existsSync(path.join(lay.PROJECT, p)) || !fs.existsSync(w) ? m : `node ${path.relative(lay.PROJECT, w).replace(/\\/g, '/')}`; }); // (a command an item names runs from where the layout keeps it (the local copy, an enabled pack or library skill, the engine) when the project root has none: with the engine in .anzuelo/engine, "node skills/..." and "node tools/..." pointed at nothing. Field report, 2026-11-15)
+export function onStop(data, opts = {}) { const r = onStopIn(data, opts); return r?.reason ? { ...r, reason: enginePaths(r.reason) } : r; }
+function onStopIn(data, opts = {}) {
   waiting = false; passed = null; decided = {};
   const t0 = TIMES ? (TIMES.length = 0, performance.now()) : 0;
   const out = judge(data, opts);
@@ -733,7 +733,7 @@ function judge(data, { shadow = false } = {}) {
     return q ? [`Next in the queue (${q.file}): "${q.text.slice(0, 160)}". Give the user a one-line update and start it now, unless it waits on the user (then say so).`] : []; });
   const changedNow = changedOf(acts), touchedKind = b => !!b && (opened(b, acts) || new RegExp(`\\bPlaybook:\\s*(docs/playbooks/)?${b.name}\\.md\\b`, 'i').test(acts.said || '') || (b.items || []).some(it => (it.kind === 'file' && String(it.arg || '').split('|').some(g => changedNow.some(p => inGlobs(p, [g.trim()])))) || (it.kind === 'ran' && met(it, acts) !== null && acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && new RegExp(String(it.arg).split(/\s+=>\s+/)[0], 'i').test(String(c.input?.command || '')))))), extra = (turn.also || []).flatMap(f => touchedKind(runbooks().find(b => b.file === f)) ? missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)) : worked(acts) ? [`A message this turn was routed to ${f}, but no work of its kind was done: do it, or say in one line why it does not apply.`] : []); // (a runbook a later message routed holds only when the turn touched its kind: opened or named it, changed a file its items name, or ran a command they name. Lesson (a project, 2026-11-14): a hold of 21 items, most from runbooks the work never touched)
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...logOpen, ...nextUp, ...autos, ...wakes,...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...fixGaps(acts), ...repeatGaps(acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...logOpen, ...nextUp, ...autos, ...wakes,...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...fixGaps(acts), ...repeatGaps(acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => { const u = unroutedGaps(turn, acts, again); return u.length ? u : procedureGaps(turn, acts, again); }), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('staleCitedGaps', () => staleCitedGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (format items never hold: the Finished section, plain-writing reflows, a runbook item asking for the Finished section.
   // The reminder asks for them up front. The user, 2026-11-12: a hold for format splits the answer into fragments)
   const fmt = engineChecks().filter(r => ['finished-summary', 'plain-writing'].includes(r?.tag)).map(r => `Check: ${r.message}`.slice(0, 60));
