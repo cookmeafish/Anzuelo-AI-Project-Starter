@@ -19,7 +19,14 @@ check-ins (plan skill, step 9). **Not when:** a one-step change or a quick quest
 ## Steps
 1. Follow the **plan** skill (`skills/plan/SKILL.md`): check scope, settle open questions first (one question at a
    time, or a throwaway spike), gather the context and the check commands, map the files, size the tasks, write the
-   plan with its status line and "How to resume" line, review it and score it.
+   plan with its status line and "How to resume" line, review it and score it. **A new feature** (screen, mode,
+   flow, setting or integration; not a bug fix) gets a `## User journey` section before its tasks: run fresh
+   sub-agents in parallel (parallel-agents skill), none shown the code or each other, each given the request, the
+   brief and the current screens and one angle: first-time user, returning user with real and old saved data, what
+   can go wrong (errors, empty, offline, slow, a missing provider, a mistaken click, undo, cost); for a new mode or
+   flow also phone/touch, keyboard/accessibility, and a power user switching modes daily. Merge their lists into one,
+   deduped, each item tagged with its angle. The tasks follow that list, and the build ends with a fresh agent walking
+   the app against every item (`# Journey walk` in `docs/reviews/`, each pass, fail or missing; fails fixed).
 2. Save it to `docs/plans/YYYY-MM-DD-<topic>.md` ([how plans are kept](../plans/README.md)) and run
    `node skills/plan/scripts/plan-tasks.mjs check <plan>`.
 3. Link it and ask the user to review it before any work starts. Offer the two ways to run it (supervised task by
@@ -33,6 +40,7 @@ check-ins (plan skill, step 9). **Not when:** a one-step change or a quick quest
 ## Done when
 - [ ] The plan is saved in `docs/plans/` and linked in the answer (hook: plan-saved) (file: docs/plans/*.md).
 - [ ] Every requirement in the spec maps to a task, and every task ends with a check (hook: plan-checked for the checks; judgment: whether every spec item is covered).
+- [ ] A new feature's plan has a `## User journey` section merged from 3 or more named angles, and its build a `# Journey walk` report (judgment: whether the work is a new feature; the end check holds a new one without both).
 - [ ] `plan-tasks.mjs check` passed on the saved plan (ran: plan-tasks\.mjs check) (when file: docs/plans/*.md).
 - [ ] A finished or abandoned plan carries `status: done` or `status: dropped - <why>` (hook: plan-open announces it at each session start until closed; judgment: only the person running it knows it is finished or dropped).
 

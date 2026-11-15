@@ -12,6 +12,8 @@ Open `docs/playbooks/engine.md` and follow every step in order. It is the proced
 ## Done when
 - [ ] The project's own work was committed before the engine change, and the change is its own commit, or the answer
       says why not (judgment: whether the project keeps git history is the user's call) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local|starter\.mjs uninstall [^-]|starter\.mjs uninstall$) (ran: git commit).
+- [ ] A reply to an upgrade notice comes after the upgrade ran, the project's own uncommitted work committed first, not a
+      stop to ask (a refused tool call is said plainly instead) (when tool: ^SendMessage\b.*upgrad) (ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$)
 - [ ] Every check the project wrote in `requirements.json` became a "Done when" line or a test, or has its reason in
       the upgrade review (judgment: which runbook a rule belongs to) (when ran: own-checks).
 - [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview) (when ran: new-project\.mjs).

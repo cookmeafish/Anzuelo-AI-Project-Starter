@@ -85,7 +85,12 @@
    (2026-11-12); the engine's work log tracks them and lists what is open when you think you are finished. **And nothing twice:** a step two tasks share is done once; a check, test, read or helper is not repeated
    when nothing changed, unless the user asked (plan skill, "Shared steps once").
 9. **GUI changes pass the screenshot loop** (gui pack, gui-review-loop skill): shoot, look at every screenshot, fix,
-   repeat until a full round finds nothing. A project that starts making screens gets the gui pack.
+   repeat until a full round finds nothing. A project that starts making screens gets the gui pack. **A new feature**
+   (screen, mode, flow, setting or integration; not a bug fix or small change) first gets a "User journey" section in
+   its plan, merged from fresh sub-agents in parallel that have not seen the code, one angle each (first-time user,
+   returning user with saved data, what can go wrong; a new mode or flow adds phone/touch, keyboard/accessibility and
+   power user). After building, another fresh agent walks the app against every item ("Journey walk" in
+   docs/reviews/), and failures are fixed before done (2026-11-15).
 10. **Git credits only the user.** No AI co-author trailers, "generated with" lines, AI author identities or robot
     emoji in commits, PRs, issues, tags or releases, from any agent.
 11. **One person's data never mixes with another's** (when the project has `profiles/<name>/`).

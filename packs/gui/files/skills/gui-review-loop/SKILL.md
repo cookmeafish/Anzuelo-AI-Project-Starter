@@ -46,6 +46,8 @@ been opened, and the answer gives a verdict. Any edit after a round makes that r
    default screen, leave it, switch to each sibling mode and back (progress kept), relaunch (what it opens on), and
    open it with saved data from before. A shot or a test for each. Then list 5 things a first-time user would try
    next on the screen and check each. The answer's `Journey:` line names each step's proof, or the step not walked.
+   With a plan's `## User journey` list, the walk is done by a fresh agent that did not build it, over every item of
+   that list, into `# Journey walk` in `docs/reviews/`.
 
 ## Ending
 - **PASS:** every touched page has a clean round taken after its last edit, at all four looks, with no WARN (or each

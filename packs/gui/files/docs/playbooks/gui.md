@@ -32,6 +32,9 @@ runbook and the gui-review-loop then prove the result.
    Save a flow worth repeating as `docs/checks/flows/<page>.json`; every later change to that page reruns it
    (`node tools/screenshot.mjs --flows --pages <page>`). Syntax-check the scripts you changed (`node --check <file>`
    for JS, otherwise the project's linter).
+   **A new feature starts from its plan's `## User journey`** (plan skill, step 3: fresh sub-agents in parallel, one
+   angle each, merged), and ends with a fresh agent walking the built app against every item (`# Journey walk` in
+   `docs/reviews/`, each pass, fail or missing; fails fixed before done).
    **A new mode, screen or flow gets its journey walked**, each step with a shot or a test: get in from where a user
    starts, get out, switch to each sibling mode and back with progress kept, what the app opens on at the next launch,
    and what a user with saved data from before sees. Then list 5 things a first-time user would try next on the new

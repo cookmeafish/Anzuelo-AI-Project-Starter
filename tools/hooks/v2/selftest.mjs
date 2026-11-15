@@ -1846,6 +1846,20 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const cut = runL('lim1', [edit, limitRow, say(cutAns)], cutAns), hostEnd = runL('lim2', [edit, say('You\'ve hit your limit · resets 8:50am')], 'You\'ve hit your limit · resets 8:50am');
     const normal = runL('lim3', [edit, say(cutAns.replace(/^.*\n\n/, ''))], cutAns.replace(/^.*\n\n/, '')), saidNoLimit = runL('lim4', [edit, limitRow, say('Done: the default list and mode now come from the course. ✅ code')], 'Done: the default list and mode now come from the course. ✅ code');
     report(!cut && !hostEnd && !!normal && !!saidNoLimit, 'end: a turn the host\'s usage limit cut passes after one answer that says so and lists what is undone, or when the host\'s notice ended it; the same work with no limit, or an answer that does not say the limit stopped it, still holds', JSON.stringify({ cut: cut.slice(0, 200), hostEnd: hostEnd.slice(0, 200), normal: normal.slice(0, 120), saidNoLimit: saidNoLimit.slice(0, 120) })); }
+  // (REQ: user-journey. A new feature needs a plan's "User journey" section from 3+ named angles and a "Journey walk"
+  // report; one angle, or none, holds once; a bug fix passes. The user, 2026-11-15: new features get agents imagining how a
+  // person would really use them. Replay: a new mode built and shot with no journey; the user then asked how to leave it)
+  { const k = process.env.STARTER_NO_SMALL; process.env.STARTER_NO_SMALL = '1';
+    const runJ = (sid, ask, rows, ans) => { onPrompt({ session_id: sid, prompt: ask }); return onStop({ transcript_path: transcript([user(ask), ...rows, say(ans)]), session_id: sid, last_assistant_message: ans })?.reason || ''; };
+    const mode = () => [call('Write', { file_path: path.join(dir, 'src/modes/career.js'), content: 'export const career = 1;\n' })], held = r => /This adds a new feature/.test(r);
+    const none = runJ('jrn1', 'add a career mode to the game', mode(), 'Built the career mode with its screens.');
+    put('docs/plans/jrn-one.md', '# Career\n## User journey\n- first-time user: finds it on the home screen\n## Tasks\n'); const one = runJ('jrn2', 'add a career mode to the game', mode(), 'Built the career mode with its screens.');
+    put('docs/plans/jrn-one.md', '# Career\n## User journey\n- (first-time user) finds it on home\n- (returning user, saved data) keeps progress\n- (what can go wrong) empty save, errors\n- (phone/touch) big buttons\n## Tasks\n'); put('docs/reviews/jrn-walk.md', '# Journey walk\n- finds it on home: pass\n');
+    const full = runJ('jrn3', 'add a career mode to the game', mode(), 'Built the career mode with its screens.');
+    fs.rmSync(path.join(dir, 'docs/plans/jrn-one.md'), { force: true }); fs.rmSync(path.join(dir, 'docs/reviews/jrn-walk.md'), { force: true });
+    const fix = runJ('jrn4', 'fix the broken score in the career mode', [call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' })], 'Fixed the score.');
+    if (k === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = k;
+    report(held(none) && held(one) && !held(full) && !held(fix), 'end: a new feature with no plan "User journey" section from 3+ named angles and a "Journey walk" report holds once (a one-angle section too); with both it passes; a bug fix is not asked', JSON.stringify({ none: none.slice(0, 160), one: one.slice(0, 120), full: full.slice(0, 160), fix: fix.slice(0, 120) })); }
   // (an upgrade notice is acted on: the project's own uncommitted work is committed and the upgrade runs, never parked on
   // the user, both being local and reversible. Replay (a project, 2026-11-15): the reply "needs the user's OK first ... 8
   // modified files" with no command run holds; a reply after the commit and the upgrade does not)

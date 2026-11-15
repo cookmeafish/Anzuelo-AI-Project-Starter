@@ -61,6 +61,17 @@ List the files to create or change, each with a one-line job. Most structural mi
   any stored data that changes shape (a migration). These are the edits most often forgotten.
 - Respect what the project already does and `docs/checks/layout-standards.md`. Don't restructure in passing. When a
   file you must touch has become hard to work in, splitting it is a separate, named task.
+- **A new feature** (screen, mode, flow, setting or integration; not a bug fix) gets its `## User journey` section
+  here, before the tasks. Run fresh sub-agents in parallel (parallel-agents skill), none shown the code or each other,
+  each given the request, the brief, the current screens and one angle: (a) a first-time user; (b) a returning user
+  with real saved data and old versions of it; (c) a phone/touch user; (d) a keyboard/accessibility user; (e) what can
+  go wrong: errors, empty states, offline, slow, a missing provider, a mistaken click, undo, cost; (f) a power user
+  who uses it daily, wanting speed, shortcuts and switching between modes. A small feature takes (a), (b) and (e); a
+  new mode or flow takes all six. Each covers finding it from the default screen, entering, leaving, switching to
+  sibling features and back, what it opens on next launch, and 5 things a user would try next. Merge the lists into
+  one, deduped, each item tagged with its angle; the tasks follow it. The last task: a fresh agent walks the built app
+  (screenshots or a driver script) against every item and writes `# Journey walk` in `docs/reviews/`, each pass,
+  fail or missing; fails are fixed before done. The end check asks for both (REQ: user-journey).
 
 ## 4. Cut the work into tasks
 Make each task small enough that a reviewer can approve it or send it back on its own merits, and complete enough
