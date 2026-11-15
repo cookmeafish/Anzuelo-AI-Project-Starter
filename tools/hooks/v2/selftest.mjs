@@ -1753,6 +1753,17 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     report(!/strip the status letters|put the comment at the end/.test(n1?.reason || '') && /add the snapshot to the changelog/.test(n2?.reason || '') && /update README\.md/.test(n3?.reason || '') && !/fix the regex/.test(n4?.reason || ''),
       'end: an "I\'ll ..." the turn carried out with its next tool calls is narration, not an open promise; one with nothing done after it is still held, and so is one naming a file no later call touched',
       JSON.stringify({ n1: (n1?.reason || '').slice(0, 300), n2: (n2?.reason || '').slice(0, 200), n3: (n3?.reason || '').slice(0, 200), n4: (n4?.reason || '').slice(0, 200) })); }
+  // (a runbook a later message of the turn routed holds only when the turn touched its kind: opened it, changed a file its
+  // items name, or ran a command they name. Lesson (a project, 2026-11-14 21:51): a hold of 21 items, most from runbooks
+  // routed by some message of a long turn, for outputs never made and questions never asked)
+  { const { loadTurn: lt, saveTurn: svt } = await import('./lib.mjs'), dv = path.join(dir, 'docs/playbooks/deliver.md');
+    fs.writeFileSync(dv, '---\nname: deliver\ntriggers: deliver the report\n---\n# Deliver\n## Done when\n1. A new file in outputs/, with earlier versions untouched (file: outputs/**)\n2. The answer names the file (answer: outputs/)\n');
+    const withAlso = (sid, rows) => { onPrompt({ session_id: sid, prompt: 'add a csv export' }); svt(sid, { ...lt(sid), also: ['docs/playbooks/deliver.md'] }); return onStop({ transcript_path: transcript(rows), session_id: sid })?.reason || ''; };
+    const untouched = withAlso('also1', [user('add a csv export'), edit, say('Added the export.')]);
+    const touched = withAlso('also2', [user('add a csv export'), edit, call('Write', { file_path: path.join(dir, 'outputs/report.md'), content: 'x' }), say('Added the export.')]);
+    fs.rmSync(dv, { force: true }); fs.rmSync(path.join(dir, 'outputs'), { recursive: true, force: true });
+    report(!/deliver\.md item|Open docs\/playbooks\/deliver\.md/.test(untouched) && /A message this turn was routed to docs\/playbooks\/deliver\.md/.test(untouched) && /deliver\.md/.test(touched) && !/A message this turn was routed to/.test(touched),
+      'end: a runbook a later message routed brings its steps only when the turn touched its kind (a file or command its items name, or opened it); untouched, one line asks to do it or say why not', JSON.stringify({ untouched: untouched.slice(0, 400), touched: touched.slice(0, 400) })); }
   // (a hold's list never grows between the rounds of one request: a later round lists only the first round's items still
   // unmet, never one the reply set off. Lesson (2026-11-13, an upset turn): 5, then 4, then 10 items, each round another
   // answer fragment for a user who had just complained about being bothered)
