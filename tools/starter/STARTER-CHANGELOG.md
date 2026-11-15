@@ -1,8 +1,11 @@
 # <!--name:STARTER_NAME-->Anzuelo<!--/name--> changelog
 
 Changes to the starter itself. A project picks up engine changes with `node tools/starter.mjs upgrade` (or, from the
-starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook changes listed here are adopted by hand
-(project-rule, runbook-create), because an upgrade never touches a project's own content. A change to what the hooks
+starter, `node tools/new-project.mjs "<project>" --upgrade`). The engine's own rules are the default for every project
+(the user, 2026-11-15): an upgrade gives an engine rule still worded as an earlier release shipped it the new wording,
+and adds a release's new rule sentences that a project's reworded rule lacks as "E" lines; the project's own wording is
+never overwritten, and it may reword or remove those lines like any of its rules. Runbook changes the project made are
+kept or merged (runbook-create). A change to what the hooks
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
