@@ -1855,11 +1855,21 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const none = runJ('jrn1', 'add a career mode to the game', mode(), 'Built the career mode with its screens.');
     put('docs/plans/jrn-one.md', '# Career\n## User journey\n- first-time user: finds it on the home screen\n## Tasks\n'); const one = runJ('jrn2', 'add a career mode to the game', mode(), 'Built the career mode with its screens.');
     put('docs/plans/jrn-one.md', '# Career\n## User journey\n- (first-time user) finds it on home\n- (returning user, saved data) keeps progress\n- (what can go wrong) empty save, errors\n- (phone/touch) big buttons\n## Tasks\n'); put('docs/reviews/jrn-walk.md', '# Journey walk\n- finds it on home: pass\n');
+    const noVerdict = runJ('jrn5', 'add a career mode to the game', mode(), 'Built the career mode with its screens.');
+    put('docs/reviews/jrn-walk.md', '# Journey walk\n- finds it on home: pass\n## Quality verdict\nAn independent judge read 10 real outputs in the user\'s mode: what a user would want; no failures.\n');
     const full = runJ('jrn3', 'add a career mode to the game', mode(), 'Built the career mode with its screens.');
     fs.rmSync(path.join(dir, 'docs/plans/jrn-one.md'), { force: true }); fs.rmSync(path.join(dir, 'docs/reviews/jrn-walk.md'), { force: true });
     const fix = runJ('jrn4', 'fix the broken score in the career mode', [call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' })], 'Fixed the score.');
     if (k === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = k;
-    report(held(none) && held(one) && !held(full) && !held(fix), 'end: a new feature with no plan "User journey" section from 3+ named angles and a "Journey walk" report holds once (a one-angle section too); with both it passes; a bug fix is not asked', JSON.stringify({ none: none.slice(0, 160), one: one.slice(0, 120), full: full.slice(0, 160), fix: fix.slice(0, 120) })); }
+    report(held(none) && held(one) && held(noVerdict) && !held(full) && !held(fix), 'end: a new feature with no plan "User journey" section from 3+ named angles and a "Journey walk" report with a quality verdict holds once (a one-angle section, or a walk with no verdict, too); with both it passes; a bug fix is not asked', JSON.stringify({ none: none.slice(0, 160), one: one.slice(0, 120), noVerdict: noVerdict.slice(0, 120), full: full.slice(0, 160), fix: fix.slice(0, 120) })); }
+  // (REQ: device-proof. Replay (a project, 2026-11-15): voice "16 of 16 checks pass" on default settings, in a mode for
+  // another language, holds; a proof naming the user's active mode, language and provider passes; an unrelated answer passes)
+  { const runV = (sid, ans) => { const ask = 'make voice mode work'; onPrompt({ session_id: sid, prompt: ask }); return onStop({ transcript_path: transcript([user(ask), call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' }), say(ans)]), session_id: sid, last_assistant_message: ans })?.reason || ''; }, held = r => /proof for this device feature/i.test(r);
+    const real = runV('dev1', '**Voice mode now works without a paid key.**\n- **Proof:** a recorded sentence played through a fake mic, with only an Anthropic key and default settings. It\'s heard, sent to Chat, and the assistant speaks the reply. 16 of 16 checks pass.');
+    const unnamed = runV('dev2', 'Voice mode works now: a recorded sentence through a fake mic, 16 of 16 checks pass.');
+    const named = runV('dev3', 'Voice mode works now. Proof: a Spanish clip in your active mode (Spanish course), with your provider; replies were 1-2 short sentences in Spanish. 16 of 16 checks pass.');
+    const other = runV('dev4', 'Renamed the export button. Tests pass.');
+    report(held(real) && held(unnamed) && !held(named) && !held(other), 'end: proof of a device feature run on default settings, or naming no setup, holds once; one run in the user\'s active mode, language and provider passes; an unrelated answer passes', JSON.stringify({ real: real.slice(0, 200), unnamed: unnamed.slice(0, 120), named: named.slice(0, 160), other: other.slice(0, 120) })); }
   // (an upgrade notice is acted on: the project's own uncommitted work is committed and the upgrade runs, never parked on
   // the user, both being local and reversible. Replay (a project, 2026-11-15): the reply "needs the user's OK first ... 8
   // modified files" with no command run holds; a reply after the commit and the upgrade does not)

@@ -62,7 +62,9 @@
 4. **Accuracy over confidence.** Never invent facts, sources, numbers, quotes, file contents or results. Verify before
    claiming anything works or is true; say plainly what was not verified; label uncertainty. Facts (web or project
    files) go through **research**: independent sources, paid and biased ones screened out, and a "did I make that up?"
-   check tracing every fact to something read this turn.
+   check tracing every fact to something read this turn. A proof runs in the user's real setup (the active mode's
+   language and data, their provider), never the developer's defaults, and its output is judged as the user would get
+   it (language, length, tone), not only counted as passing (2026-11-15).
 5. **Questions get answers, not edits.** Change files only when asked. Protected files (`protectedOriginals`) are
    never changed. Versioned files (`noOverwrite`) get a new version instead of an overwrite.
 6. **No outward actions without an explicit OK in this conversation:** sending or posting messages, emails or
@@ -90,7 +92,8 @@
    its plan, merged from fresh sub-agents in parallel that have not seen the code, one angle each (first-time user,
    returning user with saved data, what can go wrong; a new mode or flow adds phone/touch, keyboard/accessibility and
    power user). After building, another fresh agent walks the app against every item ("Journey walk" in
-   docs/reviews/), and failures are fixed before done (2026-11-15).
+   docs/reviews/) and an independent judge gives a quality verdict on real outputs in the user's real setup ("is
+   this what a user would want?", failures listed); failures are fixed before done (2026-11-15).
 10. **Git credits only the user.** No AI co-author trailers, "generated with" lines, AI author identities or robot
     emoji in commits, PRs, issues, tags or releases, from any agent.
 11. **One person's data never mixes with another's** (when the project has `profiles/<name>/`).

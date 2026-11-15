@@ -34,7 +34,9 @@ runbook and the gui-review-loop then prove the result.
    for JS, otherwise the project's linter).
    **A new feature starts from its plan's `## User journey`** (plan skill, step 3: fresh sub-agents in parallel, one
    angle each, merged), and ends with a fresh agent walking the built app against every item (`# Journey walk` in
-   `docs/reviews/`, each pass, fail or missing; fails fixed before done).
+   `docs/reviews/`, each pass, fail or missing, with a `## Quality verdict` from an independent judge of real outputs
+   in the user's real setup; fails fixed before done). A device feature (mic, camera, speech, audio) is proven in the
+   user's active mode, language and provider, never the developer's defaults.
    **A new mode, screen or flow gets its journey walked**, each step with a shot or a test: get in from where a user
    starts, get out, switch to each sibling mode and back with progress kept, what the app opens on at the next launch,
    and what a user with saved data from before sees. Then list 5 things a first-time user would try next on the new

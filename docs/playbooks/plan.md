@@ -26,7 +26,8 @@ check-ins (plan skill, step 9). **Not when:** a one-step change or a quick quest
    can go wrong (errors, empty, offline, slow, a missing provider, a mistaken click, undo, cost); for a new mode or
    flow also phone/touch, keyboard/accessibility, and a power user switching modes daily. Merge their lists into one,
    deduped, each item tagged with its angle. The tasks follow that list, and the build ends with a fresh agent walking
-   the app against every item (`# Journey walk` in `docs/reviews/`, each pass, fail or missing; fails fixed).
+   the app against every item (`# Journey walk` in `docs/reviews/`, each pass, fail or missing, and a `## Quality
+   verdict` from an independent judge of real outputs in the user's real setup; fails fixed).
 2. Save it to `docs/plans/YYYY-MM-DD-<topic>.md` ([how plans are kept](../plans/README.md)) and run
    `node skills/plan/scripts/plan-tasks.mjs check <plan>`.
 3. Link it and ask the user to review it before any work starts. Offer the two ways to run it (supervised task by

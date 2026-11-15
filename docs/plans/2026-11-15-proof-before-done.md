@@ -56,6 +56,12 @@ no longer trusts the course content; the engine must stop such misses, and guide
       gets the fake-device recipe.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real turn (mic code, unit tests only, "tested") holds
       once; with a fake-audio run it passes; ALL PASS.
+- [x] The proof run uses the user's real setup (the active mode's language and data, their provider), not the
+      developer's defaults: an answer claiming a device feature works on "default settings", or naming no setup,
+      holds once (end.mjs deviceProofGaps, REQ: device-proof, rule 4). Replay (2026-11-15): "a recorded sentence
+      through a fake mic ... default settings ... 16 of 16 checks pass" in a mode for another language holds.
+- [x] The journey walk ends with a `## Quality verdict` from an independent judge of real outputs in the user's real
+      setup ("is this what a user would want?", failures listed); a walk without it holds on a new feature.
 
 ## Task 2: claims match the proof
 **Files:** tools/hooks/v2/lib.mjs

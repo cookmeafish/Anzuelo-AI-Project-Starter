@@ -72,7 +72,9 @@ List the files to create or change, each with a one-line job. Most structural mi
   sibling features and back, what it opens on next launch, and 5 things a user would try next. Merge the lists into
   one, deduped, each item tagged with its angle; the tasks follow it. The last task: a fresh agent walks the built app
   (screenshots or a driver script) against every item and writes `# Journey walk` in `docs/reviews/`, each pass,
-  fail or missing; fails are fixed before done. The end check asks for both (REQ: user-journey).
+  fail or missing, then `## Quality verdict`: an independent judge reads real outputs made in the user's real setup
+  (their mode's language and data, their provider) and asks "is this what a user would want?" (language, length,
+  tone, usefulness), with each failure listed. Fails are fixed before done. The end check asks for both (REQ: user-journey).
 
 ## 4. Cut the work into tasks
 Make each task small enough that a reviewer can approve it or send it back on its own merits, and complete enough
