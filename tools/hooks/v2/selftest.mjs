@@ -4566,7 +4566,8 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     fs.writeFileSync(b, JSON.stringify({ temp: 1e9, tests: 1e9, cache: 1e9, transcripts: 1e9, frozen: 1e9, nodeCacheAt: Object.fromEntries((() => { try { return fs.readdirSync(path.join(os.tmpdir(), 'node-compile-cache')); } catch { return []; } })().map(v => [v, 1e15])), pagedMB: 1, nonpagedMB: 1 })); fs.writeFileSync(pf, '{"commit":"x"}');
     const full = spawnSync(process.execPath, [lk, '--compare', b], { encoding: 'utf8' }), skip = spawnSync(process.execPath, [lk, '--compare', b, '--skip-paged', '--record', pf, 'chainA'], { encoding: 'utf8' });
     let rec = {}; try { rec = JSON.parse(fs.readFileSync(pf, 'utf8')); } catch { } fs.rmSync(d, { recursive: true, force: true });
-    report(full.status === 1 && /kernel pool \(paged\)/.test(full.stdout) && skip.status === 0 && /judged after cleanup/.test(skip.stdout) && rec.commit === 'x' && rec.leaks?.chainA?.pagedMB?.[0] === 1,
+    // (judged by the paged line alone: inside a release chain this suite is itself a test process still running, which fails both runs. Lesson (the chain on cca8aee))
+    report(full.status === 1 && /kernel pool \(paged\)/.test(full.stdout) && !/kernel pool \(paged\)/.test(skip.stdout) && /judged after cleanup/.test(skip.stdout) && rec.commit === 'x' && rec.leaks?.chainA?.pagedMB?.[0] === 1,
       'leaks: --skip-paged reports the paged pool without judging it, and --record keeps both readings in the proof', JSON.stringify({ full: [full.status, full.stdout.slice(0, 120)], skip: [skip.status, skip.stdout.slice(0, 120)], rec: rec.leaks })); }
   if (STARTER_REPO) { // (the starter's leak check and trial cleanup)
   const { compare, BUDGET } = await import('../../starter/leaks.mjs');
