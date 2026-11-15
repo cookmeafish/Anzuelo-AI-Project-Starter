@@ -65,8 +65,7 @@ export function noteLinkedGaps(acts) {
     || (dirs.some(d => p.toLowerCase().startsWith(d + '/')) && !/(^|\/)(_?templates?|attachments?|\.obsidian|\.trash)\//i.test(p)));
   const notes = changedOf(acts).filter(isNote);
   if (!notes.length) return [];
-  const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
-  const head = headFiles();
+  const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {}, head = headFiles();
   const born = p => { if (start[p] || head.has(p)) return false; try { return fs.statSync(at(p)).birthtimeMs > since - 1000; } catch { return false; } };
   const unlinked = notes.filter(p => { if (!born(p)) return false; let t = ''; try { t = fs.readFileSync(at(p), 'utf8'); } catch { return false; }
     return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
@@ -99,9 +98,7 @@ export function rootTidyGaps(acts) {
 // project's namesIgnore are skipped.
 export function nameVarGaps(acts) {
   if (checkOff('name-var')) return []; const files = changedOf(acts).filter(p => p !== NAMES_FILE && NAME_FILES.test(p) && fs.existsSync(at(p)));
-  if (!files.length) return [];
-  const nm = namesIn(ROOT);
-  if (!Object.keys(nm).length) return [];
+  if (!files.length) return []; const nm = namesIn(ROOT); if (!Object.keys(nm).length) return [];
   const cfg = projectConfig(), starter = fs.existsSync(at('.starter-template')), heads = headsOf(ROOT, files, spawnSync);
   const typed = files.flatMap(p => { let now = ''; try { now = fs.readFileSync(at(p), 'utf8'); } catch { return []; }
     return nameProblems(p, newLinesOf(now, heads.get(p)), { root: ROOT, nm, skip: inGlobs(p, cfg.namesIgnore || []) || (!starter && inGlobs(p, VERBATIM_ENGINE)) }); });
@@ -188,13 +185,13 @@ const relayed = acts => /<(cross-session-message|agent-message|task-notification
 export function missing(turn, acts, books = runbooks()) {
   const book = chosen(turn, acts, books);  // (a typed question routed to a runbook made for answers, one with an "(evidence)" item, is held to opening it and
   // its answer items; others stay free. The user, 2026-11-07: knowledge answers come from the best sources)
-  const asked = book && !worked(acts) && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && !relayed(acts);
+  const asked = book && !worked(acts) && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && !relayed(acts), byAct = it => (it.whens || []).some(w => w.kind === 'tool') && applies(it, acts), acted = book && !worked(acts) && !asked && book.file === turn.runbook && book.items.some(byAct); // (acted: an item set off by an action the turn took, "(when tool: ...)", is checked on a turn that changed no files too, and only such items. Replay (2026-11-15): a reply to an upgrade notice that parked it on the user changed nothing and passed)
   // (15 or more tool calls is real work too, files changed or not (Step 0.4): the routed runbook is opened for it. Only
   // the opening is asked: its file items wait for files. Lesson (the old suite under v2): a 16-call turn routed to the
   // plan runbook never opened it, and v2 asked nothing, counting only file edits as work)
   if (book && !worked(acts) && !asked && book.file === turn.runbook && acts.calls.length >= 15 && !/<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') && !opened(book, acts))
     return [`Open ${book.file} and follow its steps: 15 or more tool calls is real work, files changed or not.`];
-  if (!book || (!worked(acts) && !asked)) return [];
+  if (acted) return book.items.filter(it => byAct(it) && met(it, acts) === false).map(it => `${book.file} item ${it.n}: ${it.text}`); if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
   // (an agent with no hooks: its reads leave no record, so the answer naming the runbook it followed ("Playbook:
   // meal-plan.md") stands for opening it, as the old engine read it. Lesson (the old suite under v2): the no-hooks
@@ -299,6 +296,7 @@ export function toVerify(turn, acts, books = runbooks()) {
 // Stop after the helper reports back judges the whole of it)
 let waiting = false, passed = null, decided = {};
 export const enginePaths = (s, lay = LAYOUT, where = at) => !lay.split ? s : String(s).replace(/\bnode\s+((?:tools|skills)\/[\w./-]+\.m?js)\b/g, (m, p) => { const w = where(p); return fs.existsSync(path.join(lay.PROJECT, p)) || !fs.existsSync(w) ? m : `node ${path.relative(lay.PROJECT, w).replace(/\\/g, '/')}`; }); // (a command an item names runs from where the layout keeps it (the local copy, an enabled pack or library skill, the engine) when the project root has none: with the engine in .anzuelo/engine, "node skills/..." and "node tools/..." pointed at nothing. Field report, 2026-11-15)
+export const limitCut = (rows, last) => { const said = String(last || ''), host = rows.some(r => (r.type === 'user' || r.type === 'system') && /^\s*\[?Usage limit reached\b/i.test(typeof r.message?.content === 'string' ? r.message.content : String(r.content || ''))); return /^\s*You'?ve (hit|reached) your .{0,40}limit/i.test(said) || (host && /\b(usage )?limit (was |has been |is )?(reached|hit)\b|\bhit (the|your) .{0,20}limit\b/i.test(said) && /\b(not done|undone|left|still open|isn'?t done|not (yet )?(run|built|started|updated|verified))\b/i.test(said)); };
 export function onStop(data, opts = {}) { const r = onStopIn(data, opts); return r?.reason ? { ...r, reason: enginePaths(r.reason) } : r; }
 function onStopIn(data, opts = {}) {
   waiting = false; passed = null; decided = {};
@@ -624,6 +622,7 @@ function judge(data, { shadow = false } = {}) {
   const saved = loadTurn(data.session_id), rows = turnRows(data.transcript_path || '', saved.at);
   lap('turn rows');
   if (data.stop_hook_active && !saved.at) return null; // (no record of the request: its blocks can't be counted)
+  if (limitCut(rows, data.last_assistant_message)) { decided = { request: '', round: null, steps: [] }; return null; } // (a turn the host's usage limit cut passes once its answer says so and lists what is undone, or the host's own notice ended it: each later round is a paid turn that can do no work. Open items stay in the work log, listed at the next prompt. Lesson (2026-11-15): two sessions were held 3 and 6 rounds at the limit)
   // (a background command of this turn still running is waited for like a helper: its result is not in yet. A server
   // or watcher never ends, so it does not count. Lesson (a project's report): a turn waiting on its full self-test was
   // blocked three times and wrote its answer before the results existed)

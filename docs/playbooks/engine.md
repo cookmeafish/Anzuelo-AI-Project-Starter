@@ -21,6 +21,11 @@ project upgrades from (`node tools/starter.mjs status` prints it); a **developme
 - Commit the project's own work first (`git status` shows nothing to commit), so the engine change is its own commit
   and can be undone alone. Not a git repository: say so in the answer and go on; upgrade and removal back up every file
   they replace or remove under `.cache/`.
+- An upgrade notice is acted on, never parked on the user: committing the project's own work locally (no push) and the
+  upgrade (dry run, upgrade, self-test, its own commit) are local and reversible, so they need no extra OK. Pushing,
+  publishing, deleting the user's data and anything outward still do. A tool call the host's permission settings
+  refuse stays the user's to run: say so in one line, never work around it. Lesson (2026-11-15): a session answered an
+  upgrade notice with "needs the user's OK first" over its own uncommitted files, and the upgrade waited.
 - For install, upgrade and removal, run the command with `--dry-run` first (`new-project.mjs`, `starter.mjs update`,
   `starter.mjs upgrade`, `starter.mjs uninstall`). Stop and ask the user if the list names a file the project wrote
   itself (anything outside `tools/`, `skills/`, `docs/checks/`, `docs/playbooks/` and the agent folders).
@@ -123,6 +128,8 @@ checks and records.
 ## Done when
 - [ ] The project's own work was committed before the engine change, and the change is its own commit, or the answer
       says why not (judgment: whether the project keeps git history is the user's call) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local|starter\.mjs uninstall [^-]|starter\.mjs uninstall$) (ran: git commit).
+- [ ] A reply to an upgrade notice comes after the upgrade ran, the project's own uncommitted work committed first, not a
+      stop to ask (a refused tool call is said plainly instead) (when tool: ^SendMessage\b.*upgrad) (ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$)
 - [ ] Every check the project wrote in `requirements.json` became a "Done when" line or a test, or has its reason in
       the upgrade review (judgment: which runbook a rule belongs to) (when ran: own-checks).
 - [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview) (when ran: new-project\.mjs).

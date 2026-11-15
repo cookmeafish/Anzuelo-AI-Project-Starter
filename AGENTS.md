@@ -67,7 +67,9 @@
    never changed. Versioned files (`noOverwrite`) get a new version instead of an overwrite.
 6. **No outward actions without an explicit OK in this conversation:** sending or posting messages, emails or
    comments; buying, booking or subscribing; submitting forms; contacting people; publishing; pushing; deleting the
-   user's data. Drafts are fine.
+   user's data. Drafts are fine. Committing the project's work locally (no push) and upgrading the engine through
+   `starter.mjs` (dry run, upgrade, self-test, its own commit) need no extra OK: both are local and reversible. A tool
+   call the host's permission settings refuse is never worked around: say so in one line and go on (2026-11-15).
 7. **Plain writing for everything the user reads** (`docs/checks/writing-standards.md`). Lead with the answer; plain
    words, no filler, no em dashes, easy to scan. Start each block with what it is (Question for you:, Done:,
    Heads-up:, Problem:), in the user's language; any question last. Real work ends with **Finished**: what was

@@ -42,6 +42,10 @@ been opened, and the answer gives a verdict. Any edit after a round makes that r
    keep their last verdict. <!-- Lesson, trial rounds 14 and 15: re-shooting the whole flow every round cost 292 image reads. -->
    A preview server you start yourself listens on 127.0.0.1 only and is stopped before the answer (`--launch` does
    both). <!-- Lesson, trial round 15: a preview server left on all addresses stayed reachable and served stale pages. -->
+5. **Walk the journey** of a new mode, screen or flow once, in the round that ends the review: enter it from the
+   default screen, leave it, switch to each sibling mode and back (progress kept), relaunch (what it opens on), and
+   open it with saved data from before. A shot or a test for each. Then list 5 things a first-time user would try
+   next on the screen and check each. The answer's `Journey:` line names each step's proof, or the step not walked.
 
 ## Ending
 - **PASS:** every touched page has a clean round taken after its last edit, at all four looks, with no WARN (or each

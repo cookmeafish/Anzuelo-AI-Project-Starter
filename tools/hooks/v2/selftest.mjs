@@ -133,6 +133,13 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
     report(!!item && applies(item, v2Only) && met(item, v2Only) === true && met(item, up([])) === false && /node tools\/hooks\/v2\/selftest\.mjs/.test(eng) && /Never the whole\s+`selfcheck\.mjs` in a project/.test(eng),
       'start: the engine runbook\'s upgrade item is met by the v2 self-test alone (an upgrade turn running only it is not held), and its text names the v2 self-test, never the whole selfcheck in a project', item);
   }
+  { // (a new mode, screen or flow names its journey: enter, leave, sibling and back, relaunch, saved data. Lesson (a
+    // project, 2026-11-15): a new mode was built and shot, and the user had to ask how to leave it for its sibling mode)
+    const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+    const item = doneWhen(fs.readFileSync(path.join(repo, 'packs/gui/files/docs/playbooks/gui.md'), 'utf8')).find(i => /journey/i.test(i.text)), t = answer => ({ calls: [], answer });
+    const built = t('Built the new mode with its own screens. Visual review: PASS after 2 rounds'), walked = t('Built the new mode. Journey: enter from home (shot), leave via Back (shot), switch to the other mode and back with progress kept (test), relaunch opens home (shot), saved data from before loads (test).');
+    report(!!item && applies(item, built) && met(item, built) === false && met(item, walked) === true && !applies(item, t('Fixed the button colour.')),
+      'start: the gui runbook asks a new mode, screen or flow for its journey line (enter, leave, sibling and back, relaunch, saved data); a small change is not asked', item); }
   // (a "(when prompt: ...)" item hears only what the user typed: pasted text and relayed messages are someone else's)
   const [dep] = doneWhen('## Done when\n- [ ] Say it was deployed (when prompt: \\bdeploy now\\b) (answer: deployed).\n');
   const heardAs = heard => applies(dep, { heard, calls: [], answer: '' });
@@ -1830,6 +1837,28 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const other = runD('dflt3', [edit, say('Renamed the course title. ✅ done')]);
     report(/asks for a default state/.test(bare) && !/asks for a default state/.test(shown) && !/asks for a default state/.test(other),
       'end: an ask for a default or startup state claimed done needs proof from that state (fresh and existing profile); with it, or for an unrelated claim, nothing is held', JSON.stringify({ bare: bare.slice(0, 300), shown: shown.slice(0, 200), other: other.slice(0, 200) })); }
+  // (a turn the host's usage limit cut passes after its one answer that says so and lists what is undone, or when the
+  // host's own notice ended it; the same work with no limit still holds. Replay (2026-11-15): two sessions were held 3
+  // and 6 rounds at the limit, each a paid turn that could do no work)
+  { const ask = 'the default list and mode selected must be the course', limitRow = { type: 'user', isMeta: true, message: { role: 'user', content: '[Usage limit reached; a short grace allowance remains, then this turn is cut off without warning. ...]' } };
+    const cutAns = 'Your usage limit has been reached, so I\'m stopping here.\n\nDone: the default list and mode now come from the course. ✅ code\n\nStill open: the self-test was not rerun since the last change; CHANGELOG not updated.';
+    const runL = (sid, rows, last) => { onPrompt({ session_id: sid, prompt: ask }); return onStop({ transcript_path: transcript([user(ask), ...rows]), session_id: sid, last_assistant_message: last })?.reason || ''; };
+    const cut = runL('lim1', [edit, limitRow, say(cutAns)], cutAns), hostEnd = runL('lim2', [edit, say('You\'ve hit your limit · resets 8:50am')], 'You\'ve hit your limit · resets 8:50am');
+    const normal = runL('lim3', [edit, say(cutAns.replace(/^.*\n\n/, ''))], cutAns.replace(/^.*\n\n/, '')), saidNoLimit = runL('lim4', [edit, limitRow, say('Done: the default list and mode now come from the course. ✅ code')], 'Done: the default list and mode now come from the course. ✅ code');
+    report(!cut && !hostEnd && !!normal && !!saidNoLimit, 'end: a turn the host\'s usage limit cut passes after one answer that says so and lists what is undone, or when the host\'s notice ended it; the same work with no limit, or an answer that does not say the limit stopped it, still holds', JSON.stringify({ cut: cut.slice(0, 200), hostEnd: hostEnd.slice(0, 200), normal: normal.slice(0, 120), saidNoLimit: saidNoLimit.slice(0, 120) })); }
+  // (an upgrade notice is acted on: the project's own uncommitted work is committed and the upgrade runs, never parked on
+  // the user, both being local and reversible. Replay (a project, 2026-11-15): the reply "needs the user's OK first ... 8
+  // modified files" with no command run holds; a reply after the commit and the upgrade does not)
+  { const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'); put('docs/playbooks/engine.md', fs.readFileSync(path.join(repo, 'docs/playbooks/engine.md'), 'utf8'));
+    const notice = '<cross-session-message from="x" from-name="starter">Engine upgrade available: e4b015f (released as main 0624e8d). Please open the engine runbook and follow it: commit your own work first, then `node .anzuelo/engine/tools/starter.mjs upgrade --dry-run`, then `node .anzuelo/engine/tools/starter.mjs upgrade`, run its self-test, and commit. Then reply with the engine commit and the self-test result.</cross-session-message>';
+    const reply = m => call('SendMessage', { to: 'x', summary: 'engine upgrade', message: m });
+    const runU = (sid, rows) => { onPrompt({ session_id: sid, prompt: notice }); return onStop({ transcript_path: transcript([user(notice), ...rows]), session_id: sid })?.reason || ''; };
+    const parked = runU('upg1', [reply('Not upgrading to e4b015f from this session: it needs the user\'s OK first. The project has 8 modified files not committed.'), say('Replied: the upgrade waits for the user\'s OK.')]);
+    const acted = runU('upg2', [call('Bash', { command: 'git add -A && git commit -qm "Project work before the engine upgrade"' }), call('Bash', { command: 'node .anzuelo/engine/tools/starter.mjs upgrade --dry-run' }), call('Bash', { command: 'node .anzuelo/engine/tools/starter.mjs upgrade' }, 'upgraded'),
+      call('Bash', { command: 'node .anzuelo/engine/tools/hooks/v2/selftest.mjs' }, 'v2 selftest: ALL PASS (443 passed, 0 failed)'), call('Bash', { command: 'git commit -qam "Engine upgrade e4b015f"' }), reply('Upgraded to e4b015f, self-test 443/443.'), say('Upgraded the engine; self-test passed.')]);
+    fs.rmSync(path.join(dir, 'docs/playbooks/engine.md'), { force: true });
+    report(/reply to an upgrade notice/i.test(parked) && !/reply to an upgrade notice/i.test(acted),
+      'end: a reply to an upgrade notice that stopped to ask over the project\'s own uncommitted work holds; one sent after the commit and the upgrade does not', JSON.stringify({ parked: parked.slice(0, 400), acted: acted.slice(0, 300) })); }
   // (a procedure done outside the project's files, a command script in a scratch folder or one instruction sent to 2+
   // sessions, with no runbook asks once if it is a new kind of task; a scratch calculation does not. Lesson (2026-11-15):
   // pausing and reopening every session lived only in a scratchpad and memory)

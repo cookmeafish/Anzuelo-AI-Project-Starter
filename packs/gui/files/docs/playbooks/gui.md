@@ -32,12 +32,19 @@ runbook and the gui-review-loop then prove the result.
    Save a flow worth repeating as `docs/checks/flows/<page>.json`; every later change to that page reruns it
    (`node tools/screenshot.mjs --flows --pages <page>`). Syntax-check the scripts you changed (`node --check <file>`
    for JS, otherwise the project's linter).
+   **A new mode, screen or flow gets its journey walked**, each step with a shot or a test: get in from where a user
+   starts, get out, switch to each sibling mode and back with progress kept, what the app opens on at the next launch,
+   and what a user with saved data from before sees. Then list 5 things a first-time user would try next on the new
+   screen, and check each. <!-- Lesson (a project, 2026-11-15): a new mode was built and shot, but nobody walked the
+   way out to its sibling mode, and the user had to point it out. -->
 5. **Answer** with one line: `Visual review: PASS after N rounds - <what the rounds fixed>`. That line can be the
    only place the rounds appear. Tell the user how to see it (restart the app, or open the file).
 
 ## Done when
 - [ ] Fresh screenshots of the final state, taken after the last edit, all opened and looked at (hook: gui-review-loop).
 - [ ] "Visual review: PASS after N rounds" in one line; tool warnings fixed or explained (hook: gui-review-report, gui-warnings) (answer: Visual review:\**\s*\**[A-Z]+ after [0-9]+ rounds?)
+- [ ] A new mode, screen or flow has its journey in a `Journey:` line, each step with its shot or test (enter, leave,
+      switch to each sibling and back with state kept, relaunch, a user with saved data), or says which was not walked (when answer: \bnew (mode|screen|flow|view|page)\b) (answer: Journey:)
 - [ ] The main flow works when driven, not just when looked at (judgment: which flow is the main one, and that it works, needs a person to drive it).
 - [ ] Every saved flow of a changed page (docs/checks/flows/<page>.json) was rerun in the last round (hook: gui-flows).
 

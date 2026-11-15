@@ -69,12 +69,21 @@ no longer trusts the course content; the engine must stop such misses, and guide
 **Uses / provides:** none.
 - [ ] For an "obvious", "visible" or onboarding ask, the review includes a default-state shot showing the entry point.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: only post-click shots hold once; a default shot meets it.
+- [x] A new mode, screen or flow gets its journey walked (enter, leave, switch to each sibling and back with progress
+      kept, relaunch, a user with saved data), each with a shot or a test, plus "list 5 things a first-time user would
+      try next on this screen, and check each" (gui.md step 4, gui-review-loop step 5).
+- [x] gui.md "Done when": a new mode, screen or flow names its journey in a `Journey:` line, or the step not walked.
+      Selftest: the runbook's item applies to a new-mode answer, is met by a Journey line, skips a small change.
+- [ ] The end check lists the journey steps with no proof, at most five, once (end.mjs is at its size budget: fold
+      first). Replay: the real new-mode turns hold on "leave / switch to sibling" before the user's complaint.
 
 ## Task 4: long requests become checklists with proof
 **Files:** tools/hooks/v2/worklog.mjs, tools/hooks/v2/end.mjs
 **Uses / provides:** hook-text-accuracy item E.
 - [ ] A message with several demands becomes sub-items; the end check lists the sub-items with no proof in the
       answer (a test, a count, a run), at most five.
+- [x] (first part, d1b6590) A work-log ask naming a default or startup state, claimed done, holds once until proof
+      from that state (a fresh and an existing profile) or a plain "not verified from launch" line. Fails on the old code.
 - [ ] A sub-item naming a state (default, on launch, first screen, existing data, when I open) is met only by proof
       from that state, for a fresh and an existing profile. A fix on another path is held once, with the item and its
       condition. A sub-item the answer never mentions is listed.
@@ -87,3 +96,21 @@ no longer trusts the course content; the engine must stop such misses, and guide
 - [ ] Content the user asked to be accurate (cards, facts, guides) is checked by a reviewer that did not write it,
       on a stated random sample, with an error rate reported; errors found widen the audit to the whole set.
 - [ ] Run `node tools/audit.mjs`. Expected: PASS, the section routed from the research and content runbooks.
+
+## Task 6: routine local steps are never parked on the user
+**Files:** AGENTS.md rule 6, docs/playbooks/engine.md
+**Uses / provides:** none. The user's decision, 2026-11-15.
+- [x] Rule 6 and engine.md §1: committing the project's work locally (no push) and the engine upgrade through
+      starter.mjs need no extra OK; pushing, publishing, deleting the user's data and anything outward still do; a
+      tool call the host's permission settings refuse is said in one line, never worked around.
+- [x] engine.md "Done when": a reply to an upgrade notice comes after the commit and the upgrade.
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real "needs the user's OK first ... 8 modified files"
+      reply holds once; a reply after the commit and the upgrade does not.
+
+## Task 7: a turn the host's usage limit cut is not held again and again
+**Files:** tools/hooks/v2/end.mjs
+**Uses / provides:** none.
+- [ ] When the last assistant text is the host's limit notice, or the answer says the limit stopped it and lists what
+      is undone, the end check passes after that one answer. Open items stay in the work log for the resumed session.
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real cut turn passes after its first answer; a normal
+      turn with the same open items still holds.
