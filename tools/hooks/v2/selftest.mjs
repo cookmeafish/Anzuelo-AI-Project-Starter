@@ -509,22 +509,41 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   {
     const tq = path.join(c, 'tq.jsonl'); fs.writeFileSync(tq, [user('fix the label on the builder page')].flat().map(r => JSON.stringify(r)).join('\n') + '\n');
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
-    const ms = (args, input) => { const t0 = performance.now(); spawnSync(process.execPath, args, { cwd: c, encoding: 'utf8', input, env }); return performance.now() - t0; };
+    // (within the limit, or no slower than the release measured in the same rounds by more than noise: 8 ms or 10%)
+    const speedGate = (n, rel, limit) => n < limit || (rel !== null && n - rel <= Math.max(8, 0.1 * rel));
+    const ms = (args, input, at = c) => { const t0 = performance.now(); spawnSync(process.execPath, args, { cwd: at, encoding: 'utf8', input, env: { ...env, ANZUELO_ROOT: at, CLAUDE_PROJECT_DIR: at } }); return performance.now() - t0; };
     // (fastest of 9: one slow sample from the machine does not decide it. Oversight, 2026-11-11: the 75 ms limit stays,
     // measured more carefully; four release chains had tripped on single noisy samples of unchanged code)
-    const best = (args, input) => Math.min(...Array.from({ length: 9 }, () => ms(args, input)));
-    const bare = best(['-e', '']);
-    const prompt = best([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], JSON.stringify({ session_id: 'speedp', transcript_path: tq, prompt: 'fix the label on the builder page' })) - bare;
-    const pretool = best([path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], JSON.stringify({ session_id: 'speedt', transcript_path: tq, tool_name: 'Bash', tool_input: { command: 'git status' } })) - bare;
+    // (in the starter, the last release's hooks are timed in the same rounds, interleaved: a hook over the limit passes when
+    // it is no slower than the release by more than noise, so the machine's drift never blocks a release and a real
+    // slowdown still fails. Oversight, 2026-11-15: unchanged code failed at 81/65 ms on a machine up a day)
+    const relDir = (() => { if (!STARTER_REPO) return null; let rc = ''; try { rc = JSON.parse(fs.readFileSync(path.join(repo, 'tools/hooks/engine-proof.json'), 'utf8')).commit || ''; } catch { } if (!/^[0-9a-f]{7,40}$/.test(rc)) return null;
+      const d = testDir('anzuelo-v2-rel-'), idx = path.join(d, '.idx'), r = spawnSync('git', ['--work-tree', d, 'checkout', rc, '--', 'tools/hooks'], { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_INDEX_FILE: idx } }); fs.rmSync(idx, { force: true });
+      if (r.status !== 0 || !fs.existsSync(path.join(d, 'tools/hooks/hooks.mjs'))) return null; fs.mkdirSync(path.join(d, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(d, '.cache'), { recursive: true });
+      for (const f of ['config.json', 'defaults.json']) try { fs.copyFileSync(path.join(c, 'tools/hooks', f), path.join(d, 'tools/hooks', f)); } catch { } fs.copyFileSync(tq, path.join(d, 'tq.jsonl')); return d; })();
+    const pIn = t => JSON.stringify({ session_id: 'speedp', transcript_path: t, prompt: 'fix the label on the builder page' }), tIn = t => JSON.stringify({ session_id: 'speedt', transcript_path: t, tool_name: 'Bash', tool_input: { command: 'git status' } });
+    const runs = { bare: [], p: [], t: [], rp: [], rt: [] };
+    for (let i = 0; i < 9; i++) { runs.bare.push(ms(['-e', ''])); runs.p.push(ms([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], pIn(tq))); runs.t.push(ms([path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], tIn(tq)));
+      if (relDir) { const rq = path.join(relDir, 'tq.jsonl'); runs.rp.push(ms([path.join(relDir, 'tools/hooks/hooks.mjs'), 'prompt'], pIn(rq), relDir)); runs.rt.push(ms([path.join(relDir, 'tools/hooks/hooks.mjs'), 'pretool'], tIn(rq), relDir)); } }
+    if (relDir) fs.rmSync(relDir, { recursive: true, force: true });
+    // (measured: the same hooks with 30 ms of added work fail against the unchanged ones timed in the same rounds)
+    if (STARTER_REPO) { const s30 = testDir('anzuelo-v2-slow-'); fs.cpSync(path.join(c, 'tools'), path.join(s30, 'tools'), { recursive: true }); fs.mkdirSync(path.join(s30, '.cache'), { recursive: true }); fs.copyFileSync(tq, path.join(s30, 'tq.jsonl'));
+      const hk = path.join(s30, 'tools/hooks/hooks.mjs'); fs.writeFileSync(hk, 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30);\n' + fs.readFileSync(hk, 'utf8'));
+      const sl = [], fa = []; for (let i = 0; i < 5; i++) { fa.push(ms([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], pIn(tq))); sl.push(ms([hk, 'prompt'], pIn(path.join(s30, 'tq.jsonl')), s30)); } fs.rmSync(s30, { recursive: true, force: true });
+      if (speedGate(Math.min(...sl), Math.min(...fa), 0)) report(false, 'speed: hooks 30 ms slower than the release, timed in the same rounds, fail the gate', JSON.stringify({ slow: Math.round(Math.min(...sl)), fast: Math.round(Math.min(...fa)) })); }
+    const mn = a => a.length ? Math.min(...a) : null, bare = mn(runs.bare), prompt = mn(runs.p) - bare, pretool = mn(runs.t) - bare;
+    const relP = runs.rp.length ? mn(runs.rp) - bare : null, relT = runs.rt.length ? mn(runs.rt) - bare : null;
     const u = f => JSON.stringify(new URL(`file:///${path.join(c, f).replace(/\\/g, '/').replace(/^\//, '')}`).href);
     const probe = `const H = await import(${u('tools/hooks/hooks-main.mjs')}), L = await import(${u('tools/hooks/v2/lib.mjs')});
       const before = [H.routeEsBuilt(), L.routeEsBuilt()]; const en = [H.routeEnglish('agrega una página'), L.routeEnglish('agrega una página')];
       console.log(JSON.stringify({ before, en, after: [H.routeEsBuilt(), L.routeEsBuilt()] }));`;
     const lazy = JSON.parse((spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: c, encoding: 'utf8', env }).stdout || '{}').trim().split('\n').pop() || '{}');
-    const sp = { bare: Math.round(bare), prompt: Math.round(prompt), pretool: Math.round(pretool), lazy };
+    const sp = { bare: Math.round(bare), prompt: Math.round(prompt), pretool: Math.round(pretool), release: relP === null ? null : { prompt: Math.round(relP), pretool: Math.round(relT) }, lazy };
+    // (the gate itself, replayed: today's figures equal to the release pass; 30 ms slower than the release fails)
+    if (!(speedGate(81, 81, 75) && speedGate(65, 64, 60) && !speedGate(81, 51, 75) && !speedGate(65, null, 60))) report(false, 'speed: the gate passes a hook equal to the release and fails one 30 ms slower', '');
     // (the time limits are the starter's gate, judged with the machine quiet in its release; a project's hooks are timed by
     // the upgrade's bench against its own budget. Sweep, 2026-11-13: 76-77 ms in projects failed their post-upgrade check)
-    report((!STARTER_REPO || timeVerdict(prompt < Math.max(75, 2.8 * bare) && pretool < Math.max(60, 2.2 * bare), 'speed: prompt and pretool', JSON.stringify(sp))) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
+    report((!STARTER_REPO || timeVerdict(speedGate(prompt, relP, Math.max(75, 2.8 * bare)) && speedGate(pretool, relT, Math.max(60, 2.2 * bare)), 'speed: prompt and pretool', JSON.stringify(sp))) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
       'speed: the prompt and pretool hooks stay within budget over a bare node start (fastest of 9), and the Spanish routing patterns are built on first use, not at load', JSON.stringify(sp));
     // (no hook more than 15% slower than the last released proof's times on this machine: a slowdown under the limit is
     // caught too; the times go into this release's proof. A hook slowed on purpose (a 40 ms wait loaded before it) is
