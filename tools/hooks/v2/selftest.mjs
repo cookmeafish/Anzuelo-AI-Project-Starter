@@ -3543,8 +3543,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // (in this layout's state folder, as the guard sees it: with "stateOutside" the state lives under the home folder,
     // and the guard runs here with the test's home. Lesson (a project with its state outside, 2026-11-15): the record
     // went under the real home, the guard looked under the test's, and the test failed while the guard was right)
-    const real = (await import('../settings.mjs')).abs(`tools/hooks/state/v2-turn.${sidG}.json`), rel = path.relative(os.homedir(), real);
-    const before = run(), f = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? path.join(home, rel) : real;
+    const real = (await import('../settings.mjs')).abs(`tools/hooks/state/v2-turn.${sidG}.json`), rel = path.relative(path.join(os.homedir(), '.anzuelo-state'), real);
+    const before = run(), f = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? path.join(home, '.anzuelo-state', rel) : real; // (only state kept outside moves: a project inside the home folder keeps its own)
     fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ at: new Date().toISOString(), runbook: null }));
     const after = run();
     fs.rmSync(f, { force: true }); fs.rmSync(g, { recursive: true, force: true });
