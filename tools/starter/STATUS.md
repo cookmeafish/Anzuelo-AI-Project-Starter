@@ -124,6 +124,17 @@ Every batch: the pre-chain quick runs; the next batch starts while a chain runs;
 oversight (commit, open count, next batch).
 
 ## Now
+- PAUSED 2026-11-14 20:20 for a Windows restart: app-port at 425c53f (copy-first release scripts), not released; main is
+  8de3c1f (release eabdb68, pushed). Working tree clean, nothing half-edited.
+  - Chain on 425c53f: chain A FAILED in the v2 self-test before the stop. Release test case 5 ("a working-checkout edit
+    does not reach the running chain") failed in the frozen copy (rel-425c53f) though it passes in the working
+    checkout: the dry run's output ended in "}" without the expected result. Not yet diagnosed. Chain B never started.
+  - Exact next step: in ~/.anzuelo-frozen/rel-425c53f run `bash tools/starter/release/push-release-check.sh` and print
+    `$ran` and `$ctl` from case 5. Suspects: `git show` writes CRLF or fails there and falls back to the working copy;
+    the STOP file. Fix with a test that fails first, then `bash tools/starter/release/two-chains.sh <new commit>` on the
+    freshly restarted machine (it doubles as the leak soak's clean baseline), then push-release.sh.
+  - After that: quiet-screen Task 3's remaining boxes (docs/plans/2026-11-13-quiet-screen.md), then the queued
+    requirement gaps in the Queue above.
 - 2026-11-12 (afternoon): app-port at 26b902d, not released. Order set by oversight: (1) docs/plans/2026-11-12-no-leaks.md
   (Tasks 2-6, then a 4-chain soak on a freshly restarted machine; nobody says fixed before it), (2) the release,
   (3) docs/plans/2026-11-12-evidence-model.md (plus oversight's queued real-turn cases: per-session notes, a quiet
