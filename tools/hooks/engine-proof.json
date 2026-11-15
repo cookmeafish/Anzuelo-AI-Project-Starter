@@ -1,70 +1,70 @@
 {
   "_comment": "Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on, and the commit they tested when the files were exactly that commit. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs); the starter is pushed only for that commit (git-guard.mjs pre-push). Do not edit.",
-  "engine": "f5a4270905fc4da0a8eceea7",
-  "tests": 1740,
-  "commit": "dd94e584457f2d04339bf7ad634bfe36962b83ac",
+  "engine": "ee7d9e251364331572f6974f",
+  "tests": 1741,
+  "commit": "ae1f0408c75bb548121664455832a2f6a7132cf9",
   "speed": {
     "stop": true,
     "v2": true,
     "times": {
       "machine": "01028dd2d966",
-      "prompt": 117,
-      "pretool": 102
+      "prompt": 131,
+      "pretool": 104
     }
   },
   "leaks": {
     "chainA": {
       "pagedMB": [
-        3108,
-        3206
+        3384,
+        3322
       ],
       "nonpagedMB": [
-        2518,
-        2574
+        2756,
+        2780
       ],
       "machineTemp": [
-        11951,
-        11989
+        12104,
+        12135
       ],
       "fileLive": [
-        1401511,
-        1492398
+        1746371,
+        1832758
       ]
     },
     "beforeCleanup": {
       "pagedMB": [
-        3108,
-        3281
+        3384,
+        3350
       ],
       "nonpagedMB": [
-        2518,
-        2625
+        2756,
+        2820
       ],
       "machineTemp": [
-        11951,
-        12008
+        12104,
+        12135
       ],
       "fileLive": [
-        1401511,
-        1570042
+        1746371,
+        1905922
       ]
     },
     "afterCleanup": {
       "pagedMB": [
-        3108,
-        3276
+        3384,
+        3346
       ],
       "nonpagedMB": [
-        2518,
-        2622
+        2756,
+        2817
       ],
       "machineTemp": [
-        11951,
-        12008
+        12104,
+        12135
       ],
       "fileLive": [
-        1401511,
-        1567604
+        1746371,
+        1905248
       ]
     }
   }
