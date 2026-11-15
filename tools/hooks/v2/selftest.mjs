@@ -4592,6 +4592,16 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     // (judged by the paged line alone: inside a release chain this suite is itself a test process still running, which fails both runs. Lesson (the chain on cca8aee))
     report(full.status === 1 && /kernel pool \(paged\)/.test(full.stdout) && !/kernel pool \(paged\)/.test(skip.stdout) && /judged after cleanup/.test(skip.stdout) && rec.commit === 'x' && rec.leaks?.chainA?.pagedMB?.[0] === 1,
       'leaks: --skip-paged reports the paged pool without judging it, and --record keeps both readings in the proof', JSON.stringify({ full: [full.status, full.stdout.slice(0, 120)], skip: [skip.status, skip.stdout.slice(0, 120)], rec: rec.leaks })); }
+  if (STARTER_REPO && process.platform === 'win32') { // (a release runs with its own temp folder: the leak check judges that folder, reports the machine's only, and stop-tests reaches it. Oversight, 2026-11-15: other projects' files in the machine's temp folder failed a chain whose tests all passed)
+    const lk = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'leaks.mjs'), tt = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'testtmp.mjs');
+    const d = testDir('owntemp-'), own = path.join(d, 'own'), sys = path.join(d, 'sys'), home = path.join(d, 'home'), b = path.join(d, 'b.json'); for (const x of [own, sys, path.join(home, '.anzuelo-frozen', 'tmp-abc')]) fs.mkdirSync(x, { recursive: true });
+    const env = { ...process.env, TEMP: own, TMP: own, ANZUELO_SYSTEM_TEMP: sys }, run = (...a) => spawnSync(process.execPath, [lk, ...a], { encoding: 'utf8', env }).stdout || '';
+    run('--save', b); for (let i = 0; i < 40; i++) fs.writeFileSync(path.join(sys, `other-${i}`), ''); const stray = run('--compare', b);
+    for (let i = 0; i < 40; i++) fs.mkdirSync(path.join(own, `ours-${i}`)); const ours = run('--compare', b);
+    spawnSync(process.execPath, ['--input-type=module', '-e', `const t = await import(${JSON.stringify(new URL(`file:///${tt.replace(/\\/g, '/')}`).href)}); t.requestStop();`], { env: { ...process.env, TEMP: own, TMP: own, USERPROFILE: home, HOME: home } });
+    const stopped = fs.existsSync(path.join(home, '.anzuelo-frozen', 'tmp-abc', 'anzuelo-tests', 'STOP')); fs.rmSync(d, { recursive: true, force: true });
+    report(!/^- temp:/m.test(stray) && /machine temp folder: 0 -> 40 entries \(reported only/.test(stray) && /^- temp: \d+ -> \d+/m.test(ours) && stopped,
+      'leaks: with its own temp folder a release judges only that folder (a stray file in the machine\'s is reported, not judged; its own leftover is caught), and stop-tests reaches it', JSON.stringify({ stray: stray.slice(0, 300), ours: ours.slice(0, 300), stopped })); }
   if (STARTER_REPO) { // (the starter's leak check and trial cleanup)
   const { compare, BUDGET } = await import('../../starter/leaks.mjs');
   const base = { temp: 100, tests: 0, cache: 50, nodeCacheAt: { v: 1 }, transcripts: 714, frozen: 3, processes: 0, pagedMB: 500 };

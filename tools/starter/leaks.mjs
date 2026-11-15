@@ -27,8 +27,12 @@ export function snapshot() {
     cache: ls(cc).reduce((n, v) => n + ls(path.join(cc, v)).length, 0),
     // (Node's default cache is only stat'ed: listing millions of files would itself take minutes)
     nodeCacheAt: Object.fromEntries(ls(nc).map(v => [v, mtime(path.join(nc, v))])),
-    transcripts: ls(path.join(HOME, '.claude', 'projects')).filter(n => /AppData-Local-Temp/i.test(n)).length,
+    // (a release runs with its own TEMP under ~/.anzuelo-frozen/tmp-<key>: its test transcripts are named after that path too)
+    transcripts: ls(path.join(HOME, '.claude', 'projects')).filter(n => /AppData-Local-Temp|anzuelo-frozen-tmp-/i.test(n)).length,
     frozen: ls(path.join(HOME, '.anzuelo-frozen')).length,
+    // (the machine's own temp folder, when a release redirected TEMP: reported only, never judged, since other programs
+    // and other projects' sessions write there too. Oversight, 2026-11-15)
+    systemTemp: process.env.ANZUELO_SYSTEM_TEMP ? ls(process.env.ANZUELO_SYSTEM_TEMP).length : null,
     processes: 0, pagedMB: null, nonpagedMB: null,
   };
   if (process.platform === 'win32') {
@@ -60,7 +64,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const skip = process.argv.includes('--skip-paged'), r = process.argv.indexOf('--record');
     const before = JSON.parse(fs.readFileSync(process.argv[j + 1], 'utf8')), after = snapshot(), bad = compare(before, after, skip ? { ...BUDGET, pagedMB: Infinity } : BUDGET);
     if (before.pagedMB != null && after.pagedMB != null) console.log(`paged: ${before.pagedMB} -> ${after.pagedMB} MB${skip ? ' (judged after cleanup)' : ''}`);
-    if (r > 0 && process.argv[r + 2]) { const f = process.argv[r + 1]; let p = {}; try { p = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { } p.leaks = { ...(p.leaks || {}), [process.argv[r + 2]]: { pagedMB: [before.pagedMB, after.pagedMB], nonpagedMB: [before.nonpagedMB, after.nonpagedMB] } }; fs.writeFileSync(f, JSON.stringify(p, null, 2) + '\n'); }
+    if (before.systemTemp != null && after.systemTemp != null) console.log(`machine temp folder: ${before.systemTemp} -> ${after.systemTemp} entries (reported only: other programs write there too)`);
+    if (r > 0 && process.argv[r + 2]) { const f = process.argv[r + 1]; let p = {}; try { p = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { } p.leaks = { ...(p.leaks || {}), [process.argv[r + 2]]: { pagedMB: [before.pagedMB, after.pagedMB], nonpagedMB: [before.nonpagedMB, after.nonpagedMB], ...(before.systemTemp != null ? { machineTemp: [before.systemTemp, after.systemTemp] } : {}) } }; fs.writeFileSync(f, JSON.stringify(p, null, 2) + '\n'); }
     console.log(bad.length ? `LEAKS:\n${bad.map(l => `- ${l}`).join('\n')}` : 'leaks: none past the budget');
     process.exit(bad.length ? 1 : 0);
   } else { console.error('usage: node tools/starter/leaks.mjs --save <file> | --compare <file>'); process.exit(2); }

@@ -25,9 +25,15 @@ fi
 unset ANZUELO_RELEASE_REPO ANZUELO_RELEASE_WORK
 # (a dry run names the chain script it would run and what its steps inherit, for the release test)
 if [ -n "${ANZUELO_RELEASE_DRY:-}" ]; then cat "$HERE/frozen-chain.sh"; echo "steps see: $(env | grep -c '^ANZUELO_RELEASE_\(REPO\|WORK\)=')"; exit 0; fi
+# (the release runs with its own temp folder, and the leak check judges that folder (and Node's default compile cache,
+# which lives in it): other projects' sessions write to the machine's temp folder while a release runs, and their files
+# failed a chain whose own tests had all passed. The machine's folder is still read, reported only. Oversight, 2026-11-15)
+TT="$HOME/.anzuelo-frozen/tmp-$KEY"; rm -rf "$TT"; mkdir -p "$TT"
+export ANZUELO_SYSTEM_TEMP="$(cygpath -w "${TEMP:-/tmp}" 2>/dev/null || echo "${TEMP:-/tmp}")"
+TW="$(cygpath -w "$TT" 2>/dev/null || echo "$TT")"; export TEMP="$TW" TMP="$TW" TMPDIR="$TT"
 pool() { powershell.exe -NoProfile -Command '$m = Get-CimInstance Win32_PerfRawData_PerfOS_Memory; $n = [System.IO.Directory]::EnumerateFileSystemEntries($env:TEMP) | Measure-Object | Select-Object -ExpandProperty Count; $r = if (Test-Path "$env:TEMP\anzuelo-tests") { (Get-ChildItem -Force "$env:TEMP\anzuelo-tests" | Measure-Object).Count } else { 0 }; "{0} paged {1} MB nonpaged {2} MB temp {3} root {4}" -f (Get-Date -Format HH:mm:ss), [math]::Round($m.PoolPagedBytes/1MB), [math]::Round($m.PoolNonpagedBytes/1MB), $n, $r' 2>/dev/null | tr -d '\r'; }
 # (no leaks: chain B's copy goes on any exit, passed, failed or stopped; only the newest 3 frozen copies stay)
-trap 'git -C "$REPO" worktree remove --force "$HOME/.anzuelo-frozen/rel-$KEY-r2" 2>/dev/null; git -C "$REPO" worktree prune' EXIT
+trap 'git -C "$REPO" worktree remove --force "$HOME/.anzuelo-frozen/rel-$KEY-r2" 2>/dev/null; git -C "$REPO" worktree prune; rm -rf "$TT"' EXIT
 for old in $(ls -dt "$HOME"/.anzuelo-frozen/rel-* 2>/dev/null | tail -n +4); do git -C "$REPO" worktree remove --force "$old" 2>/dev/null || rm -rf "$old"; done; git -C "$REPO" worktree prune
 echo "before A: $(pool)" >> "$OUT"
 # (the pool every 5 minutes into the same log while the chains run, so each step's share shows without separate runs)

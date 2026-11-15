@@ -21,7 +21,7 @@ const hook = () => {
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) try { process.once(sig, () => { cleanMade(); process.exit(130); }); } catch { }
 };
 // Cooperative stop ("starter.mjs stop-tests" writes <root>/STOP): runs started before it exit within a second.
-export const STOP_FILE = path.join(TEST_ROOT, 'STOP'), requestStop = () => { fs.mkdirSync(TEST_ROOT, { recursive: true }); fs.writeFileSync(STOP_FILE, `${new Date().toISOString()}\n`); return STOP_FILE; };
+export const STOP_FILE = path.join(TEST_ROOT, 'STOP'), requestStop = () => { const at = `${new Date().toISOString()}\n`, fz = path.join(os.homedir(), '.anzuelo-frozen'); fs.mkdirSync(TEST_ROOT, { recursive: true }); fs.writeFileSync(STOP_FILE, at); for (const d of (() => { try { return fs.readdirSync(fz).filter(n => /^tmp-/.test(n)); } catch { return []; } })()) try { fs.mkdirSync(path.join(fz, d, 'anzuelo-tests'), { recursive: true }); fs.writeFileSync(path.join(fz, d, 'anzuelo-tests', 'STOP'), at); } catch { } return STOP_FILE; }; // (and into each release's own temp folder, ~/.anzuelo-frozen/tmp-*: a release runs with its own TEMP)
 const STARTED = Date.now(); let stopSeen = 0; export const watchStop = () => { const t = setInterval(stopIfAsked, 1000); t.unref?.(); return t; };
 export function stopIfAsked() { const t = Date.now(); if (t - stopSeen < 500) return; stopSeen = t; let m = 0; try { m = fs.statSync(STOP_FILE).mtimeMs; } catch { return; }
   if (m >= STARTED - 1000) { try { process.stderr.write(`stopped: ${STOP_FILE}\n`); } catch { } cleanMade(); process.exit(3); } }
