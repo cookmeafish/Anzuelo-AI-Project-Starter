@@ -76,6 +76,12 @@ never get this file.
   for `[hooks` errors and `CRASHED` each round.
 - An upgrade run while the project's session works there rolls back under its load and can't put back files the
   session is writing.
+- A project session's question to the user is checked against the user's own earlier messages before it is relayed.
+  When the user already asked for that thing in plain words, their words are the approval, even when it conflicts
+  with one of the project's own rules (adjust the rule with its safety limits written in). Send the words to the
+  session as the answer, and never pass the question back to the user. Routine local commits and engine upgrades
+  fall under the user's standing OK. Ask only about pushes, purchases, deletions of their data, or a truly ambiguous
+  ask (2026-11-15: a relayed question about a feature the user had already demanded twice made them upset).
 - A test that fails only in one project usually traces to what that project lacks (a skill the upgrade never
   installed, a list that only fits the starter): compare the project with the starter before blaming the code.
 

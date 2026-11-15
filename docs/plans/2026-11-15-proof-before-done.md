@@ -33,6 +33,10 @@ no longer trusts the course content; the engine must stop such misses, and guide
    launch, first screen, existing data), and the proof came from a state the user never starts in. A sweep of the same
    answer found two more asks with no matching proof (one never mentioned, one dismissed without a measurement).
    Covered by Tasks 3 and 4: the proof must come from the ask's own state, for a fresh and an existing profile.
+8. A session ended on "should I build X? (it lifts a project rule)" although the user had asked for X twice, and
+   oversight relayed the question instead of the user's words. Root cause: neither the end check nor the watch
+   runbook compared a closing question with the user's open asks. Fix: the closing-question hold (quiet-screen plan)
+   and the project-watch Pitfall.
 
 ## Constraints for every task
 - One held line per missing proof, at most. No new interruption during work.
