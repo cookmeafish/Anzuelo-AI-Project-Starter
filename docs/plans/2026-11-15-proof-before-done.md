@@ -27,6 +27,31 @@ no longer trusts the course content; the engine must stop such misses, and guide
    an independent sample audit with an error rate. The user now doubts all of it.
 5. A new standing rule got a paragraph and no enforcement (already in quiet-screen as its own box).
 6. The routing reminders named wrong runbooks and paths (hook-text-accuracy plan, item A, committed).
+7. An ask about the default state ("the default selected must be X") shipped as a fix on a click path ("starting the
+   course switches to X"), was marked done in the answer's table, and passed the end check; the user opened the app
+   and met the old default. Root cause: a done claim is never compared with the ask's own condition (default, on
+   launch, first screen, existing data), and the proof came from a state the user never starts in. A sweep of the same
+   answer found two more asks with no matching proof (one never mentioned, one dismissed without a measurement).
+   Covered by Tasks 3 and 4: the proof must come from the ask's own state, for a fresh and an existing profile.
+8. A session ended on "should I build X? (it lifts a project rule)" although the user had asked for X twice, and
+   oversight relayed the question instead of the user's words. Root cause: neither the end check nor the watch
+   runbook compared a closing question with the user's open asks. Fix: the closing-question hold (quiet-screen plan)
+   and the project-watch Pitfall.
+9. New additions shipped without the obvious paths a user takes (no way out of a new mode, the default never
+   changed, saved data never tried). The user was disappointed that nothing brought an outside view, and asked for
+   one always. Root cause: reviews judged the work against the agent's own description, never against independent
+   users' angles, and oversight only reacted. Fix: Task 6.
+
+## Task 6: a third perspective on every new addition (coding session, standing rule, 2026-11-15)
+**Files:** skills/plan/SKILL.md, docs/playbooks/gui.md, the gui-review-loop skill, tools/hooks/v2/lib.mjs, AGENTS.md
+**Uses / provides:** Task 3.
+- [ ] Before building a new addition, the plan step runs independent angle agents in parallel (first-time user, saved
+      data, phone, keyboard, what can go wrong, power user; 3 for small, 6 for a new mode or flow) and merges a
+      "User journey" section. After building, a fresh agent walks the app against every item.
+- [ ] The rule is in AGENTS/CLAUDE with its date and a user-requirements row. The end check holds once on a new addition
+      without the section (3+ angles) and a walk report. Bug fixes are exempt.
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: today's new-mode turn holds; with the section and walk it
+      passes; a bug fix passes; ALL PASS.
 
 ## Constraints for every task
 - One held line per missing proof, at most. No new interruption during work.
@@ -65,7 +90,11 @@ no longer trusts the course content; the engine must stop such misses, and guide
 **Uses / provides:** hook-text-accuracy item E.
 - [ ] A message with several demands becomes sub-items; the end check lists the sub-items with no proof in the
       answer (a test, a count, a run), at most five.
-- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real 8-demand message gives 8 sub-items; ALL PASS.
+- [ ] A sub-item naming a state (default, on launch, first screen, existing data, when I open) is met only by proof
+      from that state, for a fresh and an existing profile. A fix on another path is held once, with the item and its
+      condition. A sub-item the answer never mentions is listed.
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: the real 8-demand message gives 8 sub-items; the real
+      default-state ask with its click-path answer holds once; a launch-state screenshot meets it; ALL PASS.
 
 ## Task 5: independent accuracy audit for content
 **Files:** docs/playbooks/ (a content-accuracy section), skills/research/SKILL.md

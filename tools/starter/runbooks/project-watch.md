@@ -20,6 +20,12 @@ never get this file.
    - Its self-test: the last full run (`.cache/selfcheck-last.txt`); run it again only when nothing else is running.
    - What the user met: upset messages and false alarms in `tools/hooks/state/triggers.jsonl`, hook errors and blocked
      turns in its newest session transcripts.
+1b. **Every new addition in a project gets a third perspective, unasked** (user, 2026-11-15: always). When a
+   session starts a new mode, screen, flow, setting or integration, the watcher doesn't wait for the user to find
+   the gaps. The same round, it checks that the session ran its user-journey angle agents before building. If it
+   didn't, the watcher runs its own independent pass (a fresh sub-agent given only the request and the screens, from
+   the angles: first-time user, saved data, phone, keyboard, what can go wrong, daily power user) and sends the merged
+   gaps to the session before it calls the work done.
 2. **Each problem gets a confirmed cause** from that evidence (the field-report runbook, steps 2 to 4): the engine's
    are fixed here with a self-test that fails without the fix; one in the project's own files goes to its session
    as what to change, never edited from here.
@@ -76,6 +82,12 @@ never get this file.
   for `[hooks` errors and `CRASHED` each round.
 - An upgrade run while the project's session works there rolls back under its load and can't put back files the
   session is writing.
+- A project session's question to the user is checked against the user's own earlier messages before it is relayed.
+  When the user already asked for that thing in plain words, their words are the approval, even when it conflicts
+  with one of the project's own rules (adjust the rule with its safety limits written in). Send the words to the
+  session as the answer, and never pass the question back to the user. Routine local commits and engine upgrades
+  fall under the user's standing OK. Ask only about pushes, purchases, deletions of their data, or a truly ambiguous
+  ask (2026-11-15: a relayed question about a feature the user had already demanded twice made them upset).
 - A test that fails only in one project usually traces to what that project lacks (a skill the upgrade never
   installed, a list that only fits the starter): compare the project with the starter before blaming the code.
 
