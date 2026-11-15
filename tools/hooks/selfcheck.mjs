@@ -9690,6 +9690,27 @@ if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
   report(known.status === 0 && known.kept && !known.named && unknown.named,
     'upgrade: a file the project edited is not asked about again when the starter has not changed it since the project\'s engine; an engine of unknown origin still names it', JSON.stringify({ known, unknown }));
 }
+if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
+  // (a pack's engine file the project changed, tools/screenshot.mjs of the gui pack, is kept on upgrade and named in the dry
+  // run and the review; an untouched one is refreshed. Lesson (two projects, 2026-11-15): an upgrade overwrote the
+  // screenshot tool and dropped a key-press step the project had added, and the dry run said only "would update tools/ 10")
+  const dir = copyProject(), g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: dir, encoding: 'utf8' });
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    const shot = path.join(dir, 'tools/screenshot.mjs'), vr = path.join(dir, 'docs/checks/visual-review.md'), hasGui = fs.existsSync(shot);
+    // (the review checklist set to an older version the starter shipped: as shipped, so it must be refreshed)
+    const vrRel = 'packs/gui/files/docs/checks/visual-review.md', cur = fs.readFileSync(path.join(ROOT, vrRel), 'utf8').replace(/\r\n/g, '\n');
+    const older = (spawnSync('git', ['log', '--format=%H', '--', vrRel], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean).map(c => spawnSync('git', ['show', `${c}:${vrRel}`], { cwd: ROOT, encoding: 'utf8' }).stdout || '').find(t => t && t.replace(/\r\n/g, '\n') !== cur) || cur;
+    if (hasGui) { fs.appendFileSync(shot, '\n// our own step: a real key press for the keyboard test\n'); fs.writeFileSync(vr, older); }
+    g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'project');
+    const dryOut = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--dry-run', '--no-selftest'], { encoding: 'utf8', timeout: 600000 }).stdout || '';
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--no-selftest'], { encoding: 'utf8', timeout: 600000 });
+    const kept = hasGui && /our own step: a real key press/.test(fs.readFileSync(shot, 'utf8'));
+    const refreshed = hasGui && fs.readFileSync(vr, 'utf8').replace(/\r\n/g, '\n') === cur;
+    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed,
+      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed', JSON.stringify({ status: r.status, hasGui, kept, refreshed, dry: dryOut.split('\n').filter(l => /screenshot|visual-review/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('upgrade-clean'))) {
   // REQ: upgrade-clean. An upgrade over uncommitted project work stops before changing anything; --allow-dirty goes on
   // and ends with the engine's files to commit apart. Lesson (a project, 2026-11-12): engine files mixed with a day's work

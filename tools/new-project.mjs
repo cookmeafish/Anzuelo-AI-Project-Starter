@@ -528,7 +528,15 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     if (!pc.packs.includes(pack)) continue;
     const root = path.join(STARTER, 'packs', pack, 'files');
     const walk = d => fs.statSync(path.join(root, d)).isDirectory() ? fs.readdirSync(path.join(root, d)).flatMap(n => walk(`${d.replace(/\/$/, '')}/${n}`)) : [d];
-    for (const f of list.filter(f => fs.existsSync(path.join(root, f))).flatMap(walk)) put(`packs/${pack}/files/${f}`, { overwrite: true, as: f });
+    // (refreshed only while the project's copy is one the starter shipped: one the project changed is kept, named in the
+    // dry run and the upgrade review. Lesson (two projects, 2026-11-15): an upgrade overwrote tools/screenshot.mjs and
+    // dropped a key-press step the project had added; the dry run said only "would update tools/ 10")
+    for (const f of list.filter(f => fs.existsSync(path.join(root, f))).flatMap(walk)) {
+      const rel = `packs/${pack}/files/${f}`, to = path.join(dest, f), lfx = t => String(t).replace(/\r\n/g, '\n');
+      const mine = fs.existsSync(to) ? lfx(fs.readFileSync(to, 'utf8')) : null;
+      if (mine !== null && mine !== lfx(fs.readFileSync(path.join(STARTER, rel), 'utf8')) && !shippedTexts(rel).some(t => lfx(t) === mine)) { editedPayload.push([f, rel]); log.push(`kept     ${f} (changed by this project; the starter's newer version is in the upgrade review)`); continue; }
+      put(rel, { overwrite: true, as: f });
+    }
   }
   // The rest of each installed pack's files and of each enabled library skill: the installer copies them as they are,
   // so one still equal to a version the starter shipped was never edited here and is refreshed (a skill or runbook keeps
