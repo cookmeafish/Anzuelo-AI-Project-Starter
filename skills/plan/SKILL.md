@@ -61,8 +61,9 @@ List the files to create or change, each with a one-line job. Most structural mi
   any stored data that changes shape (a migration). These are the edits most often forgotten.
 - Respect what the project already does and `docs/checks/layout-standards.md`. Don't restructure in passing. When a
   file you must touch has become hard to work in, splitting it is a separate, named task.
-- **A new feature** (screen, mode, flow, setting or integration; not a bug fix) gets its `## User journey` section
-  here, before the tasks. Run fresh sub-agents in parallel (parallel-agents skill), none shown the code or each other,
+- **Every new addition** (screen, mode, flow, setting or integration; not a bug fix) gets its `## User journey`
+  section here, before the tasks, by default and unasked: a third perspective so it comes out complete. Think past
+  the request: what would make it feel finished to the person using it? Run fresh sub-agents in parallel (parallel-agents skill), none shown the code or each other,
   each given the request, the brief, the current screens and one angle: (a) a first-time user; (b) a returning user
   with real saved data and old versions of it; (c) a phone/touch user; (d) a keyboard/accessibility user; (e) what can
   go wrong: errors, empty states, offline, slow, a missing provider, a mistaken click, undo, cost; (f) a power user
