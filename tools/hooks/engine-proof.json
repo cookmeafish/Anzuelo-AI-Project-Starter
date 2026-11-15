@@ -1,58 +1,70 @@
 {
   "_comment": "Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on, and the commit they tested when the files were exactly that commit. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs); the starter is pushed only for that commit (git-guard.mjs pre-push). Do not edit.",
-  "engine": "141fdb9533a44e4f1668840c",
-  "tests": 1739,
-  "commit": "e4b015ffaf884a0ece05b4ee7e9c35d431baa64b",
+  "engine": "f5a4270905fc4da0a8eceea7",
+  "tests": 1740,
+  "commit": "dd94e584457f2d04339bf7ad634bfe36962b83ac",
   "speed": {
     "stop": true,
     "v2": true,
     "times": {
       "machine": "01028dd2d966",
-      "prompt": 124,
-      "pretool": 108
+      "prompt": 117,
+      "pretool": 102
     }
   },
   "leaks": {
     "chainA": {
       "pagedMB": [
-        2679,
-        2832
+        3108,
+        3206
       ],
       "nonpagedMB": [
-        2052,
-        2161
+        2518,
+        2574
       ],
       "machineTemp": [
-        11882,
-        11884
+        11951,
+        11989
+      ],
+      "fileLive": [
+        1401511,
+        1492398
       ]
     },
     "beforeCleanup": {
       "pagedMB": [
-        2679,
-        2888
+        3108,
+        3281
       ],
       "nonpagedMB": [
-        2052,
-        2213
+        2518,
+        2625
       ],
       "machineTemp": [
-        11882,
-        11885
+        11951,
+        12008
+      ],
+      "fileLive": [
+        1401511,
+        1570042
       ]
     },
     "afterCleanup": {
       "pagedMB": [
-        2679,
-        2872
+        3108,
+        3276
       ],
       "nonpagedMB": [
-        2052,
-        2206
+        2518,
+        2622
       ],
       "machineTemp": [
-        11882,
-        11885
+        11951,
+        12008
+      ],
+      "fileLive": [
+        1401511,
+        1567604
       ]
     }
   }
