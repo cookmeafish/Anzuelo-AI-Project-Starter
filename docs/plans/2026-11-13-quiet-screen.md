@@ -102,6 +102,10 @@ What the user saw in that hour, and why:
       scheduled repeat): a repeating scheduled round that quoted the user's past "make sure" and "always" got the
       rule-request reminder and the full checklist (2026-11-15). Test: the same prompt with quoted rule words, sent
       twice, gets no rule request either time; a fresh "from now on, always X" is flagged.
+- [ ] A path the answer names is checked against the project roots named in the same sentence or paragraph, the roots of
+      sessions that messaged this turn, and the starter's pack sources, before "does not exist" (2026-11-15: an answer
+      about another project's tools/screenshot.mjs was held, though the file exists there). Test: that answer passes; a
+      made-up path still flags.
 - [ ] An armed watcher the answer says it is waiting on is waiting, not missing: no "a watcher you started is still
       armed" hold when the answer names what it waits for (a session held 3 rounds while legitimately waiting on a
       one-minute startup check, 2026-11-15). Test: a turn that arms a watcher and says it waits on it ends with no
