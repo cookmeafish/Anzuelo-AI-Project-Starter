@@ -1783,12 +1783,13 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const lay = { split: true, ENGINE: E, PROJECT: p0, LOCAL: L }, where = resolver(lay).where;
     const out = enginePaths('Run node tools/audit.mjs, node skills/modular-code/scripts/modularity.mjs, node tools/own.mjs and node tools/gone.mjs.', lay, where);
     const plain = enginePaths('Run node tools/audit.mjs.', { split: false, ENGINE: E, PROJECT: p0 }); fs.rmSync(p0, { recursive: true, force: true });
-    // (the sweep: every command the engine's check texts name ships in the starter, as an engine file, a library skill or a pack file)
-    const texts = ['tools/hooks/engine-checks.json', 'tools/hooks/base-checks.mjs', ...fs.readdirSync(path.join(eng, 'tools/hooks/v2')).filter(f => /\.mjs$/.test(f) && f !== 'selftest.mjs').map(f => `tools/hooks/v2/${f}`)];
-    const packs = fs.readdirSync(path.join(eng, 'packs')).filter(d => fs.existsSync(path.join(eng, 'packs', d, 'files')));
-    const ships = n => fs.existsSync(path.join(eng, n)) || fs.existsSync(path.join(eng, 'library', n)) || packs.some(d => fs.existsSync(path.join(eng, 'packs', d, 'files', n)));
-    const named = [...new Set(texts.flatMap(f => [...fs.readFileSync(path.join(eng, f), 'utf8').matchAll(/\bnode\s+((?:tools|skills)\/[\w./-]+\.m?js)\b/g)].map(m => m[1])))], gone = named.filter(n => !ships(n));
-    report(out === 'Run node .anzuelo/engine/tools/audit.mjs, node .anzuelo/local/skills/modular-code/scripts/modularity.mjs, node tools/own.mjs and node tools/gone.mjs.' && plain === 'Run node tools/audit.mjs.' && named.length > 5 && !gone.length,
+    // (the sweep, in the starter only, where the library and packs live: every command the engine's check texts name
+    // ships, as an engine file, a library skill or a pack file. Lesson (the trial on 188689e): in a project it found no packs)
+    let named = [], gone = []; if (STARTER_REPO) { const texts = ['tools/hooks/engine-checks.json', 'tools/hooks/base-checks.mjs', ...fs.readdirSync(path.join(eng, 'tools/hooks/v2')).filter(f => /\.mjs$/.test(f) && f !== 'selftest.mjs').map(f => `tools/hooks/v2/${f}`)];
+      const packs = fs.readdirSync(path.join(eng, 'packs')).filter(d => fs.existsSync(path.join(eng, 'packs', d, 'files')));
+      const ships = n => fs.existsSync(path.join(eng, n)) || fs.existsSync(path.join(eng, 'library', n)) || packs.some(d => fs.existsSync(path.join(eng, 'packs', d, 'files', n)));
+      named = [...new Set(texts.flatMap(f => [...fs.readFileSync(path.join(eng, f), 'utf8').matchAll(/\bnode\s+((?:tools|skills)\/[\w./-]+\.m?js)\b/g)].map(m => m[1])))]; gone = named.filter(n => !ships(n)); }
+    report(out === 'Run node .anzuelo/engine/tools/audit.mjs, node .anzuelo/local/skills/modular-code/scripts/modularity.mjs, node tools/own.mjs and node tools/gone.mjs.' && plain === 'Run node tools/audit.mjs.' && (!STARTER_REPO || named.length > 5) && !gone.length,
       'end: with the engine in .anzuelo/engine, a command an item names runs from where the layout keeps it (local copy, enabled pack or library skill, engine) when the project root has none; every command the check texts name ships in the starter', JSON.stringify({ out, plain, named: named.length, gone })); }
   // (a procedure done outside the project's files, a command script in a scratch folder or one instruction sent to 2+
   // sessions, with no runbook asks once if it is a new kind of task; a scratch calculation does not. Lesson (2026-11-15):
