@@ -467,12 +467,34 @@ function transcript(dir, s, since) {
 }
 
 // The host is a fixture choice too: the hooks never see the real session's host variables unless a test sets them.
+// (opt-in until a measured win: a full run with workers left about as many kernel File objects as one with real starts
+// (+18,515 against 17-18k), since most starts are the hooks' own git calls and the scenarios' setup. ANZUELO_HOOK_WORKERS=1)
+const HOOKRUN = IS_STARTER && process.env.ANZUELO_HOOK_WORKERS === '1' && !process.env.ANZUELO_REAL_START && fs.existsSync(path.join(ROOT, 'tools/starter/hookrun.mjs')) ? await import(pathToFileURL(path.join(ROOT, 'tools/starter/hookrun.mjs')).href) : null;
+const HOOK_SEEN = {}, HOOK_CMP = []; let HOOK_ALL = 0;
 function run(dir, cmd, input, host = {}) {
   // (the audit runs itself at Stop in real use; fixtures keep it off unless a test turns it on: host STARTER_NO_SELF_AUDIT '')
   const env = { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest'), STARTER_NO_SELF_AUDIT: '1', STARTER_NO_SMALL: '1' };
   delete env.CLAUDE_PROJECT_DIR;
   // (fixtures run as an agent that isn't Claude Code unless a scenario says so: the run's own host must not change them)
   delete env.CLAUDE_CODE_ENTRYPOINT; delete env.CLAUDECODE;
+  // (in the starter, each call runs in a worker thread, not a new node process: a program start outside System32 leaves a
+  // kernel record for good, and these runs made most of a release's starts. The real start is kept for the hook-worker
+  // comparison set, which runs every event both ways each release. Plan: docs/plans/2026-11-14-fewer-process-starts.md)
+  if (HOOKRUN && !host.ANZUELO_REAL_START && !host.NODE_OPTIONS) { // (a call with its own NODE_OPTIONS (a preload that counts the hook's program starts) needs a real process)
+    // (the comparison set: the first 3 calls of each event and every 80th call also run as a real node start, in a copy of
+    // the fixture made just before; stdout, stderr, exit code and every file the hook wrote in its state and cache folders
+    // must match. Oversight's conditions, 2026-11-15)
+    const n = (HOOK_SEEN[cmd] = (HOOK_SEEN[cmd] || 0) + 1), cmp = n <= 3 || ++HOOK_ALL % 80 === 0;
+    const twin = cmp ? `${dir}-real` : null; if (twin) { try { fs.rmSync(twin, { recursive: true, force: true }); fs.cpSync(dir, twin, { recursive: true, preserveTimestamps: true }); } catch { } } // (timestamps kept: a fresh copy made every file look just changed, and the real start judged a different turn)
+    const w = HOOKRUN.runHook(dir, cmd, JSON.stringify(input), { ...env, ...host }), wErr = (w.err || '') + (w.status ? ` [hook run ended: status ${w.status}, signal none]` : w.status === null ? ' [hook run ended: status null, signal none, worker]' : '');
+    if (twin && fs.existsSync(twin)) { const fix = s => String(s).split(twin).join(dir).split(twin.replace(/\\/g, '/')).join(dir.replace(/\\/g, '/'));
+      const rr = spawnSync(process.execPath, [path.join(twin, 'tools', 'hooks', 'hooks.mjs'), cmd], { input: fix(JSON.stringify(input)).split(dir).join(twin).split(dir.replace(/\\/g, '/')).join(twin.replace(/\\/g, '/')), encoding: 'utf8', cwd: twin, env: { ...env, ...host } });
+      const files = root => { const o = {}; for (const d of ['tools/hooks/state', '.cache']) { const walk = p => { let es = []; try { es = fs.readdirSync(path.join(root, p), { withFileTypes: true }); } catch { } for (const e of es) { const q = `${p}/${e.name}`; if (e.isDirectory()) walk(q); else if (!/\.(log|jsonl)$|runs\.jsonl|selfcheck-|speed|timing|compile-cache/i.test(e.name)) { try { o[q] = fix(fs.readFileSync(path.join(root, q), 'utf8')).replace(/"(at|ts|time|when|t)":\s*"[^"]*"|\d{4}-\d\d-\d\dT[\d:.]+Z|\b1[6-9]\d{11}(\.\d+)?\b/g, '"time"'); } catch { } } } }; walk(d); } return o; }; // (times written as text or as epoch numbers differ between two runs made seconds apart)
+      const a = files(dir), b = files(twin), diff = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(k => a[k] !== b[k]);
+      const same = fix(rr.stdout || '') === w.out && (rr.status ?? null) === (w.status ?? null) && fix(rr.stderr || '').trim() === (w.err || '').trim() && !diff.length;
+      HOOK_CMP.push({ cmd, n, same, why: same ? '' : JSON.stringify({ status: [rr.status, w.status], out: fix(rr.stdout || '') === w.out, err: [fix(rr.stderr || '').slice(0, 120), (w.err || '').slice(0, 120)], files: diff.slice(0, 4), first: diff[0] ? [String(a[diff[0]] ?? '(none)').slice(0, 300), String(b[diff[0]] ?? '(none)').slice(0, 300)] : null }) });
+      try { fs.rmSync(twin, { recursive: true, force: true }); } catch { } }
+    return { out: w.out || '', err: wErr }; }
   const r = spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), cmd], { input: JSON.stringify(input), encoding: 'utf8', cwd: dir, env: { ...env, ...host } });
   // (how the run ended, when it did not end well, so a failing test says it)
   const ended = r.error || r.signal || r.status ? ` [hook run ended: status ${r.status}, signal ${r.signal || 'none'}${r.error ? `, ${r.error.code || r.error.message}` : ''}]` : '';
@@ -9690,6 +9712,33 @@ if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
   report(known.status === 0 && known.kept && !known.named && unknown.named,
     'upgrade: a file the project edited is not asked about again when the starter has not changed it since the project\'s engine; an engine of unknown origin still names it', JSON.stringify({ known, unknown }));
 }
+if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
+  // (a pack's engine file the project changed, tools/screenshot.mjs of the gui pack, is kept on upgrade and named in the dry
+  // run and the review; an untouched one is refreshed. Lesson (two projects, 2026-11-15): an upgrade overwrote the
+  // screenshot tool and dropped a key-press step the project had added, and the dry run said only "would update tools/ 10")
+  const dir = copyProject(), g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: dir, encoding: 'utf8' });
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    const shot = path.join(dir, 'tools/screenshot.mjs'), vr = path.join(dir, 'docs/checks/visual-review.md'), hasGui = fs.existsSync(shot);
+    // (the review checklist set to an older version the starter shipped: as shipped, so it must be refreshed)
+    const vrRel = 'packs/gui/files/docs/checks/visual-review.md', cur = fs.readFileSync(path.join(ROOT, vrRel), 'utf8').replace(/\r\n/g, '\n');
+    const older = (spawnSync('git', ['log', '--format=%H', '--', vrRel], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean).map(c => spawnSync('git', ['show', `${c}:${vrRel}`], { cwd: ROOT, encoding: 'utf8' }).stdout || '').find(t => t && t.replace(/\r\n/g, '\n') !== cur) || cur;
+    if (hasGui) { fs.appendFileSync(shot, '\n// our own step: a real key press for the keyboard test\n'); fs.writeFileSync(vr, older); }
+    // (and a core engine file the project changed: replaced, but its copy saved first and named. Oversight, 2026-11-15)
+    const hm = path.join(dir, 'tools/hooks/hooks-main.mjs'), coreEdit = '\n// a project change to a core engine file\n'; fs.appendFileSync(hm, coreEdit);
+    g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'project');
+    const dryOut = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--dry-run', '--no-selftest'], { encoding: 'utf8', timeout: 600000 }).stdout || '';
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--no-selftest'], { encoding: 'utf8', timeout: 600000 });
+    const kept = hasGui && /our own step: a real key press/.test(fs.readFileSync(shot, 'utf8'));
+    const refreshed = hasGui && fs.readFileSync(vr, 'utf8').replace(/\r\n/g, '\n') === cur;
+    const coreNow = fs.readFileSync(hm, 'utf8'), coreReplaced = !coreNow.includes('a project change to a core engine file');
+    const savedDir = path.join(dir, '.cache', 'upgrade-backup'), savedCopy = (() => { try { for (const s of fs.readdirSync(savedDir)) { const f = path.join(savedDir, s, 'changed-by-project', 'tools/hooks/hooks-main.mjs.orig'); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8'); } } catch { } return ''; })();
+    const dec = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();
+    const coreNamed = /replaced tools[\\/]hooks[\\/]hooks-main\.mjs \(changed by this project/.test(dryOut) && /tools\/hooks\/hooks-main\.mjs, changed in this project and replaced/.test(`${dec}\n${r.stdout}`);
+    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed && coreReplaced && savedCopy.includes('a project change to a core engine file') && coreNamed,
+      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed; a changed core engine file is replaced, its copy saved and named', JSON.stringify({ status: r.status, hasGui, kept, refreshed, coreReplaced, saved: !!savedCopy, coreNamed, dry: dryOut.split('\n').filter(l => /screenshot|visual-review|hooks-main/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('upgrade-clean'))) {
   // REQ: upgrade-clean. An upgrade over uncommitted project work stops before changing anything; --allow-dirty goes on
   // and ends with the engine's files to commit apart. Lesson (a project, 2026-11-12): engine files mixed with a day's work
@@ -10407,6 +10456,8 @@ if (!TAGS && !REUSE) for (const [tag, name] of Object.entries(COVERS)) if (hereS
 // The engine's part of a full run: every test that does not read the project. A pass of all of them is recorded for
 // this stamp; a failure in the project's own part does not stop that, so fixing a project scenario never needs the
 // whole suite again.
+// (every hook call the comparison set ran both ways gave the same result in a worker as in a real node start)
+if (HOOKRUN && HOOK_CMP.length) { const bad = HOOK_CMP.filter(c => !c.same); report(!bad.length, `hook workers: ${HOOK_CMP.length} sampled hook calls (${[...new Set(HOOK_CMP.map(c => c.cmd))].join(', ')}) give the same output, exit code and state files in a worker as in a real node start`, bad.slice(0, 5).map(c => `${c.cmd}#${c.n} ${c.why}`).join(' | ')); }
 const OWN_NAMES = new Set([...STOP.filter(s => s.own).map(s => `stop: ${s.name}`), ...PRETOOL.filter(s => s.own).map(s => `pretool: ${s.name}`), ...PROMPT.filter(s => s.own).map(s => `prompt: ${s.name}`)]);
 const projectTest = n => OWN_NAMES.has(n) || PROJECT_TESTS.has(n) || /^(project scenario keys|tags): /.test(n);
 const engineFailed = FAILED.filter(n => !projectTest(n)), enginePassed = PASSED.filter(n => !projectTest(n)).length;

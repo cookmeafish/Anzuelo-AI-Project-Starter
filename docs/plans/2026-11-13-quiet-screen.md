@@ -102,6 +102,22 @@ What the user saw in that hour, and why:
       scheduled repeat): a repeating scheduled round that quoted the user's past "make sure" and "always" got the
       rule-request reminder and the full checklist (2026-11-15). Test: the same prompt with quoted rule words, sent
       twice, gets no rule request either time; a fresh "from now on, always X" is flagged.
+- [ ] One shared "action or data" helper for every command-text guard (git-safety, browser, outward actions, forbidden
+      commands): a match counts only at a shell command position, inside bash/sh/cmd/pwsh -c arguments, or inside an
+      inline script where the text is passed to exec/spawn/system/Start-Process; heredoc text written to a file, a
+      quoted data value and a search pattern are data (2026-11-15: three false refusals of one family). Test: a probe
+      holding a force-push string as a JSON value passes; a real force-push, one inside bash -c, and one passed to
+      execSync still refuse; the browser cases replayed through the same helper.
+- [ ] A closing yes/no question about doing something the user already asked for (an open work-log item from the user's
+      own words with shared key terms) holds once, but only when the answer gives no reason for a new decision (a project
+      rule, security, cost, irreversibility): "the user already asked for this (<item, time>): do it, or say why it needs
+      a new decision". Test: a plain "should I build X?" after the user asked for X holds; the real case (2026-11-15),
+      whose answer named the project rule that forbids X, passes; a question about something never asked passes. After
+      the helper above.
+- [ ] A path the answer names is checked against the project roots named in the same sentence or paragraph, the roots of
+      sessions that messaged this turn, and the starter's pack sources, before "does not exist" (2026-11-15: an answer
+      about another project's tools/screenshot.mjs was held, though the file exists there). Test: that answer passes; a
+      made-up path still flags.
 - [ ] An armed watcher the answer says it is waiting on is waiting, not missing: no "a watcher you started is still
       armed" hold when the answer names what it waits for (a session held 3 rounds while legitimately waiting on a
       one-minute startup check, 2026-11-15). Test: a turn that arms a watcher and says it waits on it ends with no

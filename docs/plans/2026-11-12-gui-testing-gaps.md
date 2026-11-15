@@ -121,3 +121,7 @@ project's local helper server, started for the user, stopped answering partway t
 - [ ] Test: a server launched this way still answers after the call that started it has ended.
 - [ ] From a project's own copy of the gui runbook (2026-11-12): add the trigger "ui" (route-test it does not
       over-match) and point to the frontend-design skill's feedback, accessibility and spec sections for those asks.
+- [ ] A key-press step in tools/screenshot.mjs (from a project's own addition, 2026-11-15): {"press": "<key>", "shift":
+      bool, "times": n, "gap": ms} for Tab, Escape, arrows, Home/End, PageUp/PageDown, sent as real key events, so
+      keyboard flows can be tested. Test: a fixture page whose focus moves on Tab reports the focused element after
+      two presses.

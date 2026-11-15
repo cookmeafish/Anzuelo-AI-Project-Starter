@@ -509,22 +509,41 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   {
     const tq = path.join(c, 'tq.jsonl'); fs.writeFileSync(tq, [user('fix the label on the builder page')].flat().map(r => JSON.stringify(r)).join('\n') + '\n');
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
-    const ms = (args, input) => { const t0 = performance.now(); spawnSync(process.execPath, args, { cwd: c, encoding: 'utf8', input, env }); return performance.now() - t0; };
+    // (within the limit, or no slower than the release measured in the same rounds by more than noise: 8 ms or 10%)
+    const speedGate = (n, rel, limit) => n < limit || (rel !== null && n - rel <= Math.max(8, 0.1 * rel));
+    const ms = (args, input, at = c) => { const t0 = performance.now(); spawnSync(process.execPath, args, { cwd: at, encoding: 'utf8', input, env: { ...env, ANZUELO_ROOT: at, CLAUDE_PROJECT_DIR: at } }); return performance.now() - t0; };
     // (fastest of 9: one slow sample from the machine does not decide it. Oversight, 2026-11-11: the 75 ms limit stays,
     // measured more carefully; four release chains had tripped on single noisy samples of unchanged code)
-    const best = (args, input) => Math.min(...Array.from({ length: 9 }, () => ms(args, input)));
-    const bare = best(['-e', '']);
-    const prompt = best([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], JSON.stringify({ session_id: 'speedp', transcript_path: tq, prompt: 'fix the label on the builder page' })) - bare;
-    const pretool = best([path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], JSON.stringify({ session_id: 'speedt', transcript_path: tq, tool_name: 'Bash', tool_input: { command: 'git status' } })) - bare;
+    // (in the starter, the last release's hooks are timed in the same rounds, interleaved: a hook over the limit passes when
+    // it is no slower than the release by more than noise, so the machine's drift never blocks a release and a real
+    // slowdown still fails. Oversight, 2026-11-15: unchanged code failed at 81/65 ms on a machine up a day)
+    const relDir = (() => { if (!STARTER_REPO) return null; let rc = ''; try { rc = JSON.parse(fs.readFileSync(path.join(repo, 'tools/hooks/engine-proof.json'), 'utf8')).commit || ''; } catch { } if (!/^[0-9a-f]{7,40}$/.test(rc)) return null;
+      const d = testDir('anzuelo-v2-rel-'), idx = path.join(d, '.idx'), r = spawnSync('git', ['--work-tree', d, 'checkout', rc, '--', 'tools/hooks'], { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_INDEX_FILE: idx } }); fs.rmSync(idx, { force: true });
+      if (r.status !== 0 || !fs.existsSync(path.join(d, 'tools/hooks/hooks.mjs'))) return null; fs.mkdirSync(path.join(d, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(d, '.cache'), { recursive: true });
+      for (const f of ['config.json', 'defaults.json']) try { fs.copyFileSync(path.join(c, 'tools/hooks', f), path.join(d, 'tools/hooks', f)); } catch { } fs.copyFileSync(tq, path.join(d, 'tq.jsonl')); return d; })();
+    const pIn = t => JSON.stringify({ session_id: 'speedp', transcript_path: t, prompt: 'fix the label on the builder page' }), tIn = t => JSON.stringify({ session_id: 'speedt', transcript_path: t, tool_name: 'Bash', tool_input: { command: 'git status' } });
+    const runs = { bare: [], p: [], t: [], rp: [], rt: [] };
+    for (let i = 0; i < 9; i++) { runs.bare.push(ms(['-e', ''])); runs.p.push(ms([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], pIn(tq))); runs.t.push(ms([path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], tIn(tq)));
+      if (relDir) { const rq = path.join(relDir, 'tq.jsonl'); runs.rp.push(ms([path.join(relDir, 'tools/hooks/hooks.mjs'), 'prompt'], pIn(rq), relDir)); runs.rt.push(ms([path.join(relDir, 'tools/hooks/hooks.mjs'), 'pretool'], tIn(rq), relDir)); } }
+    if (relDir) fs.rmSync(relDir, { recursive: true, force: true });
+    // (measured: the same hooks with 30 ms of added work fail against the unchanged ones timed in the same rounds)
+    if (STARTER_REPO) { const s30 = testDir('anzuelo-v2-slow-'); fs.cpSync(path.join(c, 'tools'), path.join(s30, 'tools'), { recursive: true }); fs.mkdirSync(path.join(s30, '.cache'), { recursive: true }); fs.copyFileSync(tq, path.join(s30, 'tq.jsonl'));
+      const hk = path.join(s30, 'tools/hooks/hooks.mjs'); fs.writeFileSync(hk, 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30);\n' + fs.readFileSync(hk, 'utf8'));
+      const sl = [], fa = []; for (let i = 0; i < 5; i++) { fa.push(ms([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], pIn(tq))); sl.push(ms([hk, 'prompt'], pIn(path.join(s30, 'tq.jsonl')), s30)); } fs.rmSync(s30, { recursive: true, force: true });
+      if (speedGate(Math.min(...sl), Math.min(...fa), 0)) report(false, 'speed: hooks 30 ms slower than the release, timed in the same rounds, fail the gate', JSON.stringify({ slow: Math.round(Math.min(...sl)), fast: Math.round(Math.min(...fa)) })); }
+    const mn = a => a.length ? Math.min(...a) : null, bare = mn(runs.bare), prompt = mn(runs.p) - bare, pretool = mn(runs.t) - bare;
+    const relP = runs.rp.length ? mn(runs.rp) - bare : null, relT = runs.rt.length ? mn(runs.rt) - bare : null;
     const u = f => JSON.stringify(new URL(`file:///${path.join(c, f).replace(/\\/g, '/').replace(/^\//, '')}`).href);
     const probe = `const H = await import(${u('tools/hooks/hooks-main.mjs')}), L = await import(${u('tools/hooks/v2/lib.mjs')});
       const before = [H.routeEsBuilt(), L.routeEsBuilt()]; const en = [H.routeEnglish('agrega una página'), L.routeEnglish('agrega una página')];
       console.log(JSON.stringify({ before, en, after: [H.routeEsBuilt(), L.routeEsBuilt()] }));`;
     const lazy = JSON.parse((spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: c, encoding: 'utf8', env }).stdout || '{}').trim().split('\n').pop() || '{}');
-    const sp = { bare: Math.round(bare), prompt: Math.round(prompt), pretool: Math.round(pretool), lazy };
+    const sp = { bare: Math.round(bare), prompt: Math.round(prompt), pretool: Math.round(pretool), release: relP === null ? null : { prompt: Math.round(relP), pretool: Math.round(relT) }, lazy };
+    // (the gate itself, replayed: today's figures equal to the release pass; 30 ms slower than the release fails)
+    if (!(speedGate(81, 81, 75) && speedGate(65, 64, 60) && !speedGate(81, 51, 75) && !speedGate(65, null, 60))) report(false, 'speed: the gate passes a hook equal to the release and fails one 30 ms slower', '');
     // (the time limits are the starter's gate, judged with the machine quiet in its release; a project's hooks are timed by
     // the upgrade's bench against its own budget. Sweep, 2026-11-13: 76-77 ms in projects failed their post-upgrade check)
-    report((!STARTER_REPO || timeVerdict(prompt < Math.max(75, 2.8 * bare) && pretool < Math.max(60, 2.2 * bare), 'speed: prompt and pretool', JSON.stringify(sp))) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
+    report((!STARTER_REPO || timeVerdict(speedGate(prompt, relP, Math.max(75, 2.8 * bare)) && speedGate(pretool, relT, Math.max(60, 2.2 * bare)), 'speed: prompt and pretool', JSON.stringify(sp))) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
       'speed: the prompt and pretool hooks stay within budget over a bare node start (fastest of 9), and the Spanish routing patterns are built on first use, not at load', JSON.stringify(sp));
     // (no hook more than 15% slower than the last released proof's times on this machine: a slowdown under the limit is
     // caught too; the times go into this release's proof. A hook slowed on purpose (a 40 ms wait loaded before it) is
@@ -1811,6 +1830,14 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const msgs = run('proc2', [...['a', 'b', 'c'].map(n => call('SendMessage', { to: `session-${n}`, message: pauseMsg })), say('Sent the pause request to 3 sessions.')]);
     const calc = run('proc3', [call('Write', { file_path: path.join(scratch, 'sum.py'), content: 'print(sum(range(10)) * 1.07)\n' }), say('The total is 48.15.')]);
     const oneOff = run('proc4', [call('Write', { file_path: path.join(scratch, 'once.cmd'), content: 'echo x\n' }), say('Done. This is a one-off.')]);
+    // (a file in a linked worktree of the same repository is project work, not a script outside it. Oversight, 2026-11-15)
+    const r0 = fs.mkdtempSync(path.join(os.tmpdir(), 'procwt-')), gq = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: r0, encoding: 'utf8' });
+    fs.writeFileSync(path.join(r0, 'a.txt'), 'x'); gq('init', '-q'); gq('add', '-A'); gq('commit', '-qm', 'x'); const wtDir = path.join(os.tmpdir(), `other-checkout-${process.pid}`); gq('worktree', 'add', '-q', '--detach', wtDir); // (a folder whose name is not the repository's plus a suffix: a plain prefix match took "<repo>-wt" as inside "<repo>")
+    const endU = JSON.stringify(new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), 'end.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href), w = f => JSON.stringify({ name: 'Write', input: { file_path: f, content: "require('child_process').spawnSync('x')" } });
+    const probe = `const E = await import(${endU}); const g = calls => E.procedureGaps({ runbook: '' }, { calls, said: '', answer: '' }, false, []).length; console.log(JSON.stringify([g([${w(path.join(wtDir, 'tools/run.mjs'))}]), g([${w(path.join(scratch, 'go.cmd'))}])]));`;
+    const wt = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: r0, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: r0, CLAUDE_PROJECT_DIR: r0 } }).stdout.trim().split('\n').pop();
+    gq('worktree', 'remove', '--force', wtDir); fs.rmSync(r0, { recursive: true, force: true }); fs.rmSync(wtDir, { recursive: true, force: true });
+    report(wt === '[0,1]', 'end: a script written in a linked worktree of the same repository is project work; one in a scratch folder still asks', wt);
     report(ask.test(cmd) && ask.test(msgs) && !ask.test(calc) && !ask.test(oneOff), 'end: a command script written anywhere, or one instruction sent to 2+ sessions, with no runbook asks once if it is a new kind of task; a scratch calculation or a stated one-off does not',
       JSON.stringify({ cmd: cmd.slice(0, 200), msgs: msgs.slice(0, 200), calc: calc.slice(0, 200), oneOff: oneOff.slice(0, 200) })); }
   // (a runbook a later message of the turn routed holds only when the turn touched its kind: opened it, changed a file its
@@ -3302,6 +3329,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     ['git-safety', bash(g + 'reset --' + 'hard HEAD~3'), base],
     ['outward-gate|git-safety', bash(g + 'push origin main'), base],
     ['browser-guard', bash('start ' + 'chrome --remote-debugging-port=9222'), base],
+    ['browser-guard', bash('"C:\\Program Files\\Google\\Chrome\\Application\\' + 'chrome.exe" --remote-debugging-port=9222'), base],
     ['skill-mirror', { tool_name: 'Edit', tool_input: { file_path: R + '.claude/skills/plan/SKILL.md', old_string: 'a', new_string: 'b' } }, base],
     ['protect-originals', bash('rm -' + 'rf originals/2024'), prot],
     ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + protName, old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: [protName] }],
@@ -3317,6 +3345,17 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     report(!delNew && /protect-originals/.test(delOld), 'pretool: under v2 a delete of a file this turn created in an originals folder goes through; one there before is refused', JSON.stringify({ delNew: delNew.slice(0, 120), delOld: delOld.slice(0, 120) })); }
   const got = refuse.map(([tag, d, cfg]) => [tag, guard({ session_id: '', ...d }, cfg) || '']);
   const same = refuse.every(([, d, cfg]) => guard({ session_id: '', ...d }, cfg) === guard({ session_id: '', ...d }, { ...cfg, engine: 'v1' }));
+  // (the browser's name inside a read-only query or a heredoc's text is no launch. Oversight, 2026-11-15: a process count and a notes heredoc were refused)
+  { const ok = ['tasklist //FI "IMAGENAME eq ' + 'chrome.exe" | wc -l', "cat >> notes.md <<'EOF'\nThe user's browser (" + 'chrome.exe) stays closed during tests.\nEOF', 'Get-Process ' + 'msedge.exe -ErrorAction SilentlyContinue'].map(c => guard({ session_id: '', ...bash(c) }, base) || '');
+    report(ok.every(r => !/browser-guard/.test(r)), 'guard: the browser\'s name inside a read-only query or a heredoc\'s text is no launch; launches still refuse', JSON.stringify(ok.map(r => r.slice(0, 120)))); }
+  // (an inline interpreter fed a heredoc ("python - <<EOF") that rewrites source files is refused like node -e; a read-only one
+  // and a scratchpad write pass. Oversight, 2026-11-15: three such scripts in one project, one broke a JS string with "\n")
+  { const hy = c => /REQ: shell-hygiene/.test(guard({ session_id: '', ...bash(c) }, base) || '');
+    const real = ["python - <<'EOF'\nimport io,re\nfor p in ['src/speech/local/web.js','src/platform/index.js','src/features/voice-mode/VoicePanel.jsx']:\n    s=io.open(p,encoding='utf8',newline='').read()\n    s=s.replace('a','b')\n    io.open(p,'w',encoding='utf8',newline='').write(s)\nEOF",
+      "python - <<'EOF'\nimport io\np='dev/voice/check-voice.mjs'; s=io.open(p,encoding='utf8',newline='').read()\ns=s.replace('x','y')\nio.open(p,'w',encoding='utf8',newline='').write(s); print('ok')\nEOF",
+      "python - <<'EOF'\nimport io\np='src/features/voice-mode/VoicePanel.jsx'\ns=io.open(p,encoding='utf8',newline='').read()\nio.open(p,'w',encoding='utf8',newline='').write(s)\nEOF"];
+    const pass = ["python - <<'EOF'\nprint(open('src/app.js').read()[:200])\nEOF", `node -e "require('fs').writeFileSync(require('os').tmpdir() + '/scratch-note.js', 'x')"`];
+    report(real.every(hy) && !pass.some(hy), 'guard: an inline "python -" heredoc that rewrites source files is refused; a read-only one and a temp write pass', JSON.stringify({ real: real.map(hy), pass: pass.map(hy) })); }
   // (removed now, not only at exit: the release's speed record is written before exit, and names the commit only on a clean tree)
   fs.rmSync(path.join(ROOT, protName), { force: true });
   report(got.every(([tag, r]) => new RegExp(`REQ: (${tag})\\b`).test(r)) && same && IN_WORK_GUARDS.test('REQ: no-secrets'),
@@ -4321,6 +4360,14 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   fs.rmSync(proj, { recursive: true, force: true });
 }
 
+// (a folder whose read fails is retried once, then named as unread, never silently skipped: a check under a release chain's
+// load passed an edited hook file (2026-11-15))
+{ const libU = JSON.stringify(new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), 'lib.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href);
+  const probe = times => `import fs from 'node:fs'; const rd = fs.readdirSync; let n = 0; fs.readdirSync = function (p, ...r) { if (/[\\\\/]tools[\\\\/]hooks$/.test(String(p)) && n++ < ${times}) { const e = new Error('busy'); e.code = 'EBUSY'; throw e; } return rd.call(this, p, ...r); };
+    const L = await import(${libU}); const f = L.filesMatching('tools/hooks/*.mjs'); console.log(JSON.stringify({ found: f.length, unread: L.filesMatching.unread }));`;
+  const rr = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), pr = t => JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', probe(t)], { cwd: rr, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: rr, CLAUDE_PROJECT_DIR: rr } }).stdout.trim().split('\n').pop() || '{}');
+  const once = pr(1), always = pr(99);
+  report(once.found > 0 && !once.unread?.length && always.found === 0 && always.unread?.includes('tools/hooks'), 'files: a folder whose read fails once is retried; one that keeps failing is named as unread, never silently skipped', JSON.stringify({ once, always })); }
 // (with no transcript, any agent but Claude Code: "check --answer-file" judges the turn from the run log and the files
 // changed since "begin", not nothing. Lesson (the old suite under v2): an edited hook file got CHECK: PASS)
 {
@@ -4344,6 +4391,11 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     // (the whole output: in a project an upgrade-review item comes first, and the ask sat past a 300-character cut.
     // Lesson (2026-11-13): the cut made this test fail in two sample projects, read as an engine gap that was not one)
     got = { c1: c1.stdout, c1s: c1.status, c2: c2.stdout };
+    // (when it passes an edited hook file, what it judged: an intermittent miss under the trial's load, five causes ruled
+    // out (2026-11-15); this names the next one)
+    if (c1.status !== 1) { const rd = f => { try { return fs.readFileSync(path.join(m, f), 'utf8'); } catch { return ''; } }, turn = (() => { try { return JSON.parse(rd('tools/hooks/state/v2-turn.manual.json')); } catch { return {}; } })();
+      const edits = rd('tools/hooks/state/v2-manual-transcript.jsonl').split('\n').filter(l => /"name":"Edit"/.test(l)).map(l => (/"file_path":"([^"]+)"/.exec(l) || [])[1]);
+      got.diag = { turnAt: turn.at, ended: turn.ended, runbook: turn.runbook, wireMtime: new Date(fs.statSync(path.join(m, 'tools/hooks/wire.mjs')).mtimeMs).toISOString(), edits: edits.length, wireSeen: edits.some(e => /wire\.mjs$/.test(e || '')), turns: fs.readdirSync(path.join(m, 'tools/hooks/state')).filter(n => /^v2-turn\./.test(n)), dirty: rd('tools/hooks/state/v2-dirty.manual.json').slice(0, 200) }; }
   } finally { fs.rmSync(m, { recursive: true, force: true }); }
   report(got.c1s === 1 && /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/.test(got.c1 || '') && !/The hook logic changed/.test(got.c2 || ''),
     'check: with no transcript, "check --answer-file" judges the files changed since "begin" and the run log: an edited hook file asks for the self-tests until the log holds a passing run', JSON.stringify(got));
@@ -4513,9 +4565,21 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const first = W.asksIn(`${P}\nturn this outline into lesson pages`), mid = W.asksIn(`add the export button\n${P}\nand rename the totals column`);
     report(first.length === 1 && /lesson pages/.test(first[0]) && !first.some(a => /Worth a look|pasted_content/.test(a)) && mid.length === 2 && !mid.some(a => /Worth a look|pasted_content/.test(a)),
       'worklog: a message that opens with a pasted block is logged from the user\'s own words, and pasted text is never an item', JSON.stringify({ first, mid })); }
+  // (a promise naming inline code keeps those words, and an item logged with doubled spaces still closes by a phrase.
+  // Oversight, 2026-11-15: "a `sed` print ... a `grep` of it" was logged as "a   print ... a   of it", and log done found nothing)
+  { const W = await import('./worklog.mjs'), sid = 'wcode', at = new Date().toISOString();
+    W.update(sid, { texts: [{ t: "I'll add two cases to this test: a `sed` print of the runbook counts as opening it, and a `grep` of it still doesn't.", at }] });
+    const kept = W.loadLog(sid).map(i => i.text), lf = path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`);
+    fs.writeFileSync(lf, JSON.stringify({ items: [{ text: 'add two cases to this test: a   print of the runbook counts as opening it (your promise)', from: 'promise', at, status: 'open' }] }));
+    const closed = W.logCommand(sid, 'done', 'a print of the runbook counts as opening it'); fs.rmSync(lf, { force: true });
+    report(kept.some(t => /a sed print of the runbook/.test(t) && /a grep of it/.test(t)) && /^log: done/.test(closed), 'worklog: a promise keeps the words in its inline code, and doubled spaces never block log done', JSON.stringify({ kept, closed })); }
   // (the host's usage-limit notes are not asks; a typed request still is. Oversight, 2026-11-15: they were listed as open)
   { const W = await import('./worklog.mjs'), host = W.asksIn('Your claude.ai usage limit has reset. Continue the task you were working on when the limit was reached; do not repeat work that is already complete.\n[Earlier usage-limit notes no longer apply. Continue working normally.]'), typed = W.asksIn('rename the totals column in the export');
-    report(!host.length && typed.length === 1, 'worklog: the host\'s usage-limit notes are never logged as asks; a typed request is', JSON.stringify({ host, typed })); }
+    const intr = W.asksIn('[Request interrupted by user for tool use]\nfix the header colour'), sid = 'whost', lf = path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), at = new Date().toISOString();
+    fs.mkdirSync(path.dirname(lf), { recursive: true }); fs.writeFileSync(lf, JSON.stringify({ items: ['Your claude.ai usage limit has reset.', 'Continue the task you were working on when the limit was reached; do not repeat work that is already complete.', '[Request interrupted by user for tool use]', 'add the export'].map(text => ({ text, from: 'user', at, status: 'open' })) }));
+    const left = W.loadLog(sid).map(i => i.text); fs.rmSync(lf, { force: true });
+    report(!host.length && typed.length === 1 && intr.length === 1 && intr[0] === 'fix the header colour' && left.length === 1 && left[0] === 'add the export',
+      'worklog: the host\'s usage-limit and interruption notes are never asks, items logged before this drop out when read, and a typed request is kept', JSON.stringify({ host, typed, intr, left })); }
   // (a phrase found in exactly one item closes it, even when another item shares a word: word overlap is only for when no
   // phrase matches. Oversight, 2026-11-15: a unique phrase was listed as ambiguous beside an item sharing "check")
   { const W = await import('./worklog.mjs'), sid = 'wlogu', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
@@ -4591,11 +4655,11 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   const kept = pruneCompileCache(10, cc), oldGone = !fs.existsSync(path.join(cc, 'v1.0.0-x64-old')), emptied = pruneCompileCache(3, cc) === 0 && !fs.existsSync(cc);
   if (STARTER_REPO && process.platform === 'win32') { // (the paged pool is judged after cleanup: --skip-paged only reports it, and --record keeps both readings in the proof. Oversight, 2026-11-15: a fresh boot's file cache failed a chain)
     const lk = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'leaks.mjs'), d = testDir('leakrec-'), b = path.join(d, 'b.json'), pf = path.join(d, 'p.json');
-    fs.writeFileSync(b, JSON.stringify({ temp: 1e9, tests: 1e9, cache: 1e9, transcripts: 1e9, frozen: 1e9, nodeCacheAt: Object.fromEntries((() => { try { return fs.readdirSync(path.join(os.tmpdir(), 'node-compile-cache')); } catch { return []; } })().map(v => [v, 1e15])), pagedMB: 1, nonpagedMB: 1 })); fs.writeFileSync(pf, '{"commit":"x"}');
+    fs.writeFileSync(b, JSON.stringify({ temp: 1e9, tests: 1e9, cache: 1e9, transcripts: 1e9, frozen: 1e9, nodeCacheAt: Object.fromEntries((() => { try { return fs.readdirSync(path.join(os.tmpdir(), 'node-compile-cache')); } catch { return []; } })().map(v => [v, 1e15])), pagedMB: 1, nonpagedMB: 1, fileLive: 1 })); fs.writeFileSync(pf, '{"commit":"x"}');
     const full = spawnSync(process.execPath, [lk, '--compare', b], { encoding: 'utf8' }), skip = spawnSync(process.execPath, [lk, '--compare', b, '--skip-paged', '--record', pf, 'chainA'], { encoding: 'utf8' });
     let rec = {}; try { rec = JSON.parse(fs.readFileSync(pf, 'utf8')); } catch { } fs.rmSync(d, { recursive: true, force: true });
     // (judged by the paged line alone: inside a release chain this suite is itself a test process still running, which fails both runs. Lesson (the chain on cca8aee))
-    report(full.status === 1 && /kernel pool \(paged\)/.test(full.stdout) && !/kernel pool \(paged\)/.test(skip.stdout) && /judged after cleanup/.test(skip.stdout) && rec.commit === 'x' && rec.leaks?.chainA?.pagedMB?.[0] === 1,
+    report(full.status === 1 && /kernel pool \(paged\)/.test(full.stdout) && !/kernel pool \(paged\)/.test(skip.stdout) && /judged after cleanup/.test(skip.stdout) && rec.commit === 'x' && rec.leaks?.chainA?.pagedMB?.[0] === 1 && rec.leaks?.chainA?.fileLive?.[0] === 1 && rec.leaks.chainA.fileLive[1] > 1000 && /kernel File objects: 1 -> \d+/.test(skip.stdout), // (and the kernel's live File objects, reported and recorded: about one per program start stays for good)
       'leaks: --skip-paged reports the paged pool without judging it, and --record keeps both readings in the proof', JSON.stringify({ full: [full.status, full.stdout.slice(0, 120)], skip: [skip.status, skip.stdout.slice(0, 120)], rec: rec.leaks })); }
   if (STARTER_REPO && process.platform === 'win32') { // (a release runs with its own temp folder: the leak check judges that folder, reports the machine's only, and stop-tests reaches it. Oversight, 2026-11-15: other projects' files in the machine's temp folder failed a chain whose tests all passed)
     const lk = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'leaks.mjs'), tt = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'testtmp.mjs');
