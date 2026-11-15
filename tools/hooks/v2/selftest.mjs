@@ -1820,6 +1820,16 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
       named = [...new Set(texts.flatMap(f => [...fs.readFileSync(path.join(eng, f), 'utf8').matchAll(/\bnode\s+((?:tools|skills)\/[\w./-]+\.m?js)\b/g)].map(m => m[1])))]; gone = named.filter(n => !ships(n)); }
     report(out === 'Run node .anzuelo/engine/tools/audit.mjs, node .anzuelo/local/skills/modular-code/scripts/modularity.mjs, node tools/own.mjs and node tools/gone.mjs.' && plain === 'Run node tools/audit.mjs.' && (!STARTER_REPO || named.length > 5) && !gone.length,
       'end: with the engine in .anzuelo/engine, a command an item names runs from where the layout keeps it (local copy, enabled pack or library skill, engine) when the project root has none; every command the check texts name ships in the starter', JSON.stringify({ out, plain, named: named.length, gone })); }
+  // (an ask for a default or startup state, claimed done with no proof from that state, holds once; screenshots from a fresh and
+  // an existing profile meet it. Lesson (a project, 2026-11-15): "the default list and mode must be the course" was marked done
+  // for a path that ran only after starting the course, and the user opened the app on the old mode)
+  { const ask = 'the default list and mode selected must be the course', claim = 'Starting the course now sets the list and the mode. ✅ code';
+    const runD = (sid, rows) => { onPrompt({ session_id: sid, prompt: ask }); return onStop({ transcript_path: transcript([user(ask), ...rows]), session_id: sid })?.reason || ''; };
+    const bare = runD('dflt1', [edit, say(claim)]);
+    const shown = runD('dflt2', [edit, call('Bash', { command: 'node tools/screenshot.mjs app.html --fresh-profile && node tools/screenshot.mjs app.html --existing-profile' }), say(claim)]);
+    const other = runD('dflt3', [edit, say('Renamed the course title. ✅ done')]);
+    report(/asks for a default state/.test(bare) && !/asks for a default state/.test(shown) && !/asks for a default state/.test(other),
+      'end: an ask for a default or startup state claimed done needs proof from that state (fresh and existing profile); with it, or for an unrelated claim, nothing is held', JSON.stringify({ bare: bare.slice(0, 300), shown: shown.slice(0, 200), other: other.slice(0, 200) })); }
   // (a procedure done outside the project's files, a command script in a scratch folder or one instruction sent to 2+
   // sessions, with no runbook asks once if it is a new kind of task; a scratch calculation does not. Lesson (2026-11-15):
   // pausing and reopening every session lived only in a scratchpad and memory)
