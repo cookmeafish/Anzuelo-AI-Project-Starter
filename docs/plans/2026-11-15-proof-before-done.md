@@ -37,6 +37,21 @@ no longer trusts the course content; the engine must stop such misses, and guide
    oversight relayed the question instead of the user's words. Root cause: neither the end check nor the watch
    runbook compared a closing question with the user's open asks. Fix: the closing-question hold (quiet-screen plan)
    and the project-watch Pitfall.
+9. New additions shipped without the obvious paths a user takes (no way out of a new mode, the default never
+   changed, saved data never tried). The user was disappointed that nothing brought an outside view, and asked for
+   one always. Root cause: reviews judged the work against the agent's own description, never against independent
+   users' angles, and oversight only reacted. Fix: Task 6.
+
+## Task 6: a third perspective on every new addition (coding session, standing rule, 2026-11-15)
+**Files:** skills/plan/SKILL.md, docs/playbooks/gui.md, the gui-review-loop skill, tools/hooks/v2/lib.mjs, AGENTS.md
+**Uses / provides:** Task 3.
+- [ ] Before building a new addition, the plan step runs independent angle agents in parallel (first-time user, saved
+      data, phone, keyboard, what can go wrong, power user; 3 for small, 6 for a new mode or flow) and merges a
+      "User journey" section. After building, a fresh agent walks the app against every item.
+- [ ] The rule is in AGENTS/CLAUDE with its date and a user-requirements row. The end check holds once on a new addition
+      without the section (3+ angles) and a walk report. Bug fixes are exempt.
+- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: today's new-mode turn holds; with the section and walk it
+      passes; a bug fix passes; ALL PASS.
 
 ## Constraints for every task
 - One held line per missing proof, at most. No new interruption during work.
