@@ -4391,6 +4391,11 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     // (the whole output: in a project an upgrade-review item comes first, and the ask sat past a 300-character cut.
     // Lesson (2026-11-13): the cut made this test fail in two sample projects, read as an engine gap that was not one)
     got = { c1: c1.stdout, c1s: c1.status, c2: c2.stdout };
+    // (when it passes an edited hook file, what it judged: an intermittent miss under the trial's load, five causes ruled
+    // out (2026-11-15); this names the next one)
+    if (c1.status !== 1) { const rd = f => { try { return fs.readFileSync(path.join(m, f), 'utf8'); } catch { return ''; } }, turn = (() => { try { return JSON.parse(rd('tools/hooks/state/v2-turn.manual.json')); } catch { return {}; } })();
+      const edits = rd('tools/hooks/state/v2-manual-transcript.jsonl').split('\n').filter(l => /"name":"Edit"/.test(l)).map(l => (/"file_path":"([^"]+)"/.exec(l) || [])[1]);
+      got.diag = { turnAt: turn.at, ended: turn.ended, runbook: turn.runbook, wireMtime: new Date(fs.statSync(path.join(m, 'tools/hooks/wire.mjs')).mtimeMs).toISOString(), edits: edits.length, wireSeen: edits.some(e => /wire\.mjs$/.test(e || '')), turns: fs.readdirSync(path.join(m, 'tools/hooks/state')).filter(n => /^v2-turn\./.test(n)), dirty: rd('tools/hooks/state/v2-dirty.manual.json').slice(0, 200) }; }
   } finally { fs.rmSync(m, { recursive: true, force: true }); }
   report(got.c1s === 1 && /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/.test(got.c1 || '') && !/The hook logic changed/.test(got.c2 || ''),
     'check: with no transcript, "check --answer-file" judges the files changed since "begin" and the run log: an edited hook file asks for the self-tests until the log holds a passing run', JSON.stringify(got));
