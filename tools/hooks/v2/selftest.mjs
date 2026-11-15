@@ -1805,11 +1805,14 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   { const { closestRunbook } = await import('../near.mjs'), { runbooks: rbs } = await import('./lib.mjs'), core = () => false;
     const books = [{ name: 'revise-text', file: 'docs/playbooks/revise-text.md', triggers: ['proofread every paragraph', 'translate this text'], fm: { summary: 'edit text being revised' } },
       { name: 'trigger-words', file: 'docs/playbooks/trigger-words.md', triggers: ['whitelist the word'], fm: { summary: 'a word that is not me being upset, a rule word' } },
-      { name: 'invoices', file: 'docs/playbooks/invoices.md', triggers: ['send the invoices'], fm: { summary: 'monthly invoices to customers' } }];
+      { name: 'invoices', file: 'docs/playbooks/invoices.md', triggers: ['send the invoices'], fm: { summary: 'monthly invoices to customers' } },
+      { name: 'status-lines', file: 'docs/playbooks/status-lines.md', triggers: ['turn off the anchor lines', 'the bar says'], fm: { summary: 'turn the status lines on or off, showing or hiding each kind' } }];
+    // (common verbs are filler too. Oversight's replay, 2026-11-15: a correction of model names, "the code says ... it is showing ...", guessed the status-lines runbook)
+    const verbs = closestRunbook('the code says opus is the newest, but it is showing the wrong model names, excuse me?', books, core), lines = closestRunbook('turn off the anchor lines', books, core);
     const filler = closestRunbook('build every lesson page with transitions between them', books, core), rule = closestRunbook('make a rule about being on time', books, core), real = closestRunbook('prepare the monthly customer invoices', books, core);
     const sr = path.join(dir, 'tools/starter/runbooks'); fs.mkdirSync(sr, { recursive: true }); fs.writeFileSync(path.join(sr, 'improvement-loop.md'), '---\nname: improvement-loop\ntriggers: do multiple tests\n---\n# Loop\n');
     const marker = fs.existsSync(path.join(dir, '.starter-template')), inProject = marker ? null : rbs().some(b => /tools\/starter\/runbooks/.test(b.file)); fs.rmSync(path.join(dir, 'tools/starter'), { recursive: true, force: true });
-    report(!filler && !rule && real?.file === 'docs/playbooks/invoices.md' && inProject !== true, 'route: filler words never make a runbook guess, a real match still does, and a project never lists the starter\'s own runbooks', JSON.stringify({ filler, rule, real, marker, inProject })); }
+    report(!filler && !rule && !verbs && lines?.file === 'docs/playbooks/status-lines.md' && real?.file === 'docs/playbooks/invoices.md' && inProject !== true, 'route: filler words and common verbs never make a runbook guess, a real match still does, and a project never lists the starter\'s own runbooks', JSON.stringify({ filler, rule, verbs, lines, real, marker, inProject })); }
   // (with the engine in .anzuelo/engine, a command an end-check item names runs from the engine's folder when the project
   // has no copy, and every command the engine's check texts name exists in the engine, so the rewrite has a target.
   // Field report (2026-11-15): an item's "node tools/..." pointed at nothing in an installed project)
