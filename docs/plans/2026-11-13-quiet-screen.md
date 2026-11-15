@@ -83,6 +83,10 @@ What the user saw in that hour, and why:
       they haven't returned, a file still being written); it is judged on the turn that merges their results. Test: a
       turn with live background agents and partial files ends with no hold (a project, 2026-11-13: 3 rounds of 6, 5
       and 5 items while 8 helpers ran).
+- [ ] An armed watcher the answer says it is waiting on is waiting, not missing: no "a watcher you started is still
+      armed" hold when the answer names what it waits for (a session held 3 rounds while legitimately waiting on a
+      one-minute startup check, 2026-11-15). Test: a turn that arms a watcher and says it waits on it ends with no
+      hold; one that arms it and says nothing still gets the line.
 - [ ] The agent isn't hounded for false alarms: each check keeps a running count of its holds that turned out real (the
       agent changed work because of them) and false (met already, waived with a reason, or the answer showed it didn't
       apply). A check whose holds are mostly false over its last 20 stops holding: it moves to the start-of-turn
