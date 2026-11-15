@@ -53,6 +53,12 @@ updatedInput) is fixed in place.
    After each release, `ls -d ~/.anzuelo-frozen/rel-*` shows at most 3; remove the older ones (`--force` only for a copy
    whose `git status` shows nothing but the proof files). 2026-11-11: 30 copies had piled up again, during a hunt for
    what held 4.8 GB of kernel pool.
+   **The release scripts do all of this:** `bash tools/starter/release/two-chains.sh <commit>` runs both chains on
+   frozen copies (logs in `~/.anzuelo-frozen/logs/`, "BOTH PASS" at the end), in the background; nothing else runs
+   beside them (2026-11-14: a suite run alongside left its test folders and failed the leak check). When both pass,
+   `bash tools/starter/release/push-release.sh <commit> "<proof message>"` commits the proof, brings it into main and
+   pushes, stopping at its first failed step with nothing pushed (2026-11-14: a pipe hid a refused merge and the push
+   went on). The v2 self-test runs its test.
    **The main folder's engine is live:** every session there runs it on each hook. A change to the engine that takes
    more than one edit is made in a worktree and brought into the main folder only once `node tools/hooks/v2/selftest.mjs`
    passes there. A single edit in the main folder defines before it uses (a new function first, then its call), and

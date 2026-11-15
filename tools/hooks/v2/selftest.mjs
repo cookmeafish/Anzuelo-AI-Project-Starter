@@ -2328,6 +2328,13 @@ const { questionGaps } = await import('./lib.mjs');
     'end: draft checks never count toward the block cap; the real stops get every round, the last says so, then it lets go', seen.map(o => o?.decision || null));
 }
 // (the hooks are named by kind everywhere the user or agent reads about them: Reminder, Guard, Check)
+if (STARTER_REPO) { // (the release push stops at its first failed step: a refused merge pushes nothing. Lesson (2026-11-14):
+  // a pipe hid a refused fast-forward and the push went on. Its test runs on throwaway repositories)
+  const t = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'release', 'push-release.test.sh');
+  const r = fs.existsSync(t) ? spawnSync('bash', [t], { encoding: 'utf8', timeout: 120000 }) : { stdout: '', stderr: 'missing' };
+  const lines = String(r.stdout || '').split('\n').filter(l => /^(PASS|FAIL) /.test(l));
+  report(lines.length === 3 && lines.every(l => l.startsWith('PASS')), 'release: push-release.sh stops at a refused merge and pushes nothing; a plans-only divergence and a fast-forward push', lines.join(' | ') || String(r.stderr || r.error || '').slice(0, 200));
+}
 if (STARTER_REPO) { // (the starter's own text; a project may have no AGENTS.md)
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const { V2_SESSION } = await import('../hooks-main.mjs');

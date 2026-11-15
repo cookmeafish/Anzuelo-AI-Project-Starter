@@ -113,6 +113,10 @@ What the user saw in that hour, and why:
       opening quote of a path starting with "w" as a write mode. Now the mode must be open()'s second argument, and
       write_text, write_bytes, createWriteStream, shutil and os moves and removes count as writes. Tests from the two
       real refusals failed on the old code.)
+- [ ] A release proof written this turn (tools/hooks/engine-proof.json naming the tested commit, or the chain's result
+      files) counts as test evidence for that commit's files: after a release whose two chains passed every test, the
+      end check held twice for tests not run, since the chain runs them in a frozen copy (2026-11-15). Test: a turn that
+      only commits a proof for a passed chain gets no "tests" item.
 - [ ] A long turn's hold lists only what applies to the work done (a real hold of 21 items, 2026-11-14 21:51): a
       runbook routed by some message of the turn holds only when the turn changed a file or ran a command of its kind;
       an item conditional on an output ("once outputs/x is written") is left out while that output was never written;
