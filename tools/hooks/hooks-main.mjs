@@ -5313,7 +5313,9 @@ async function v2Cli(cmd) {
     const { text, real } = previewOf(d?.reason); console.log(text ? `CHECK: ${text}` : 'CHECK: PASS'); return real ? 1 : 0; }
   // (no transcript: the turn as the run log and the changed files show it, judged by the same end check)
   try {
-    const mt = (await import('./v2/manual.mjs')).manualTranscript(turn);
+    const mt = (await import('./v2/manual.mjs')).manualTranscript(turn), unread = (await import('./v2/lib.mjs')).filesMatching.unread || [];
+    // (a folder that could not be read leaves the check incomplete: say so, never PASS. A release chain, 2026-11-15)
+    if (unread.length) { console.log(`CHECK: could not read ${unread.slice(0, 5).join(', ')}, so files changed there were not judged. Run the check again.`); return 1; }
     if (mt) { const d = (await import('./v2/end.mjs')).onStop({ transcript_path: mt, session_id: sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true });
       const { text, real } = previewOf(d?.reason); if (text) { console.log(`CHECK: ${text}`); return real ? 1 : 0; } }
   } catch (e) { console.log(`CHECK: the no-transcript check failed (${String(e?.message || e).slice(0, 160)}); judge the work against the runbook yourself.`); }

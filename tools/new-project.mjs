@@ -520,7 +520,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const f of ENGINE) if (fs.existsSync(path.join(STARTER, f))) {
     const to = path.join(dest, f), mine = fs.existsSync(to) ? lfc(fs.readFileSync(to, 'utf8')) : null;
     if (mine !== null && mine !== lfc(fs.readFileSync(path.join(STARTER, f), 'utf8')) && !shippedTexts(f).some(t => lfc(t) === mine)) {
-      const saved = path.join(backupDir, 'changed-by-project', f);
+      const saved = path.join(backupDir, 'changed-by-project', f + '.orig'); // (.orig, as the upgrade's other snapshots: a saved .mjs was read by the audit's sweeps as live code, and its browser-safety sweep rolled the upgrade back)
       if (!dry) { fs.mkdirSync(path.dirname(saved), { recursive: true }); fs.copyFileSync(to, saved); }
       const where = path.relative(dest, saved).replace(/\\/g, '/');
       log.push(`replaced ${f} (changed by this project: its copy is saved at ${where}; to keep a change, node tools/starter.mjs override ${f})`);

@@ -1830,6 +1830,14 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const msgs = run('proc2', [...['a', 'b', 'c'].map(n => call('SendMessage', { to: `session-${n}`, message: pauseMsg })), say('Sent the pause request to 3 sessions.')]);
     const calc = run('proc3', [call('Write', { file_path: path.join(scratch, 'sum.py'), content: 'print(sum(range(10)) * 1.07)\n' }), say('The total is 48.15.')]);
     const oneOff = run('proc4', [call('Write', { file_path: path.join(scratch, 'once.cmd'), content: 'echo x\n' }), say('Done. This is a one-off.')]);
+    // (a file in a linked worktree of the same repository is project work, not a script outside it. Oversight, 2026-11-15)
+    const r0 = fs.mkdtempSync(path.join(os.tmpdir(), 'procwt-')), gq = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: r0, encoding: 'utf8' });
+    fs.writeFileSync(path.join(r0, 'a.txt'), 'x'); gq('init', '-q'); gq('add', '-A'); gq('commit', '-qm', 'x'); const wtDir = path.join(os.tmpdir(), `other-checkout-${process.pid}`); gq('worktree', 'add', '-q', '--detach', wtDir); // (a folder whose name is not the repository's plus a suffix: a plain prefix match took "<repo>-wt" as inside "<repo>")
+    const endU = JSON.stringify(new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), 'end.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href), w = f => JSON.stringify({ name: 'Write', input: { file_path: f, content: "require('child_process').spawnSync('x')" } });
+    const probe = `const E = await import(${endU}); const g = calls => E.procedureGaps({ runbook: '' }, { calls, said: '', answer: '' }, false, []).length; console.log(JSON.stringify([g([${w(path.join(wtDir, 'tools/run.mjs'))}]), g([${w(path.join(scratch, 'go.cmd'))}])]));`;
+    const wt = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: r0, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: r0, CLAUDE_PROJECT_DIR: r0 } }).stdout.trim().split('\n').pop();
+    gq('worktree', 'remove', '--force', wtDir); fs.rmSync(r0, { recursive: true, force: true }); fs.rmSync(wtDir, { recursive: true, force: true });
+    report(wt === '[0,1]', 'end: a script written in a linked worktree of the same repository is project work; one in a scratch folder still asks', wt);
     report(ask.test(cmd) && ask.test(msgs) && !ask.test(calc) && !ask.test(oneOff), 'end: a command script written anywhere, or one instruction sent to 2+ sessions, with no runbook asks once if it is a new kind of task; a scratch calculation or a stated one-off does not',
       JSON.stringify({ cmd: cmd.slice(0, 200), msgs: msgs.slice(0, 200), calc: calc.slice(0, 200), oneOff: oneOff.slice(0, 200) })); }
   // (a runbook a later message of the turn routed holds only when the turn touched its kind: opened it, changed a file its
@@ -4352,6 +4360,14 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   fs.rmSync(proj, { recursive: true, force: true });
 }
 
+// (a folder whose read fails is retried once, then named as unread, never silently skipped: a check under a release chain's
+// load passed an edited hook file (2026-11-15))
+{ const libU = JSON.stringify(new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), 'lib.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href);
+  const probe = times => `import fs from 'node:fs'; const rd = fs.readdirSync; let n = 0; fs.readdirSync = function (p, ...r) { if (/[\\\\/]tools[\\\\/]hooks$/.test(String(p)) && n++ < ${times}) { const e = new Error('busy'); e.code = 'EBUSY'; throw e; } return rd.call(this, p, ...r); };
+    const L = await import(${libU}); const f = L.filesMatching('tools/hooks/*.mjs'); console.log(JSON.stringify({ found: f.length, unread: L.filesMatching.unread }));`;
+  const rr = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), pr = t => JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', probe(t)], { cwd: rr, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: rr, CLAUDE_PROJECT_DIR: rr } }).stdout.trim().split('\n').pop() || '{}');
+  const once = pr(1), always = pr(99);
+  report(once.found > 0 && !once.unread?.length && always.found === 0 && always.unread?.includes('tools/hooks'), 'files: a folder whose read fails once is retried; one that keeps failing is named as unread, never silently skipped', JSON.stringify({ once, always })); }
 // (with no transcript, any agent but Claude Code: "check --answer-file" judges the turn from the run log and the files
 // changed since "begin", not nothing. Lesson (the old suite under v2): an edited hook file got CHECK: PASS)
 {
