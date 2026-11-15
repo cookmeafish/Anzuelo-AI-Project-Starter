@@ -113,6 +113,13 @@ What the user saw in that hour, and why:
       opening quote of a path starting with "w" as a write mode. Now the mode must be open()'s second argument, and
       write_text, write_bytes, createWriteStream, shutil and os moves and removes count as writes. Tests from the two
       real refusals failed on the old code.)
+- [x] (done: requirement kind releaseProven, met when tools/hooks/engine-proof.json names a commit and the turn's
+      engine files equal it byte for byte (one git diff, only when the self-test ask applies); the self-test ask accepts
+      it beside a passing run. Test on a throwaway repository: proof and same files met; an edit after it, or no proof,
+      not; failed on the old code.)
+- [x] (and the 21-item hold: follow-on items ("Then, once <file> is written") go under "Also noted, not held"; a
+      runbook a later message routed brings its steps only when the turn touched its kind, else one line asks to do it
+      or say why not, and only on a work turn. Tests failed on the old code; v2-sweep has no regressions, 1664 passed.)
 - [ ] A release proof written this turn (tools/hooks/engine-proof.json naming the tested commit, or the chain's result
       files) counts as test evidence for that commit's files: after a release whose two chains passed every test, the
       end check held twice for tests not run, since the chain runs them in a frozen copy (2026-11-15). Test: a turn that

@@ -1753,6 +1753,17 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     report(!/strip the status letters|put the comment at the end/.test(n1?.reason || '') && /add the snapshot to the changelog/.test(n2?.reason || '') && /update README\.md/.test(n3?.reason || '') && !/fix the regex/.test(n4?.reason || ''),
       'end: an "I\'ll ..." the turn carried out with its next tool calls is narration, not an open promise; one with nothing done after it is still held, and so is one naming a file no later call touched',
       JSON.stringify({ n1: (n1?.reason || '').slice(0, 300), n2: (n2?.reason || '').slice(0, 200), n3: (n3?.reason || '').slice(0, 200), n4: (n4?.reason || '').slice(0, 200) })); }
+  // (a release proof naming a commit whose engine files are the turn's, byte for byte, is their test run: the chains ran
+  // the suites in a frozen copy. Oversight, 2026-11-15: held twice after a release for tests not run here)
+  { const r0 = fs.mkdtempSync(path.join(os.tmpdir(), 'proven-')), gq = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: r0, encoding: 'utf8' });
+    fs.mkdirSync(path.join(r0, 'tools/hooks'), { recursive: true }); fs.writeFileSync(path.join(r0, 'tools/x.mjs'), 'export const a = 1;\n');
+    gq('init', '-q'); gq('add', '-A'); gq('commit', '-qm', 'engine'); const c = gq('rev-parse', '--short', 'HEAD').stdout.trim();
+    const lib = new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), 'lib.mjs').replace(/\\/g, '/').replace(/^\//, '')}`).href;
+    const ask = () => spawnSync(process.execPath, ['--input-type=module', '-e', `const L = await import(${JSON.stringify(lib)}); console.log(L.holdsReq({ releaseProven: true }, { calls: [], answer: '' }, { changed: ['tools/x.mjs'], runbook: '' }))`], { cwd: r0, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: r0 } }).stdout.trim();
+    const none = ask(); fs.writeFileSync(path.join(r0, 'tools/hooks/engine-proof.json'), JSON.stringify({ commit: c }));
+    const same = ask(); fs.writeFileSync(path.join(r0, 'tools/x.mjs'), 'export const a = 2;\n'); const edited = ask();
+    fs.rmSync(r0, { recursive: true, force: true });
+    report(same === 'true' && edited === 'false' && none === 'false', 'end: a release proof naming the commit of the turn\'s engine files meets the self-test ask; an edit after it, or no proof, does not', JSON.stringify({ none, same, edited })); }
   // (a runbook a later message of the turn routed holds only when the turn touched its kind: opened it, changed a file its
   // items name, or ran a command they name. Lesson (a project, 2026-11-14 21:51): a hold of 21 items, most from runbooks
   // routed by some message of a long turn, for outputs never made and questions never asked)
@@ -2143,7 +2154,7 @@ fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
 { // (the starter's dev check: a run of the self-test counts, a look at one scenario (--explain, --route) does not)
   const { DEV_SELF_TESTS } = await import('../base-checks.mjs');
-  const rx = new RegExp(DEV_SELF_TESTS.require.toolPassed.cmd);
+  const rx = new RegExp((DEV_SELF_TESTS.require.toolPassed || DEV_SELF_TESTS.require.anyOf.find(a => a.toolPassed).toolPassed).cmd);
   const d = { run: rx.test('node tools/hooks/v2/selftest.mjs'), tags: rx.test('node tools/hooks/selfcheck.mjs --tags x'), explain: rx.test('node tools/hooks/selfcheck.mjs --explain "a"'), route: rx.test('node tools/hooks/selfcheck.mjs --route "a"') };
   report(d.run && d.tags && !d.explain && !d.route, 'dev: the starter\'s self-test step counts a run of the self-test, never a look at one scenario (--explain, --route)', d);
 }

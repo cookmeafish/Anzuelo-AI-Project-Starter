@@ -44,7 +44,7 @@ export const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STA
 export const DEV_SELF_TESTS = { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: SELF_WRITTEN },
   // (a look at one scenario, --explain, --route or --contract, runs no tests: it is no run of them. Lesson (this starter's
   // own turn): an --explain after a passing self-test brought the step back)
-  require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?(selfcheck|selftest)\.mjs(?![^\n|;&]*--(explain|route|contract)\b)`, pass: 'ALL PASS' } },
+  require: { anyOf: [{ toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?(selfcheck|selftest)\.mjs(?![^\n|;&]*--(explain|route|contract)\b)`, pass: 'ALL PASS' } }, { releaseProven: true }] }, // (or a release proof naming a commit whose engine files are these: its chains ran the tests in a frozen copy. Oversight, 2026-11-15: held twice after a release for tests not run here)
   message: 'The starter\'s engine changed: run its self-test (node tools/hooks/v2/selftest.mjs, or node tools/hooks/selfcheck.mjs) until it prints "ALL PASS".' };
 export const DEV_CHANGELOG = { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: SELF_WRITTEN }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
   message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' };

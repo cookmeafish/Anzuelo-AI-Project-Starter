@@ -1230,7 +1230,7 @@ export function holdsReq(c, acts, x) {
       const gx = gateTurn(acts), g = gatesOf().toolPassed({ toolPassed: typeof v === 'string' ? v : { ...v, selfAuto: false } }, gx, reqRe);
       if (g === false) { acts.detail = gx.override || gx.detail || ''; return false; }
       return true; },
-    workTurn: v => !v || x.changed.length > 0,
+    workTurn: v => !v || x.changed.length > 0, releaseProven: () => { let c = ''; try { c = String(JSON.parse(fs.readFileSync(at('tools/hooks/engine-proof.json'), 'utf8')).commit || ''); } catch { } const fl = x.changed.filter(f => /^(tools|skills|packs|library)\//.test(f) && f !== 'tools/hooks/engine-proof.json'); return /^[0-9a-f]{7,40}$/.test(c) && fl.length > 0 && spawnSync('git', ['diff', '--quiet', c, '--', ...fl.slice(0, 200)], { cwd: ROOT, timeout: 5000 }).status === 0; }, // (a release proof that names a commit whose engine files are these, byte for byte, is their test run: the chains ran it in a frozen copy. Oversight, 2026-11-15: held twice after a release for tests not run here)
     minToolCalls: v => acts.calls.length >= v,
     // (a branch the evaluator can't read may be the one that holds: then the whole anyOf can't be judged, unless another
     // branch holds. Lesson (the v2 re-sweep): answers citing their files were held, the cite branch being unread)
