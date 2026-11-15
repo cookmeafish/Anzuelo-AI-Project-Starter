@@ -2363,7 +2363,7 @@ const { questionGaps } = await import('./lib.mjs');
 if (STARTER_REPO) { // (the release push stops at its first failed step: a refused merge pushes nothing. Lesson (2026-11-14):
   // a pipe hid a refused fast-forward and the push went on. Its test runs on throwaway repositories)
   const t = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'release', 'push-release-check.sh');
-  const r = fs.existsSync(t) ? spawnSync('bash', [t], { encoding: 'utf8', timeout: 120000 }) : { stdout: '', stderr: 'missing' };
+  const r = fs.existsSync(t) ? spawnSync('bash', [t], { encoding: 'utf8', timeout: 120000, env: { ...process.env, ANZUELO_RELEASE_REPO: '/stray', ANZUELO_RELEASE_WORK: '/stray' } }) : { stdout: '', stderr: 'missing' }; // (a stray release flag, as a chain once passed down, so the case that failed only in a chain fails here too)
   const lines = String(r.stdout || '').split('\n').filter(l => /^(PASS|FAIL) /.test(l));
   report(lines.length === 5 && lines.every(l => l.startsWith('PASS')), 'release: push-release.sh stops at a refused merge and pushes nothing; a plans-only divergence and a fast-forward push; the release scripts parse whole before running and run as committed, not from the working checkout', lines.join(' | ') || String(r.stderr || r.error || '').slice(0, 200));
 }

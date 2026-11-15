@@ -20,8 +20,11 @@ if [ -z "${ANZUELO_RELEASE_REPO:-}" ]; then
   for f in two-chains.sh frozen-chain.sh; do git -C "$REPO" show "$SHA:tools/starter/release/$f" > "$C/$f" 2>/dev/null || cp "$HERE/$f" "$C/$f"; done
   ANZUELO_RELEASE_REPO="$REPO" ANZUELO_RELEASE_WORK="$WORK" exec bash "$C/two-chains.sh" "$@"
 fi
-# (a dry run names the chain script it would run, for the release test)
-if [ -n "${ANZUELO_RELEASE_DRY:-}" ]; then cat "$HERE/frozen-chain.sh"; exit 0; fi
+# (the flag is read, then cleared: a step that inherits it skips the copy in any release script it starts. Lesson
+# (2026-11-15): the release test ran inside a chain's self-test and failed only there)
+unset ANZUELO_RELEASE_REPO ANZUELO_RELEASE_WORK
+# (a dry run names the chain script it would run and what its steps inherit, for the release test)
+if [ -n "${ANZUELO_RELEASE_DRY:-}" ]; then cat "$HERE/frozen-chain.sh"; echo "steps see: $(env | grep -c '^ANZUELO_RELEASE_\(REPO\|WORK\)=')"; exit 0; fi
 pool() { powershell.exe -NoProfile -Command '$m = Get-CimInstance Win32_PerfRawData_PerfOS_Memory; $n = [System.IO.Directory]::EnumerateFileSystemEntries($env:TEMP) | Measure-Object | Select-Object -ExpandProperty Count; $r = if (Test-Path "$env:TEMP\anzuelo-tests") { (Get-ChildItem -Force "$env:TEMP\anzuelo-tests" | Measure-Object).Count } else { 0 }; "{0} paged {1} MB nonpaged {2} MB temp {3} root {4}" -f (Get-Date -Format HH:mm:ss), [math]::Round($m.PoolPagedBytes/1MB), [math]::Round($m.PoolNonpagedBytes/1MB), $n, $r' 2>/dev/null | tr -d '\r'; }
 # (no leaks: chain B's copy goes on any exit, passed, failed or stopped; only the newest 3 frozen copies stay)
 trap 'git -C "$REPO" worktree remove --force "$HOME/.anzuelo-frozen/rel-$KEY-r2" 2>/dev/null; git -C "$REPO" worktree prune' EXIT
@@ -30,7 +33,7 @@ echo "before A: $(pool)" >> "$OUT"
 # (the pool every 5 minutes into the same log while the chains run, so each step's share shows without separate runs)
 ( while [ ! -f "$L/two-chains-$KEY.done" ]; do sleep 300; [ -f "$L/two-chains-$KEY.done" ] || echo "tick: $(pool) | $(grep -hE '^(PASS|FAIL)' "$L/chain-$KEY.log" 2>/dev/null | tail -1 | cut -c1-40)" >> "$OUT"; done ) &
 rm -f "$L/two-chains-$KEY.done"
-cd "$WORK" && sh "$HERE/frozen-chain.sh" "$SHA" $2 > "$L/chain-$KEY.log" 2>&1; echo "chain A exit $?: $(grep -E '^CHAIN' "$L/chain-$KEY.log" | tail -1)" >> "$OUT"
+cd "$WORK" && ANZUELO_RELEASE_REPO="$REPO" sh "$HERE/frozen-chain.sh" "$SHA" $2 > "$L/chain-$KEY.log" 2>&1; echo "chain A exit $?: $(grep -E '^CHAIN' "$L/chain-$KEY.log" | tail -1)" >> "$OUT"
 echo "after A: $(pool)" >> "$OUT"
 # (a failed chain A ends the pair: chain B on a commit that already failed only loads the machine. Lesson (2026-11-12):
 # A failed its pre-audit in 8 s and B ran the whole suite on the same commit)

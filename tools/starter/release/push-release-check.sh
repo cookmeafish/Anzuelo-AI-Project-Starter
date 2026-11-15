@@ -28,10 +28,13 @@ cd /; rm -rf "$T"
 R5=$(mktemp -d); mkdir -p "$R5/tools/starter/release"; cp "$S/two-chains.sh" "$S/frozen-chain.sh" "$R5/tools/starter/release/"
 ( cd "$R5" && git init -q && git add -A && git -c user.name=t -c user.email=t@example.com commit -qm release ) >/dev/null 2>&1
 c5=$(git -C "$R5" rev-parse --short HEAD); echo "# EDITED AFTER START" >> "$R5/tools/starter/release/frozen-chain.sh"
-ran=$(HOME="$R5/home" ANZUELO_RELEASE_DRY=1 bash "$R5/tools/starter/release/two-chains.sh" "$c5" 2>&1)
+# (a clean start, whatever this test inherits, and the copied run's steps see no ANZUELO_RELEASE_REPO/WORK: inherited,
+# they skip the copy in any release script a step starts. Lesson (2026-11-15): this case ran inside a chain's
+# self-test, inherited the chain's flag, and failed only there)
+ran=$(env -u ANZUELO_RELEASE_REPO -u ANZUELO_RELEASE_WORK HOME="$R5/home" ANZUELO_RELEASE_DRY=1 bash "$R5/tools/starter/release/two-chains.sh" "$c5" 2>&1)
 # (the control: with the copy step skipped, the same dry run does see the edit, so the case can tell the two apart)
 ctl=$(HOME="$R5/home" ANZUELO_RELEASE_DRY=1 ANZUELO_RELEASE_REPO="$R5" ANZUELO_RELEASE_WORK="$R5" bash "$R5/tools/starter/release/two-chains.sh" "$c5" 2>&1)
-if printf '%s' "$ran" | grep -q 'Frozen release chain' && ! printf '%s' "$ran" | grep -q 'EDITED AFTER START' && printf '%s' "$ctl" | grep -q 'EDITED AFTER START'; then echo "PASS a working-checkout edit does not reach the running chain"; else echo "FAIL the chain ran the edited working copy: $(printf '%s' "$ran" | tail -2)"; fi
+if printf '%s' "$ran" | grep -q 'Frozen release chain' && ! printf '%s' "$ran" | grep -q 'EDITED AFTER START' && printf '%s' "$ran" | grep -qx 'steps see: 0' && printf '%s' "$ctl" | grep -q 'EDITED AFTER START'; then echo "PASS a working-checkout edit does not reach the running chain, and its steps inherit no release flag"; else echo "FAIL the chain ran the edited working copy, or its steps inherit the release flag: $(printf '%s' "$ran" | tail -2 | tr '\n' ' ')"; fi
 rm -rf "$R5"
 # 4. each release script's body sits in braces, parsed before it runs, so an edit during a run cannot change it
 bad=""; for f in push-release.sh two-chains.sh frozen-chain.sh; do grep -qx '{' "$S/$f" && [ "$(grep -v '^$' "$S/$f" | tail -1)" = "}" ] || bad="$bad $f"; done
