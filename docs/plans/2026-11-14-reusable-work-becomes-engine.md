@@ -52,6 +52,16 @@ worth filling for any multi-agent setup.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: today's pause and reopen turns are flagged, a one-off scratch
       calculation is not; ALL PASS.
 
+## Task 1b: a repeat run reviews its own output for speed (coding session, after Task 1)
+**Why:** a project's repeated job kept taking long and waiting on screens it had already learned to get past; the user
+had to ask for the time analysis (2026-11-15). Nothing makes the agent compare a repeat run with the last one.
+- [ ] After a run of something the project runs repeatedly (a job, a routine, a script with a run log), the end check
+      asks once, unless the answer already says it: "Compared with the last run: what was slowest, what repeated a
+      solved step, and what changed to fix it."
+- [ ] The goal-loop skill and the job runbooks record per-run time, so the comparison has data.
+- [ ] Test: a turn that ran a logged job twice with the same slow step and no comparison gets one held line; a turn
+      with the comparison gets nothing.
+
 ## Task 2: the swept tools become engine runbooks (coding session)
 **Files:** tools/starter/ (the tools), docs/playbooks/ (runbooks), skills/ (generated)
 **Uses / provides:** uses Task 1.
