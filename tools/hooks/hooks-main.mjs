@@ -2772,8 +2772,12 @@ function cmdPretool(data) {
   // (told again once after 2 more tool calls with no reply; the user's line says only what is true: told, then answered)
   let replied = 0;
   const late = MIDTURN ? (() => { try { const r = MIDTURN.lateDue(readJSON(stateFile('late-told.json'), {}).told || {}, MIDTURN.lateMessages(data), m => `${data.agent_id || ''}|${m.at}|${m.text.slice(0, 80)}`);
-    writeState('late-told.json', { told: Object.fromEntries(Object.entries(r.told).slice(-50)) }); replied = r.answered;
-    return r.say.length ? MIDTURN.lateNote(r.say, r.again) : ''; } catch { return ''; } })() : '';
+    try { writeState('late-told.json', { told: Object.fromEntries(Object.entries(r.told).slice(-50)) }); } catch { } replied = r.answered; // (a record write that fails beside parallel ones never drops the telling: the claim below decides it)
+    // (each telling is claimed once, by an exclusive file create: parallel tool calls each read the record before any
+    // wrote it, and one message was told three times in a minute. Oversight's review, 2026-11-15)
+    const cd = stateFile('late-claims'), claim = m => { try { fs.mkdirSync(cd, { recursive: true }); fs.closeSync(fs.openSync(path.join(cd, createHash('sha1').update(`${data.session_id || ''}|${data.agent_id || ''}|${m.at}|${m.text.slice(0, 80)}|${r.told[`${data.agent_id || ''}|${m.at}|${m.text.slice(0, 80)}`]}`).digest('hex').slice(0, 16)), 'wx')); return true; } catch { return false; } };
+    const say = r.say.filter(claim); if (say.length) { try { const fl = fs.readdirSync(cd); if (fl.length > 200) fl.map(f => [f, fs.statSync(path.join(cd, f)).mtimeMs]).sort((a, b) => a[1] - b[1]).slice(0, fl.length - 200).forEach(([f]) => fs.rmSync(path.join(cd, f), { force: true })); } catch { } } // (the newest 200 claims kept: no leftovers)
+    return say.length ? MIDTURN.lateNote(say, r.again) : ''; } catch { return ''; } })() : '';
   const img = MIDTURN ? (() => { try { const m = MIDTURN.missingImages(data); return m && fresh('images-told.json', [m], x => `${data.agent_id}|${x.at}|${x.nums.join(',')}`).length ? MIDTURN.imagesNote(m) : ''; } catch { return ''; } })() : '';
   const notes = [late, img, ...(data.agent_id || V2_PRETOOL ? [] : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()])].filter(Boolean).join('\n');
   // (no 💬 line: the user sees their own message and the answer to it. Lesson (2026-11-12): four such lines in two minutes)

@@ -3797,6 +3797,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       // (and no 💬 line for the user: they see their message and the answer. 2026-11-12: four such lines in two minutes)
       report(/Still unanswered/.test(third) && !/additionalContext/.test(fourth) && ![one, third, fifth, sixth].some(o => /💬/.test(o)) && ![one, third].some(o => /answers you first/.test(o)),
         'late: an unanswered message is told to the agent once more after 2 more tool calls, then not again; the user gets no 💬 line, they see the message and its answer (late-answered)', { third: third.slice(0, 300), fourth: fourth.slice(0, 200), fifth: fifth.slice(0, 300), sixth: sixth.slice(0, 200) });
+      // (parallel tool calls tell a message once between them: each read the record before any wrote it, and one message was
+      // told three times in a minute. Oversight's review, 2026-11-15)
+      const { spawn } = await import('node:child_process'), fp = tfile('late-par', [q('one parallel question')]);
+      const preA = () => new Promise(res => { const ch = spawn(process.execPath, [path.join(c4, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c4, env: { ...process.env, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: c4, ANZUELO_ROOT: '' } }); let o = ''; ch.stdout.on('data', d => o += d); ch.on('close', () => res(o)); ch.stdin.end(JSON.stringify({ session_id: 'spar', transcript_path: fp, tool_name: 'Bash', tool_input: { command: 'ls' } })); });
+      const outs = await Promise.all([preA(), preA(), preA(), preA()]), told = outs.filter(o => /"The user wrote while you work: \\"one parallel question/.test(o)).length;
+      report(told === 1, 'late: parallel tool calls give a typed message its first telling once between them', JSON.stringify({ told, outs: outs.map(o => o.slice(0, 160)) }));
     }
     // (REQ: queued-messages, a regression that reached users: v2 kept only the hint, and the end check never held a
     // question typed mid-turn. Held until a later text answers it; an answer clears it; the message is part of the request)
@@ -4499,6 +4505,12 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     fs.rmSync(path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), { force: true });
     report(/^log: done "i want you to look over/.test(mid) && /matches 2 items/.test(both) && /invoice export/.test(both) && /receipt export/.test(both) && left === 2,
       'worklog: log done closes an item by a phrase from its middle; a phrase that matches several items names them and closes none', JSON.stringify({ mid, both, left })); }
+  // (pasted text is never an item, and a message that opens with a pasted block is still logged from the user's own words.
+  // Oversight's review, 2026-11-15: such a message was never logged, and pasted text became an item's text)
+  { const W = await import('./worklog.mjs'), P = '<pasted_content id="p1">Worth a look later: the vendor outline, sections 1-9.</pasted_content>';
+    const first = W.asksIn(`${P}\nturn this outline into lesson pages`), mid = W.asksIn(`add the export button\n${P}\nand rename the totals column`);
+    report(first.length === 1 && /lesson pages/.test(first[0]) && !first.some(a => /Worth a look|pasted_content/.test(a)) && mid.length === 2 && !mid.some(a => /Worth a look|pasted_content/.test(a)),
+      'worklog: a message that opens with a pasted block is logged from the user\'s own words, and pasted text is never an item', JSON.stringify({ first, mid })); }
   // (a phrase found in exactly one item closes it, even when another item shares a word: word overlap is only for when no
   // phrase matches. Oversight, 2026-11-15: a unique phrase was listed as ambiguous beside an item sharing "check")
   { const W = await import('./worklog.mjs'), sid = 'wlogu', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
