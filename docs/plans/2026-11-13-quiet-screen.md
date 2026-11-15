@@ -92,6 +92,12 @@ What the user saw in that hour, and why:
 - [ ] In an adopted app, the no-verbatim check never reads the app's own rules files: rule 14 is for text the starter
       shares, and an app may quote its user, dated, on purpose (2026-11-15: a false hold on the app's own CLAUDE.md).
       Test: an adopted copy whose CLAUDE.md gains a quoted line gets no hold.
+- [ ] A real adopted-app hold of 3 items, all already met (2026-11-15), replays to no items: (1) in package.json only
+      new or changed dependencies (dependencies, devDependencies, peer, optional) count as an addition for the
+      worth-it check, never the version, scripts or metadata; (2) a review agent whose brief or report covers security
+      meets the security item, not only the security-review skill by name; (3) with no gui pack in an adopted app,
+      adoption item 12 really turns the screen items off, and screenshots the app's own scripts take count as
+      evidence. Test: the replay of that hold gets no items.
 - [ ] Rule detection at the prompt skips quoted text and a prompt identical to one seen earlier in the session (a
       scheduled repeat): a repeating scheduled round that quoted the user's past "make sure" and "always" got the
       rule-request reminder and the full checklist (2026-11-15). Test: the same prompt with quoted rule words, sent

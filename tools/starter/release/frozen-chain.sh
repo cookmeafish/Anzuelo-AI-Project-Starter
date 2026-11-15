@@ -39,7 +39,8 @@ for step in "tools/hooks/v2/selftest.mjs" "tools/hooks/selfcheck.mjs" "tools/sta
   rel=""; [ "$name" = "selftest" ] && rel=1
   if ANZUELO_RELEASE=$rel node "$DIR/$step" > ".cache/chain-$name.txt" 2>&1; then echo "PASS $name: $(tail -1 .cache/chain-$name.txt)"; else echo "FAIL $name"; grep -E "^FAIL" ".cache/chain-$name.txt" | head -30; tail -3 ".cache/chain-$name.txt"; exit 1; fi
 done
-if ! node "$DIR/tools/starter/leaks.mjs" --compare .cache/leaks-before.json > .cache/chain-leaks.txt 2>&1; then echo "FAIL leaks"; cat .cache/chain-leaks.txt; exit 1; fi
+# (the paged pool is judged after cleanup, by two-chains.sh: here it is only reported, and kept in the proof)
+if ! node "$DIR/tools/starter/leaks.mjs" --compare .cache/leaks-before.json --skip-paged --record tools/hooks/engine-proof.json chainA > .cache/chain-leaks.txt 2>&1; then echo "FAIL leaks"; cat .cache/chain-leaks.txt; exit 1; fi
 echo "PASS leaks: $(tail -1 .cache/chain-leaks.txt)"
 echo "CHAIN PASS $SHA in $DIR"
 # (the push guard refuses a proof whose time limits were only noted; say it here, before any push is tried)

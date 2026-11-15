@@ -54,7 +54,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const i = process.argv.indexOf('--save'), j = process.argv.indexOf('--compare');
   if (i > 0 && process.argv[i + 1]) { const s = snapshot(); fs.writeFileSync(process.argv[i + 1], JSON.stringify(s)); console.log(`leaks: snapshot saved (${JSON.stringify({ ...s, nodeCacheAt: undefined })})`); }
   else if (j > 0 && process.argv[j + 1]) {
-    const before = JSON.parse(fs.readFileSync(process.argv[j + 1], 'utf8')), after = snapshot(), bad = compare(before, after);
+    // (--skip-paged: while a release's copies still exist the kernel pool holds their files' cache, so the paged budget is
+    // judged after cleanup (two-chains.sh) and only reported here; --record <proof> <label> keeps both readings in the
+    // proof, so growth that survives cleanup stays visible. Oversight, 2026-11-15: a fresh boot's file cache failed a chain)
+    const skip = process.argv.includes('--skip-paged'), r = process.argv.indexOf('--record');
+    const before = JSON.parse(fs.readFileSync(process.argv[j + 1], 'utf8')), after = snapshot(), bad = compare(before, after, skip ? { ...BUDGET, pagedMB: Infinity } : BUDGET);
+    if (before.pagedMB != null && after.pagedMB != null) console.log(`paged: ${before.pagedMB} -> ${after.pagedMB} MB${skip ? ' (judged after cleanup)' : ''}`);
+    if (r > 0 && process.argv[r + 2]) { const f = process.argv[r + 1]; let p = {}; try { p = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { } p.leaks = { ...(p.leaks || {}), [process.argv[r + 2]]: { pagedMB: [before.pagedMB, after.pagedMB], nonpagedMB: [before.nonpagedMB, after.nonpagedMB] } }; fs.writeFileSync(f, JSON.stringify(p, null, 2) + '\n'); }
     console.log(bad.length ? `LEAKS:\n${bad.map(l => `- ${l}`).join('\n')}` : 'leaks: none past the budget');
     process.exit(bad.length ? 1 : 0);
   } else { console.error('usage: node tools/starter/leaks.mjs --save <file> | --compare <file>'); process.exit(2); }

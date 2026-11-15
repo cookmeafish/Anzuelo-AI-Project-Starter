@@ -44,9 +44,13 @@ fail=0; for step in tools/hooks/v2/selftest.mjs tools/hooks/selfcheck.mjs tools/
 echo "chain B done (fail=$fail)" >> "$OUT"
 # (both chains together against the snapshot chain A took before it began; nothing else may run beside them: a suite
 # run alongside once left its test folders and failed this check, 2026-11-14)
-node tools/starter/leaks.mjs --compare "$HOME/.anzuelo-frozen/rel-$KEY/.cache/leaks-before.json" >> "$OUT" 2>&1 || { echo "chain B: LEAKS (both chains together)" >> "$OUT"; fail=1; }
+A="$HOME/.anzuelo-frozen/rel-$KEY"
+node tools/starter/leaks.mjs --compare "$A/.cache/leaks-before.json" --skip-paged --record "$A/tools/hooks/engine-proof.json" beforeCleanup >> "$OUT" 2>&1 || { echo "chain B: LEAKS (both chains together)" >> "$OUT"; fail=1; }
 echo "after B: $(pool)" >> "$OUT"
 cd "$REPO" && git worktree remove --force "$HOME/.anzuelo-frozen/rel-$KEY-r2" && git worktree prune
+# (the paged pool judged after chain B's copy is gone and 60 s of settling: the copies' file cache is not a leak, and
+# growth that survives cleanup is. Chain A's copy stays for the proof commit. Oversight, 2026-11-15)
+sleep 60; node "$A/tools/starter/leaks.mjs" --compare "$A/.cache/leaks-before.json" --record "$A/tools/hooks/engine-proof.json" afterCleanup >> "$OUT" 2>&1 || { echo "LEAKS after cleanup" >> "$OUT"; fail=1; }
 touch "$L/two-chains-$KEY.done"
 echo "TWO-CHAINS DONE" >> "$OUT"
 [ "$fail" = 0 ] && echo "BOTH PASS: push with push-release.sh $SHA" >> "$OUT"
