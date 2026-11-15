@@ -8,10 +8,20 @@
 # (the whole body in braces, parsed before it runs: an edit during the hour-long run cannot change it. Lesson (2026-11-15))
 {
 HERE=$(cd "$(dirname "$0")" && pwd)
-REPO=$(cd "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
-WORK=$(cd "$HERE/../../.." && pwd)
+REPO=${ANZUELO_RELEASE_REPO:-$(cd "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)}
+WORK=${ANZUELO_RELEASE_WORK:-$(cd "$HERE/../../.." && pwd)}
 L="$HOME/.anzuelo-frozen/logs"; mkdir -p "$L"
 SHA=$1; KEY=$1${2:+-$2}; OUT=$L/two-chains-$KEY.txt
+# (the release scripts run as committed in the commit under test, copied out first, never from the working checkout: an
+# edit there during the run cannot change it. Lesson (2026-11-15): a mid-run edit to frozen-chain.sh killed a chain. A
+# commit older than these scripts runs the working ones)
+if [ -z "${ANZUELO_RELEASE_REPO:-}" ]; then
+  C="$L/scripts-$KEY"; rm -rf "$C"; mkdir -p "$C"
+  for f in two-chains.sh frozen-chain.sh; do git -C "$REPO" show "$SHA:tools/starter/release/$f" > "$C/$f" 2>/dev/null || cp "$HERE/$f" "$C/$f"; done
+  ANZUELO_RELEASE_REPO="$REPO" ANZUELO_RELEASE_WORK="$WORK" exec bash "$C/two-chains.sh" "$@"
+fi
+# (a dry run names the chain script it would run, for the release test)
+if [ -n "${ANZUELO_RELEASE_DRY:-}" ]; then cat "$HERE/frozen-chain.sh"; exit 0; fi
 pool() { powershell.exe -NoProfile -Command '$m = Get-CimInstance Win32_PerfRawData_PerfOS_Memory; $n = [System.IO.Directory]::EnumerateFileSystemEntries($env:TEMP) | Measure-Object | Select-Object -ExpandProperty Count; $r = if (Test-Path "$env:TEMP\anzuelo-tests") { (Get-ChildItem -Force "$env:TEMP\anzuelo-tests" | Measure-Object).Count } else { 0 }; "{0} paged {1} MB nonpaged {2} MB temp {3} root {4}" -f (Get-Date -Format HH:mm:ss), [math]::Round($m.PoolPagedBytes/1MB), [math]::Round($m.PoolNonpagedBytes/1MB), $n, $r' 2>/dev/null | tr -d '\r'; }
 # (no leaks: chain B's copy goes on any exit, passed, failed or stopped; only the newest 3 frozen copies stay)
 trap 'git -C "$REPO" worktree remove --force "$HOME/.anzuelo-frozen/rel-$KEY-r2" 2>/dev/null; git -C "$REPO" worktree prune' EXIT

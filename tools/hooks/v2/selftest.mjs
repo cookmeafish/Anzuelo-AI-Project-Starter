@@ -2365,7 +2365,7 @@ if (STARTER_REPO) { // (the release push stops at its first failed step: a refus
   const t = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'release', 'push-release-check.sh');
   const r = fs.existsSync(t) ? spawnSync('bash', [t], { encoding: 'utf8', timeout: 120000 }) : { stdout: '', stderr: 'missing' };
   const lines = String(r.stdout || '').split('\n').filter(l => /^(PASS|FAIL) /.test(l));
-  report(lines.length === 4 && lines.every(l => l.startsWith('PASS')), 'release: push-release.sh stops at a refused merge and pushes nothing; a plans-only divergence and a fast-forward push; the release scripts parse whole before running', lines.join(' | ') || String(r.stderr || r.error || '').slice(0, 200));
+  report(lines.length === 5 && lines.every(l => l.startsWith('PASS')), 'release: push-release.sh stops at a refused merge and pushes nothing; a plans-only divergence and a fast-forward push; the release scripts parse whole before running and run as committed, not from the working checkout', lines.join(' | ') || String(r.stderr || r.error || '').slice(0, 200));
 }
 if (STARTER_REPO) { // (the starter's own text; a project may have no AGENTS.md)
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');

@@ -9,7 +9,7 @@ set -u
 {
 HERE=$(cd "$(dirname "$0")" && pwd)
 # (the starter's repository: the one this checkout belongs to, a worktree's included)
-REPO=$(cd "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
+REPO=${ANZUELO_RELEASE_REPO:-$(cd "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)}
 SHA=$(git -C "$REPO" rev-parse --short "${1:-HEAD}")
 # (an optional second argument names a rerun, so a rerun needs no branch deleted: rel-<sha>-<run>)
 RUN="${2:+-$2}"
