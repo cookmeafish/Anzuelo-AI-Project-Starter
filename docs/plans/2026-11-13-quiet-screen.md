@@ -233,6 +233,11 @@ Seen in a project (2026-11-13): after a hold listing many open items, the agent 
       misses, blocked M unsafe actions". Shown only when N + M > 0, and it can be turned off (status-lines).
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: a turn with a real catch shows one "caught" line naming it; a
       clean turn shows nothing; the daily line appears once and only with nonzero counts; ALL PASS.
+- [x] After a compaction, the reminder brings back the one-line file-edit rule once with the summary (start.mjs). Oversight's
+      replay, 2026-11-15: three refused shell edits in three minutes right after a compaction.
+- [ ] After a second shell-hygiene refusal in a session, the next prompt's reminder carries the same line once (the guard
+      counts its refusals per session in its state; no new interruption during work). Replay: the post-compaction turns
+      of that session get the line once, not on every prompt.
 
 ## Task 5: replay and release
 **Files:** the replay tool

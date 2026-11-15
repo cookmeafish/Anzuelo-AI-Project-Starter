@@ -152,8 +152,8 @@ export function reminder(prompt, { midTurn = false } = {}) {
   if (!relayedRx.test(raw) && PAUSE_ASK.test(raw)) return { book: null, text: [PAUSE_HINT, upsetIn(raw) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : ''].filter(Boolean).join('\n') };
   const asking = !relayedRx.test(raw) && asksOnly(raw.replace(/<pasted_content\b[\s\S]*?(<\/pasted_content[^>]*>|\/>)/gi, ' '), projectConfig().changeWords);
   if (asking && midTurn) return { book: null, text: [Q_NOW, upsetIn(raw) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : ''].filter(Boolean).join('\n') };
-  const r = remind(prompt);
-  return asking ? { book: r.book, text: [Q_FIRST, r.text].filter(Boolean).join('\n') } : r;
+  const r = remind(prompt), cont = /^\s*This session is being continued from a previous conversation/.test(raw) ? 'File changes: Edit/Write only; never sed, heredoc or shell redirection on source files.' : ''; // (a compacted session lost the session-start note: the file-edit rule comes back once with the summary. Oversight's replay, 2026-11-15: three refused shell edits in three minutes right after a compaction)
+  return asking || cont ? { book: r.book, text: [cont, asking ? Q_FIRST : '', r.text].filter(Boolean).join('\n') } : r;
 }
 function remind(prompt) {
   const raw = String(prompt || '');
