@@ -39,6 +39,11 @@ export function snapshot() {
     const ps = spawnSync('powershell.exe', ['-NoProfile', '-Command', "$m = Get-CimInstance Win32_PerfRawData_PerfOS_Memory; $p = @(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'anzuelo-tests|anzuelo-frozen' -and $_.ProcessId -ne " + process.pid + " }).Count; '{0} {1} {2}' -f [math]::Round($m.PoolPagedBytes/1MB), [math]::Round($m.PoolNonpagedBytes/1MB), $p"], { encoding: 'utf8', timeout: 60000, windowsHide: true });
     const [pg, np, pr] = (ps.stdout || '').trim().split(/\s+/).map(Number);
     if (Number.isFinite(pg)) Object.assign(s, { pagedMB: pg, nonpagedMB: np, processes: pr });
+    // (the kernel's live File objects, from the pool-tag reader: each start of a program outside System32 leaves about one
+    // for good, about 5,900 per v2 self-test run (2026-11-15). Reported and recorded; judged once releases give a budget)
+    const pt = path.join(path.dirname(fileURLToPath(import.meta.url)), 'pooltags.ps1'), csv = path.join(T, `leaks-pool-${process.pid}.csv`);
+    try { spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', pt, '-Csv', csv], { timeout: 60000, windowsHide: true });
+      const row = fs.readFileSync(csv, 'utf8').split(/\r?\n/).map(l => l.replace(/"/g, '').split(',')).find(c => c[0] === 'File'); if (row) s.fileLive = Number(row[4]); } catch { } finally { fs.rmSync(csv, { force: true }); }
   }
   return s;
 }
@@ -64,8 +69,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const skip = process.argv.includes('--skip-paged'), r = process.argv.indexOf('--record');
     const before = JSON.parse(fs.readFileSync(process.argv[j + 1], 'utf8')), after = snapshot(), bad = compare(before, after, skip ? { ...BUDGET, pagedMB: Infinity } : BUDGET);
     if (before.pagedMB != null && after.pagedMB != null) console.log(`paged: ${before.pagedMB} -> ${after.pagedMB} MB${skip ? ' (judged after cleanup)' : ''}`);
+    if (before.fileLive != null && after.fileLive != null) console.log(`kernel File objects: ${before.fileLive} -> ${after.fileLive} (${after.fileLive - before.fileLive >= 0 ? '+' : ''}${after.fileLive - before.fileLive}; reported, no budget yet)`);
     if (before.systemTemp != null && after.systemTemp != null) console.log(`machine temp folder: ${before.systemTemp} -> ${after.systemTemp} entries (reported only: other programs write there too)`);
-    if (r > 0 && process.argv[r + 2]) { const f = process.argv[r + 1]; let p = {}; try { p = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { } p.leaks = { ...(p.leaks || {}), [process.argv[r + 2]]: { pagedMB: [before.pagedMB, after.pagedMB], nonpagedMB: [before.nonpagedMB, after.nonpagedMB], ...(before.systemTemp != null ? { machineTemp: [before.systemTemp, after.systemTemp] } : {}) } }; fs.writeFileSync(f, JSON.stringify(p, null, 2) + '\n'); }
+    if (r > 0 && process.argv[r + 2]) { const f = process.argv[r + 1]; let p = {}; try { p = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { } p.leaks = { ...(p.leaks || {}), [process.argv[r + 2]]: { pagedMB: [before.pagedMB, after.pagedMB], nonpagedMB: [before.nonpagedMB, after.nonpagedMB], ...(before.systemTemp != null ? { machineTemp: [before.systemTemp, after.systemTemp] } : {}), ...(before.fileLive != null ? { fileLive: [before.fileLive, after.fileLive] } : {}) } }; fs.writeFileSync(f, JSON.stringify(p, null, 2) + '\n'); }
     console.log(bad.length ? `LEAKS:\n${bad.map(l => `- ${l}`).join('\n')}` : 'leaks: none past the budget');
     process.exit(bad.length ? 1 : 0);
   } else { console.error('usage: node tools/starter/leaks.mjs --save <file> | --compare <file>'); process.exit(2); }
