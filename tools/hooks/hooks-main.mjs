@@ -4169,6 +4169,10 @@ export function holds(c, x) {
   if (c.answerFiguresComputed && x.toolsKnown) { const p = figureProblems(x); if (p.length) { x.detail = `${p.join('; ')}. Compute each figure with the script (or fix the script so it prints it), run it, and give the figures it prints`; return false; } }
   if (c.minToolCalls && x.uses.length < c.minToolCalls) return false;
   if (c.workTurn && !x.workTurn) return false;
+  // (releaseProven, as v2: a release proof naming the commit whose engine files the turn has, byte for byte. An unknown
+  // key holds by default here, so it must be known: the chain caught the self-test ask met by its unknown alternative)
+  if (c.releaseProven) { let pc = ''; try { pc = String(JSON.parse(read(abs('tools/hooks/engine-proof.json'))).commit || ''); } catch { } const fl = x.changed.filter(f => /^(tools|skills|packs|library)\//.test(f) && f !== 'tools/hooks/engine-proof.json');
+    if (!(/^[0-9a-f]{7,40}$/.test(pc) && fl.length && spawnSync('git', ['diff', '--quiet', pc, '--', ...fl.slice(0, 200)], { cwd: ROOT, timeout: 5000 }).status === 0)) return false; }
   // filesIgnore narrows filesChanged and changedContentMatches: those files never count
   // (nor does a runbook or skill whose only change is its triggers line: new routing words, the same procedure)
   const counted = p => (!c.filesIgnore || !match(p, globs(c.filesIgnore))) && !routingOnlyEdits(x).has(p);
