@@ -4,7 +4,8 @@
 # a pipe hid a refused fast-forward and the push went on. When main moved since the copy was made, the release comes
 # in as a merge, allowed only when main's own extra commits touch nothing outside docs/plans/.
 # Usage: bash tools/starter/release/push-release.sh <commit> "<proof commit message>" [main checkout] [working checkout] [remote]
-# Starter-only; its test: tools/starter/release/push-release.test.sh (run by the v2 self-test).
+# Starter-only; its test: tools/starter/release/push-release-check.sh (run by the v2 self-test; not named *.test.*, which
+# an installed app's test runner would collect from the engine folder).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 SHA="$1"; MSG="$2"

@@ -4158,8 +4158,13 @@ export function routingOnlyEdits(x) {
 // ("FAIL", "PASS"). Lesson (trial round 12): security-report's "no open FAIL" read "the rollback fails" as a FAIL, and the
 // agent reworded a correct sentence to get past it.
 export const checkRe = (s, flags = 'im') => String(s).startsWith('(?c)') ? new RegExp(String(s).slice(4), flags.replace('i', '')) : new RegExp(s, flags);
+// The requirement kinds holds() judges. One it does not know fails closed, held with its name: an unknown kind once held
+// by default and silently met the starter's self-test ask (release chain, 2026-11-15). The v2 self-test checks that every
+// kind v2 judges is listed here.
+export const V1_KINDS = ['allFilesChanged', 'answerCites', 'answerFiguresComputed', 'answerMatches', 'answerNotMatches', 'anyOf', 'changedContentMatches', 'checkedAfterAgents', 'fileRead', 'filesChanged', 'filesIgnore', 'guiChanged', 'knowledgeFromFiles', 'minToolCalls', 'playbookRouted', 'playbookUsed', 'promptMatches', 'promptNotMatches', 'ranFailing', 'releaseProven', 'resultMatches', 'runEach', 'skillUsed', 'toolCount', 'toolPassed', 'toolRan', 'toolUsed', 'workTurn'];
 export function holds(c, x) {
   const r = s => checkRe(s);
+  { const k = Object.keys(c || {}).find(k => !V1_KINDS.includes(k)); if (k) { x.detail = `unknown requirement kind ${k}`; return false; } }
   const globs = v => [].concat(v);
   if (c.promptMatches && !r(c.promptMatches).test(x.prompt)) return false;
   if (c.promptNotMatches && r(c.promptNotMatches).test(x.prompt)) return false;

@@ -1299,7 +1299,7 @@ export function holdsReq(c, acts, x) {
     checkedAfterAgents: v => { const last = acts.calls.map(k => /^(Agent|Task)$/.test(k.name)).lastIndexOf(true); return !v || last < 0 || acts.calls.slice(last + 1).some(k => /^(Read|Bash|PowerShell|Grep)$/.test(k.name)); },
   };
   let unknown = false;
-  for (const [k, v] of Object.entries(c || {})) { if (!tests[k]) return null; const r = tests[k](v); if (r === null) unknown = true; else if (!r) return false; }
+  holdsReq.kinds = Object.keys(tests); for (const [k, v] of Object.entries(c || {})) { if (!tests[k]) return null; const r = tests[k](v); if (r === null) unknown = true; else if (!r) return false; }
   return unknown ? null : true;
 }
 // The keys the evaluator reads, and the ones that only name the user's words: a check whose condition is words in the

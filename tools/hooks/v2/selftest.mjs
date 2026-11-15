@@ -1753,6 +1753,16 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     report(!/strip the status letters|put the comment at the end/.test(n1?.reason || '') && /add the snapshot to the changelog/.test(n2?.reason || '') && /update README\.md/.test(n3?.reason || '') && !/fix the regex/.test(n4?.reason || ''),
       'end: an "I\'ll ..." the turn carried out with its next tool calls is narration, not an open promise; one with nothing done after it is still held, and so is one naming a file no later call touched',
       JSON.stringify({ n1: (n1?.reason || '').slice(0, 300), n2: (n2?.reason || '').slice(0, 200), n3: (n3?.reason || '').slice(0, 200), n4: (n4?.reason || '').slice(0, 200) })); }
+  // (every requirement kind v2 judges is one the old engine knows: there an unknown kind fails closed, held with its name.
+  // Lesson (release chain, 2026-11-15): an unknown kind held by default in the old engine and silently met a safety ask)
+  { const u = f => JSON.stringify(new URL(`file:///${path.join(path.dirname(fileURLToPath(import.meta.url)), f).replace(/\\/g, '/').replace(/^\//, '')}`).href);
+    const probe = `const H = await import(${u('../hooks-main.mjs')}), L = await import(${u('lib.mjs')}); L.holdsReq({}, { calls: [], answer: '' }, { changed: [], runbook: '' });
+      const x = {}; console.log(JSON.stringify({ v2: L.holdsReq.kinds, v1: H.V1_KINDS, closed: H.holds({ noSuchKind: true }, x), detail: x.detail }));`;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: dir, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: dir } });
+    let o = {}; try { o = JSON.parse(r.stdout.trim().split('\n').pop()); } catch { }
+    const missingV1 = (o.v2 || []).filter(k => !(o.v1 || []).includes(k));
+    report((o.v2 || []).length > 10 && !missingV1.length && o.closed === false && /unknown requirement kind noSuchKind/.test(o.detail || ''),
+      'requirements: every kind v2 judges is known to the old engine, where an unknown kind fails closed with its name', JSON.stringify({ missingV1, closed: o.closed, detail: o.detail, err: String(r.stderr || '').split('\n').find(l => /Error/.test(l)) })); }
   // (a release proof naming a commit whose engine files are the turn's, byte for byte, is their test run: the chains ran
   // the suites in a frozen copy. Oversight, 2026-11-15: held twice after a release for tests not run here)
   { const r0 = fs.mkdtempSync(path.join(os.tmpdir(), 'proven-')), gq = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: r0, encoding: 'utf8' });
@@ -2352,7 +2362,7 @@ const { questionGaps } = await import('./lib.mjs');
 // (the hooks are named by kind everywhere the user or agent reads about them: Reminder, Guard, Check)
 if (STARTER_REPO) { // (the release push stops at its first failed step: a refused merge pushes nothing. Lesson (2026-11-14):
   // a pipe hid a refused fast-forward and the push went on. Its test runs on throwaway repositories)
-  const t = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'release', 'push-release.test.sh');
+  const t = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'starter', 'release', 'push-release-check.sh');
   const r = fs.existsSync(t) ? spawnSync('bash', [t], { encoding: 'utf8', timeout: 120000 }) : { stdout: '', stderr: 'missing' };
   const lines = String(r.stdout || '').split('\n').filter(l => /^(PASS|FAIL) /.test(l));
   report(lines.length === 3 && lines.every(l => l.startsWith('PASS')), 'release: push-release.sh stops at a refused merge and pushes nothing; a plans-only divergence and a fast-forward push', lines.join(' | ') || String(r.stderr || r.error || '').slice(0, 200));
