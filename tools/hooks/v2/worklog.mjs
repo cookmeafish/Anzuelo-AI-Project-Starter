@@ -11,7 +11,7 @@ const saveLog = (sid, items) => { if (!sid || process.env.V2_NO_STATE || process
   try { fs.mkdirSync(path.dirname(file(sid)), { recursive: true }); fs.writeFileSync(file(sid), JSON.stringify({ items: items.slice(-100) })); } catch { } };
 // (thanks, a yes, "go on": no ask. Nor a message from another session, a helper or the host: not the user's)
 const CHAT = /^\s*(?:thanks?(?: you)?|thx|ok(?:ay)?|cool|great|nice|perfect|good|yes|yep|yeah|no|nope|sure|lol|got it|sounds good|go ahead|go on|continue|keep going|gracias|vale|s[ií])\b[\s.!]*$/i;
-const NOT_USER = /<(cross-session-message|agent-message|task-notification|system-reminder)\b|^\s*(Another Claude session sent a message|This session is being continued|Stop hook feedback|\[SYSTEM NOTIFICATION)/i;
+const NOT_USER = /<(cross-session-message|agent-message|task-notification|system-reminder)\b|^\s*(Another Claude session sent a message|This session is being continued|Stop hook feedback|\[SYSTEM NOTIFICATION|Your (claude\.ai )?usage limit has (reset|been reached)|\[(Usage limit reached|Earlier usage-limit notes))/i; // (the host's own notes, a usage limit reset or reached, are not the user's asks: they were listed as open. Oversight, 2026-11-15)
 const textOf = c => Array.isArray(c) ? c.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(c || '');
 // The asks in a typed message: each line or sentence with key words (a list item, a question, an order); at most 6.
 export function asksIn(msg) {

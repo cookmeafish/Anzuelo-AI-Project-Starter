@@ -4417,7 +4417,9 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
 {
   const { spawn } = await import('node:child_process');
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-  const tmp = testDir('stoptest-'), env = { ...process.env, TEMP: tmp, TMP: tmp, TMPDIR: tmp };
+  // (its own home too: stop-tests also writes into each release's temp folder under ~/.anzuelo-frozen, and this test once
+  // stopped the release chain it ran inside. Lesson (the chain on 57f2e7a))
+  const tmp = testDir('stoptest-'), env = { ...process.env, TEMP: tmp, TMP: tmp, TMPDIR: tmp, USERPROFILE: tmp, HOME: tmp };
   const tt = JSON.stringify((await import('node:url')).pathToFileURL(path.join(repoRoot, 'tools/hooks/testtmp.mjs')).href);
   const kid = code => spawn(process.execPath, ['--input-type=module', '-e', `const T = await import(${tt}); T.testDir('kid-'); T.watchStop(); ${code}`], { env, stdio: 'ignore' });
   const ended = c => new Promise(r => { if (c.exitCode !== null) return r(c.exitCode); c.on('exit', code => r(code)); });
@@ -4511,6 +4513,9 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const first = W.asksIn(`${P}\nturn this outline into lesson pages`), mid = W.asksIn(`add the export button\n${P}\nand rename the totals column`);
     report(first.length === 1 && /lesson pages/.test(first[0]) && !first.some(a => /Worth a look|pasted_content/.test(a)) && mid.length === 2 && !mid.some(a => /Worth a look|pasted_content/.test(a)),
       'worklog: a message that opens with a pasted block is logged from the user\'s own words, and pasted text is never an item', JSON.stringify({ first, mid })); }
+  // (the host's usage-limit notes are not asks; a typed request still is. Oversight, 2026-11-15: they were listed as open)
+  { const W = await import('./worklog.mjs'), host = W.asksIn('Your claude.ai usage limit has reset. Continue the task you were working on when the limit was reached; do not repeat work that is already complete.\n[Earlier usage-limit notes no longer apply. Continue working normally.]'), typed = W.asksIn('rename the totals column in the export');
+    report(!host.length && typed.length === 1, 'worklog: the host\'s usage-limit notes are never logged as asks; a typed request is', JSON.stringify({ host, typed })); }
   // (a phrase found in exactly one item closes it, even when another item shares a word: word overlap is only for when no
   // phrase matches. Oversight, 2026-11-15: a unique phrase was listed as ambiguous beside an item sharing "check")
   { const W = await import('./worklog.mjs'), sid = 'wlogu', t = s => new Date(Date.now() - 60_000 + s * 1000).toISOString();
