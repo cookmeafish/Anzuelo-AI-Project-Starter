@@ -13,7 +13,7 @@ export const isTaskRequest = (p, taskVerbs, relayed = false) => {
 
 // The runbook whose name, summary and triggers share the most content words with a request (word stems of 5 letters,
 // so "invoices" meets "invoice" and "boxes" meets "boxed"), when at least two are shared. Generic runbooks are left out.
-export const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much every being test tests time times multi multiple trans other still each really sure says said show showing showed look looking making gets getting uses using used wants'.split(' ').map(w => w.slice(0, 5))); // (filler never counts toward a guess: "every", "trans", "being", "test", "time" and "multi" sent a content build, a test question and a rule question to unrelated runbooks. Oversight's review, 2026-11-15)
+export const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much every being test tests time times multi multiple trans other still each really sure says said show showing showed look looking making gets getting uses using used wants only never always back'.split(' ').map(w => w.slice(0, 5))); // (filler never counts toward a guess: "every", "trans", "being", "test", "time" and "multi" sent a content build, a test question and a rule question to unrelated runbooks. Oversight's review, 2026-11-15)
 // Text without its accents: "añade" is "anade", "línea" is "linea".
 export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '');
 // Common Spanish words of a request, in English, so a Spanish request finds an English runbook by its words too.
@@ -29,7 +29,8 @@ export function closestRunbook(prompt, books, coreRunbook) {
   // (a plural "s" goes first: "invoices" was "invoices" and "invoice" was "invoice", so the two never met)
   const stems = (s, tr) => new Set((fold(String(s).toLowerCase()).match(/[a-z]{4,}/g) || []).map(w => tr && ES_EN[w] || w)
     .map(w => (w.length >= 5 ? w.replace(/s$/, '') : w).slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
-  const want = stems(prompt, true);
+  // (quoted text is someone else's words, never the topic: a pasted block, "> " lines and a quotation of 20+ characters. Oversight's replay, 2026-11-15: a message quoting the agent's own text guessed a runbook from it)
+  const want = stems(String(prompt).replace(/<pasted_content\b[\s\S]*?(?:<\/pasted_content[^>]*>|$(?![\s\S]))/gi, ' ').replace(/^\s*>.*$/gm, ' ').replace(/["“][^"”\n]{20,}["”]/g, ' '), true);
   const all = books.filter(pb => !coreRunbook(pb.name)).map(pb => ({ pb, named: stems(pb.name.replace(/-/g, ' ')), have: stems(`${pb.name.replace(/-/g, ' ')} ${pb.fm.summary || ''} ${(pb.triggers || []).join(' ')}`) }));
   // a word that many runbooks share says less than one only this runbook has ("order" in every order runbook), and a word
   // of the runbook's own name says the most. Lesson: a question tied between a build runbook and a guide
