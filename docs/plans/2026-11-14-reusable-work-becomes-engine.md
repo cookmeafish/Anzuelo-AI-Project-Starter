@@ -37,6 +37,11 @@ worth filling for any multi-agent setup.
 
 ## Watch for
 - One-off scratch work (a single calculation) must not be flagged.
+- Setups differ (user, 2026-11-14): all sessions in one window or in separate windows, other terminals, tmux,
+  editor terminals, other agent harnesses that manage sessions themselves. Reopen never assumes one launcher: it
+  records how each session was started when it can tell, uses a launcher the user configured
+  (`"sessionLauncher"` in config), hands off to a harness's own resume when one manages the sessions, and otherwise
+  prints the exact per-session resume commands instead of guessing.
 
 ## Task 1: the end check sees reusable work anywhere (coding session)
 **Files:** tools/hooks/v2/end.mjs, skills/runbook-create/SKILL.md
