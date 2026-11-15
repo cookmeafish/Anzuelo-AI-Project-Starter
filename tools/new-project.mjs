@@ -807,15 +807,33 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // offered. The user, 2026-11-15: the engine's rules are the default for every project; in-repo projects got them only as
   // wording to adopt by hand, and a project declined it as a rule change)
   const raw = text => Object.fromEntries([...String(text).matchAll(/^(\d+)\. \*\*(.+?)\*\*[\s\S]*?(?=^\d+\. \*\*|^## |(?![\s\S]))/gm)].map(m => [m[2].replace(/[.:]+$/, ''), { full: m[0], num: m[1] }]));
-  const starterRaw = raw(fs.readFileSync(path.join(STARTER, 'AGENTS.md'), 'utf8'));
+  const starterRaw = raw(fs.readFileSync(path.join(STARTER, 'AGENTS.md'), 'utf8')), refreshedT = new Set();
+  // (wording a release adds to a rule reaches a project whose own text lacks it (reworded, condensed or missing): only the
+  // added sentences, as short "E" lines under "## Engine rules (added by upgrade)", the project's numbering untouched, each
+  // naming the release; recorded in DECISIONS.md so a line the project removes is never added again. Counted from
+  // RULES_SINCE, the release before this was built: older wording stays as it was, offered. The user, 2026-11-15: the
+  // engine's rules are the default for every project)
+  const RULES_SINCE = '3c9daa8', normS = s => s.replace(/[`*]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const sents = b => String(b || '').split(/(?<=[.!?)])\s+(?=[A-Z(`"*])/).map(s => s.trim()).filter(s => s.length > 20);
+  const baseB = bodies(spawnSync('git', ['show', `${RULES_SINCE}:AGENTS.md`], { cwd: STARTER, encoding: 'utf8' }).stdout || ''), mineN = normS(mineRules), adds = [];
   for (const [t, body] of Object.entries(theirsB)) {
     const m = mineB[t];
+    if (m !== body && !(m && oldB.some(o => o[t] === m) && starterRaw[t])) { const old = new Set(sents(baseB[t]).map(normS)), add = sents(body).filter(s => !old.has(normS(s)) && !mineN.includes(normS(s))).join(' '), key = `rule wording added: ${t} [${createHash('sha1').update(add).digest('hex').slice(0, 8)}]`;
+      if (add && Object.keys(baseB).length && !decided.includes(key)) adds.push({ t, add, key }); }
     if (!m || m === body || !oldB.some(o => o[t] === m)) continue;
     if (starterRaw[t]) { for (const n of ['AGENTS.md', 'CLAUDE.md']) { const p = path.join(dest, n); if (!fs.existsSync(p)) continue; const text = fs.readFileSync(p, 'utf8'), r = raw(text)[t];
         if (r && !dry) fs.writeFileSync(p, text.replace(r.full, starterRaw[t].full.replace(/^\d+\./, `${r.num}.`))); }
-      console.log(`${dry ? 'would update' : 'updated '} rule "${t}" in AGENTS.md and CLAUDE.md (still as an earlier release worded it: the engine's newer wording; the project's own rules are untouched)`); continue; }
-    if (!decided.includes(`- rule-changed: ${t}:`)) items.push(`rule-changed: ${t} (the starter's wording grew; compare AGENTS.md with the starter's and take what fits)`);
+      console.log(`${dry ? 'would update' : 'updated '} rule "${t}" in AGENTS.md and CLAUDE.md (still as an earlier release worded it: the engine's newer wording; the project's own rules are untouched)`); refreshedT.add(t); continue; }
+    if (!adds.some(a => a.t === t) && !decided.includes(`- rule-changed: ${t}:`)) items.push(`rule-changed: ${t} (the starter's wording grew; compare AGENTS.md with the starter's and take what fits)`);
   }
+  if (adds.length) { const head = starterHead();
+    for (const n of ['AGENTS.md', 'CLAUDE.md']) { const p = path.join(dest, n); if (!fs.existsSync(p) || dry) continue; let text = fs.readFileSync(p, 'utf8'), k = Math.max(0, ...[...text.matchAll(/^E(\d+)\. /gm)].map(x => +x[1]));
+      const lines = adds.map(a => `E${++k}. **${a.t}** (added by the engine upgrade to ${head}, ${today}): ${a.add}`).join('\n');
+      const last = [...text.matchAll(/^E\d+\. .*$/gm)].pop();
+      text = last ? text.slice(0, last.index + last[0].length) + '\n' + lines + text.slice(last.index + last[0].length) : `${text.replace(/\s*$/, '\n')}\n## Engine rules (added by upgrade)\nWording the engine's rules gained that this project's own rules do not have yet. Reword or remove a line like any rule here.\n\n${lines}\n`;
+      fs.writeFileSync(p, text); }
+    if (!dry) noteEngineChange(dest, `rule wording added to AGENTS.md: ${adds.map(a => a.key).join('; ')}`);
+    console.log(`${dry ? 'would add' : 'added   '} the engine's new rule wording to AGENTS.md and CLAUDE.md as ${adds.length} "E" line(s) (${adds.map(a => a.t).join('; ')}); the project's own rules are untouched`); }
   // the fit checklist gets a row for every new candidate (pack, library skill, tool, feature), decided by the AI
   // (new candidates with no sign of need here are decided "skip" by fit.mjs itself: only the real decisions are items)
   const fitNew = spawnSync(process.execPath, [path.join(dest, 'tools', 'fit.mjs'), '--count-new', '--auto-skip'], { cwd: dest, encoding: 'utf8' });
