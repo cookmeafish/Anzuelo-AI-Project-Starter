@@ -61,6 +61,14 @@ Hooks per event in a fresh project (engine in .anzuelo/): session 2 git, prompt 
 - [ ] Recount after Task 1, then cut the largest remaining source: hooks run in-process per test file where the
       test does not need a real start, with a few tests that keep the real entry path (a node start per hook).
 - [ ] git calls repeated with the same arguments in one process are cached (check-ignore, rev-parse, ls-files).
+- [ ] Design (2026-11-15, for oversight's OK before building): the old suite's scenarios all reach the hooks through one
+      function, run() in tools/hooks/selfcheck.mjs, which starts a node process per hook call; the v2 sweep reuses it.
+      Together about 40k of a release's ~60k starts. Replace it with a worker thread per call: a worker has its own
+      module instances and env and starts no program (no kernel File/D2d record). Needed: a small runner that gives the
+      hook its input, captures its output and exit code through shared memory so run() stays synchronous, and sets the
+      project root by ANZUELO_ROOT (a worker cannot change the working folder). A tagged set of scenarios keeps the
+      real node start, so the host's entry path stays tested. Proof: per-step pool-tag counts over 2+ chains, the
+      suites' pass counts unchanged, and the worker and real-start results equal on a sample of 50 scenarios.
 
 ## Task 4: proof
 - [ ] Recount per suite. Expected: total starts per chain down by at least two thirds.
