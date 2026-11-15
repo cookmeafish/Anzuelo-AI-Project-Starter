@@ -1601,7 +1601,9 @@ const PROMPT = [
 const gitInit = dir => { const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' }); g('init', '-q'); g('config', 'user.name', 'Test User'); g('config', 'user.email', 'test@example.com'); g('config', 'commit.gpgsign', 'false'); return g; };
 const stage = (dir, files) => { const g = gitInit(dir); write(dir, files); g('add', ...Object.keys(files)); return g; };
 const SPEC = { 'src/export.js': 'export const toCsv = rows => rows.join("\\n");\n', 'docs/specs/export.md': '# Spec: export\n## Acceptance criteria\n1. Exports a CSV file.\n', 'docs/releases/1.1.md': '# 1.1: export\n## What changed\n- Reports export as CSV.\n', 'docs/CHANGELOG.md': 'x' };
-const VERIF = '## Verification\n- Automated: npm test → pass\n- Real app: exported a report, opened the file\n- Budgets: within docs/foundation.md\n- Independent review: SHIP (.cache/reviews/export.md)\n- Still weak: very large reports not tried';
+// (a feature done right since 2026-11-15 (rule 9): its plan's user journey from 3+ angles and the walk with its quality verdict)
+const JOURNEY = { 'docs/plans/2026-11-15-csv-export.md': '# CSV export\n## User journey\n- (first-time user) finds Export on the reports screen\n- (returning user, saved data) old reports export too\n- (what can go wrong) no rows: a clear empty message\n## Tasks\n- [x] Build it\n', 'docs/reviews/csv-export-journey-walk.md': '# Journey walk\n- finds Export: pass\n- old reports: pass\n- no rows: pass\n## Quality verdict\nAn independent judge opened 3 real exports: what a user would want; no failures.\n' };
+const VERIF ='## Verification\n- Automated: npm test → pass\n- Real app: exported a report, opened the file\n- Budgets: within docs/foundation.md\n- Independent review: SHIP (.cache/reviews/export.md)\n- Still weak: very large reports not tried';
 const cfgEdit = extra => ({ 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), ...extra }) });
 
 STOP.push(
@@ -2255,7 +2257,9 @@ STOP.push(
   { pack: 'app', name: 'feature done right: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC, answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false },
     // (under v2 the runbook's items to verify come once: with the draft checked first, as the rules ask for real work,
     // the answer goes out once. The user, 2026-11-07, docs/checks/user-requirements.md row 44)
-    v2: { tools: [pb('feature'), ...Object.entries(SPEC).filter(([, v]) => v !== undefined).map(([f, v]) => ({ name: 'Write', input: { file_path: f, content: String(v) } })), bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: PASS - send this text as your answer as it stands')] } },
+    // (done right includes the user journey since 2026-11-15, rule 9: a plan section from 3+ angles and a walk with its
+    // quality verdict)
+    v2: { files: { ...SPEC, ...JOURNEY }, tools: [pb('feature'), ...Object.entries({ ...SPEC, ...JOURNEY }).filter(([, v]) => v !== undefined).map(([f, v]) => ({ name: 'Write', input: { file_path: f, content: String(v) } })), bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: PASS - send this text as your answer as it stands')] } },
   // Lesson: a correct **Verification** block failed twice, because only a # heading counted
   { pack: 'app', name: 'verification-report: a bold Verification line counts like a heading: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n' + VERIF.replace(/^#{1,6}\s*Verification[^\n]*/m, '**Verification**') + FIN, expect: { not: ['verification-report'] } },
@@ -9726,6 +9730,9 @@ if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
     if (hasGui) { fs.appendFileSync(shot, '\n// our own step: a real key press for the keyboard test\n'); fs.writeFileSync(vr, older); }
     // (and a core engine file the project changed: replaced, but its copy saved first and named. Oversight, 2026-11-15)
     const hm = path.join(dir, 'tools/hooks/hooks-main.mjs'), coreEdit = '\n// a project change to a core engine file\n'; fs.appendFileSync(hm, coreEdit);
+    // (a core runbook with the project's own lessons is merged, never named as replaced: the merge keeps them. Lesson (a
+    // project, 2026-11-15): two runbooks were named "changed and replaced" and the upgrade left them byte-identical)
+    const fb = path.join(dir, 'docs/playbooks/_fallback.md'), hasFb = fs.existsSync(fb); if (hasFb) fs.appendFileSync(fb, '\n## Project lessons\n- Our own fallback lesson.\n');
     g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'project');
     const dryOut = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--dry-run', '--no-selftest'], { encoding: 'utf8', timeout: 600000 }).stdout || '';
     const r = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--no-selftest'], { encoding: 'utf8', timeout: 600000 });
@@ -9735,8 +9742,9 @@ if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
     const savedDir = path.join(dir, '.cache', 'upgrade-backup'), savedCopy = (() => { try { for (const s of fs.readdirSync(savedDir)) { const f = path.join(savedDir, s, 'changed-by-project', 'tools/hooks/hooks-main.mjs.orig'); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8'); } } catch { } return ''; })();
     const dec = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();
     const coreNamed = /replaced tools[\\/]hooks[\\/]hooks-main\.mjs \(changed by this project/.test(dryOut) && /tools\/hooks\/hooks-main\.mjs, changed in this project and replaced/.test(`${dec}\n${r.stdout}`);
-    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed && coreReplaced && savedCopy.includes('a project change to a core engine file') && coreNamed,
-      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed; a changed core engine file is replaced, its copy saved and named', JSON.stringify({ status: r.status, hasGui, kept, refreshed, coreReplaced, saved: !!savedCopy, coreNamed, dry: dryOut.split('\n').filter(l => /screenshot|visual-review|hooks-main/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
+    const fbQuiet = !hasFb || (!/replaced docs[\\/]playbooks[\\/]_fallback\.md \(changed by this project/.test(dryOut) && fs.readFileSync(fb, 'utf8').includes('Our own fallback lesson.'));
+    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed && coreReplaced && savedCopy.includes('a project change to a core engine file') && coreNamed && fbQuiet,
+      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed; a changed core engine file is replaced, its copy saved and named; a core runbook with the project\'s own lessons is merged, not named', JSON.stringify({ status: r.status, hasGui, kept, refreshed, coreReplaced, saved: !!savedCopy, coreNamed, fbQuiet, dry: dryOut.split('\n').filter(l => /screenshot|visual-review|hooks-main/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upgrade-clean'))) {

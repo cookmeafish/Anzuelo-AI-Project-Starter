@@ -519,7 +519,11 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const lfc = t => String(t).replace(/\r\n/g, '\n');
   for (const f of ENGINE) if (fs.existsSync(path.join(STARTER, f))) {
     const to = path.join(dest, f), mine = fs.existsSync(to) ? lfc(fs.readFileSync(to, 'utf8')) : null;
-    if (mine !== null && mine !== lfc(fs.readFileSync(path.join(STARTER, f), 'utf8')) && !shippedTexts(f).some(t => lfc(t) === mine)) {
+    // (a runbook or skill is merged, not overwritten (put: mergeSkill keeps the project's triggers, lessons and markers),
+    // so it is judged by what the merge writes: one that comes out as the project's own text loses nothing. Lesson (a
+    // project, 2026-11-15): two runbooks were named "changed and replaced" while the upgrade left them byte-identical)
+    const next = mine !== null && /^(skills\/[^/]+\/SKILL\.md|docs\/playbooks\/(?!_TEMPLATE\.md)[^/]+\.md)$/.test(f) ? lfc(mergeSkill(fs.readFileSync(path.join(STARTER, f), 'utf8'), mine, f)) : lfc(fs.readFileSync(path.join(STARTER, f), 'utf8'));
+    if (mine !== null && mine !== next && !shippedTexts(f).some(t => lfc(t) === mine)) {
       const saved = path.join(backupDir, 'changed-by-project', f + '.orig'); // (.orig, as the upgrade's other snapshots: a saved .mjs was read by the audit's sweeps as live code, and its browser-safety sweep rolled the upgrade back)
       if (!dry) { fs.mkdirSync(path.dirname(saved), { recursive: true }); fs.copyFileSync(to, saved); }
       const where = path.relative(dest, saved).replace(/\\/g, '/');
