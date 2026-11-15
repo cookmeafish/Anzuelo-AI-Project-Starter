@@ -9733,6 +9733,11 @@ if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
     // (a core runbook with the project's own lessons is merged, never named as replaced: the merge keeps them. Lesson (a
     // project, 2026-11-15): two runbooks were named "changed and replaced" and the upgrade left them byte-identical)
     const fb = path.join(dir, 'docs/playbooks/_fallback.md'), hasFb = fs.existsSync(fb); if (hasFb) fs.appendFileSync(fb, '\n## Project lessons\n- Our own fallback lesson.\n');
+    // (an engine rule still worded as an older release shipped it takes the new wording; a rule the project reworded is
+    // kept. The user, 2026-11-15: the engine's rules are the default for every project)
+    const rule9 = t => (/^9\. \*\*[\s\S]*?(?=^10\. \*\*)/m.exec(t) || [''])[0], agents = path.join(dir, 'AGENTS.md'), starterAg = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
+    const old9 = spawnSync('git', ['show', 'dd94e58:AGENTS.md'], { cwd: ROOT, encoding: 'utf8' }).stdout || '', ruleSwap = !!rule9(old9) && rule9(old9) !== rule9(starterAg);
+    if (ruleSwap) for (const n of ['AGENTS.md', 'CLAUDE.md']) { const p = path.join(dir, n); if (fs.existsSync(p)) { const t = fs.readFileSync(p, 'utf8'); fs.writeFileSync(p, t.replace(rule9(t), rule9(old9)).replace(/^(5\. \*\*Questions get answers, not edits\.\*\*)/m, '$1 Our own wording here.')); } }
     g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'project');
     const dryOut = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--dry-run', '--no-selftest'], { encoding: 'utf8', timeout: 600000 }).stdout || '';
     const r = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--upgrade', '--no-selftest'], { encoding: 'utf8', timeout: 600000 });
@@ -9742,9 +9747,10 @@ if (mineB() && (!TAGS || TAGS.includes('upgrade-kept-quiet'))) {
     const savedDir = path.join(dir, '.cache', 'upgrade-backup'), savedCopy = (() => { try { for (const s of fs.readdirSync(savedDir)) { const f = path.join(savedDir, s, 'changed-by-project', 'tools/hooks/hooks-main.mjs.orig'); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8'); } } catch { } return ''; })();
     const dec = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();
     const coreNamed = /replaced tools[\\/]hooks[\\/]hooks-main\.mjs \(changed by this project/.test(dryOut) && /tools\/hooks\/hooks-main\.mjs, changed in this project and replaced/.test(`${dec}\n${r.stdout}`);
+    const agNow = fs.readFileSync(agents, 'utf8'), ruleUpdated = !ruleSwap || (rule9(agNow) === rule9(starterAg) && agNow.includes('Questions get answers, not edits.** Our own wording here.'));
     const fbQuiet = !hasFb || (!/replaced docs[\\/]playbooks[\\/]_fallback\.md \(changed by this project/.test(dryOut) && fs.readFileSync(fb, 'utf8').includes('Our own fallback lesson.'));
-    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed && coreReplaced && savedCopy.includes('a project change to a core engine file') && coreNamed && fbQuiet,
-      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed; a changed core engine file is replaced, its copy saved and named; a core runbook with the project\'s own lessons is merged, not named', JSON.stringify({ status: r.status, hasGui, kept, refreshed, coreReplaced, saved: !!savedCopy, coreNamed, fbQuiet, dry: dryOut.split('\n').filter(l => /screenshot|visual-review|hooks-main/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
+    report(r.status === 0 && kept && /kept\s+tools[\\/]screenshot\.mjs \(changed by this project/.test(dryOut) && refreshed && coreReplaced && savedCopy.includes('a project change to a core engine file') && coreNamed && fbQuiet && ruleUpdated,
+      'upgrade: a pack engine file the project changed is kept and named in the dry run; one still as shipped is refreshed; a changed core engine file is replaced, its copy saved and named; a core runbook with the project\'s own lessons is merged, not named; an engine rule still as an older release worded it takes the new wording, a reworded one is kept', JSON.stringify({ status: r.status, hasGui, kept, refreshed, coreReplaced, saved: !!savedCopy, coreNamed, fbQuiet, ruleSwap, ruleUpdated, dry: dryOut.split('\n').filter(l => /screenshot|visual-review|hooks-main/.test(l)).slice(0, 4), err: (r.stderr || '').slice(0, 200) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upgrade-clean'))) {

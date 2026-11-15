@@ -1814,8 +1814,8 @@ const hookTestsOf = acts => {
 export function hookTestsGaps(acts) {
   const changed = changedOf(acts);
   if (!changed.some(p => /^tools\/hooks\/((hooks|selfcheck|wire)\.mjs|(requirements|config)\.json)$/.test(p))) return [];
-  const t = acts.at || acts.started || 0, x = { ...gateTurn(acts), changed, since: Number.isNaN(+t) ? Date.parse(t) || 0 : +t };
-  return hookTestsOf(acts).hooksTestedGaps(x).map(g => g.msg);
+  if (!fs.existsSync(at('.starter-template')) && (acts.calls || []).some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && (/starter\.mjs["']?\s+(upgrade|update)\b(?!\s+--dry-run)/.test(String(c.input?.command || '')) || (/v2[\\/]selftest\.mjs/.test(String(c.input?.command || '')) && /v2 selftest: ALL PASS/.test(c.out || ''))))) return []; // (in a project, the engine's hook files are proven by the v2 self-test, or changed by the upgrade itself, never by the whole selfcheck, which engine.md says not to run there. Lesson (a project, 2026-11-15): after an upgrade the end check asked 3 times for the full selfcheck)
+  const t = acts.at || acts.started || 0, x = { ...gateTurn(acts), changed, since: Number.isNaN(+t) ? Date.parse(t) || 0 : +t }; return hookTestsOf(acts).hooksTestedGaps(x).map(g => g.msg);
 }
 export function launchGaps(acts) {
   const L = launchersOf();

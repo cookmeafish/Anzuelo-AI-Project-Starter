@@ -29,8 +29,7 @@ export function closestRunbook(prompt, books, coreRunbook) {
   // (a plural "s" goes first: "invoices" was "invoices" and "invoice" was "invoice", so the two never met)
   const stems = (s, tr) => new Set((fold(String(s).toLowerCase()).match(/[a-z]{4,}/g) || []).map(w => tr && ES_EN[w] || w)
     .map(w => (w.length >= 5 ? w.replace(/s$/, '') : w).slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
-  // (quoted text is someone else's words, never the topic: a pasted block, "> " lines and a quotation of 20+ characters. Oversight's replay, 2026-11-15: a message quoting the agent's own text guessed a runbook from it)
-  const want = stems(String(prompt).replace(/<pasted_content\b[\s\S]*?(?:<\/pasted_content[^>]*>|$(?![\s\S]))/gi, ' ').replace(/^\s*>.*$/gm, ' ').replace(/["“][^"”\n]{20,}["”]/g, ' '), true);
+  const want = stems(String(prompt).replace(/<pasted_content\b[\s\S]*?(?:<\/pasted_content[^>]*>|$(?![\s\S]))/gi, ' ').replace(/^\s*>.*$/gm, ' ').replace(/["“][^"”\n]{20,}["”]/g, ' '), true); // (quoted text is someone else's words, never the topic: a pasted block, "> " lines and a quotation of 20+ characters. Oversight's replay, 2026-11-15: a message quoting the agent's own text guessed a runbook from it)
   const all = books.filter(pb => !coreRunbook(pb.name)).map(pb => ({ pb, named: stems(pb.name.replace(/-/g, ' ')), have: stems(`${pb.name.replace(/-/g, ' ')} ${pb.fm.summary || ''} ${(pb.triggers || []).join(' ')}`) }));
   // a word that many runbooks share says less than one only this runbook has ("order" in every order runbook), and a word
   // of the runbook's own name says the most. Lesson: a question tied between a build runbook and a guide

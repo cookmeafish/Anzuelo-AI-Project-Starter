@@ -137,7 +137,12 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   // "does the check a project runs after an upgrade pass here?" The v2 self-test, in every sample (adopted ones, with
   // their own rules, hooks and settings, too). Lessons (a project, 2026-11-13): it had only ever run in the starter; then
   // a fresh project passed while adopted ones failed on their own text, settings and hooks
-  { const v = node(['tools/hooks/v2/selftest.mjs'], dir); check(name, 'the v2 self-test passes in the project', v.status === 0 && /v2 selftest: ALL PASS/.test(v.stdout), (v.stdout.split('\n').filter(l => /^FAIL|^v2 selftest/.test(l)).slice(0, 5).join(' | ') || `${v.stderr || ''}`.slice(-300))); }
+  // (with packs/ and library/ parked, as a linked project has them: none of the starter's own paths. Lesson (a release,
+  // 2026-11-15): the self-test read a pack's source path, passed in every sample, and crashed in every linked project)
+  { const parked = path.join(WORK, `${path.basename(dir)}-selftest-parked`), moved = ['packs', 'library'].filter(d => fs.existsSync(path.join(dir, d)));
+    fs.mkdirSync(parked, { recursive: true }); for (const d of moved) fs.renameSync(path.join(dir, d), path.join(parked, d));
+    let v; try { v = node(['tools/hooks/v2/selftest.mjs'], dir); } finally { for (const d of moved) fs.renameSync(path.join(parked, d), path.join(dir, d)); }
+    check(name, 'the v2 self-test passes in the project', v.status === 0 && /v2 selftest: ALL PASS/.test(v.stdout), (v.stdout.split('\n').filter(l => /^FAIL|^v2 selftest/.test(l)).slice(0, 5).join(' | ') || `${v.stderr || ''}`.slice(-300))); }
   // "is it slower?" The hooks stay within their speed budget
   const b = node(['tools/hooks/hooks.mjs', 'bench'], dir);
   check(name, 'the hooks stay within their speed budget', b.status === 0 && !/over budget|SLOW/i.test(b.stdout), b.stdout.slice(-300));

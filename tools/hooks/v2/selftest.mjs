@@ -136,10 +136,15 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
   { // (a new mode, screen or flow names its journey: enter, leave, sibling and back, relaunch, saved data. Lesson (a
     // project, 2026-11-15): a new mode was built and shot, and the user had to ask how to leave it for its sibling mode)
     const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-    const item = doneWhen(fs.readFileSync(path.join(repo, 'packs/gui/files/docs/playbooks/gui.md'), 'utf8')).find(i => /journey/i.test(i.text)), t = answer => ({ calls: [], answer });
-    const built = t('Built the new mode with its own screens. Visual review: PASS after 2 rounds'), walked = t('Built the new mode. Journey: enter from home (shot), leave via Back (shot), switch to the other mode and back with progress kept (test), relaunch opens home (shot), saved data from before loads (test).');
+    // (the gui runbook where the layout keeps it: the pack's source in the starter, docs/playbooks/ in a project with the gui
+    // pack. A project without the pack, or whose runbook did not take the journey item, skips it; the starter never does.
+    // Lesson (a release, 2026-11-15): reading the pack's source path crashed the self-test in every tools/ project)
+    const guiAt = [path.join(repo, 'packs/gui/files/docs/playbooks/gui.md'), path.join(repo, 'docs/playbooks/gui.md'), path.join(repo, '..', 'local', 'docs/playbooks/gui.md'), path.join(repo, '..', '..', 'docs/playbooks/gui.md')].find(f => fs.existsSync(f));
+    const item = guiAt ? doneWhen(fs.readFileSync(guiAt, 'utf8')).find(i => /journey/i.test(i.text)) : null, t = answer => ({ calls: [], answer });
+    if (!item && !STARTER_REPO) console.log('skip  gui journey item: this project\'s gui runbook has no journey item (the gui pack is not installed, or its runbook kept its own text)');
+    else { const built = t('Built the new mode with its own screens. Visual review: PASS after 2 rounds'), walked = t('Built the new mode. Journey: enter from home (shot), leave via Back (shot), switch to the other mode and back with progress kept (test), relaunch opens home (shot), saved data from before loads (test).');
     report(!!item && applies(item, built) && met(item, built) === false && met(item, walked) === true && !applies(item, t('Fixed the button colour.')),
-      'start: the gui runbook asks a new mode, screen or flow for its journey line (enter, leave, sibling and back, relaunch, saved data); a small change is not asked', item); }
+      'start: the gui runbook asks a new mode, screen or flow for its journey line (enter, leave, sibling and back, relaunch, saved data); a small change is not asked', item); } }
   // (a "(when prompt: ...)" item hears only what the user typed: pasted text and relayed messages are someone else's)
   const [dep] = doneWhen('## Done when\n- [ ] Say it was deployed (when prompt: \\bdeploy now\\b) (answer: deployed).\n');
   const heardAs = heard => applies(dep, { heard, calls: [], answer: '' });
@@ -1868,6 +1873,13 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     const fix = runJ('jrn4', 'fix the broken score in the career mode', [call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' })], 'Fixed the score.');
     if (k === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = k;
     report(held(none) && held(one) && held(noVerdict) && !held(full) && !held(fix), 'end: a new feature with no plan "User journey" section from 3+ named angles and a "Journey walk" report with a quality verdict holds once (a one-angle section, or a walk with no verdict, too); with both it passes; a bug fix is not asked', JSON.stringify({ none: none.slice(0, 160), one: one.slice(0, 120), noVerdict: noVerdict.slice(0, 120), full: full.slice(0, 160), fix: fix.slice(0, 120) })); }
+  // (in a project, hook files the upgrade changed are proven by the upgrade and the v2 self-test, never by the whole selfcheck
+  // engine.md forbids there; a hand edit still asks. Lesson (a project, 2026-11-15): asked 3 times after an upgrade)
+  { const { hookTestsGaps } = await import('./lib.mjs'), cfgEdit = call('Edit', { file_path: path.join(dir, 'tools/hooks/config.json'), old_string: 'a', new_string: 'b' });
+    const g = rows => { const a = acts([user('upgrade the engine'), ...rows]); a.at = new Date(Date.now() - 60000).toISOString(); return hookTestsGaps(a).join(' '); };
+    const isStarter = fs.existsSync(path.join(dir, '.starter-template'));
+    const upg = g([cfgEdit, call('Bash', { command: 'node tools/starter.mjs upgrade' }, 'upgraded')]), v2ok = g([cfgEdit, call('Bash', { command: 'node tools/hooks/v2/selftest.mjs' }, 'v2 selftest: ALL PASS (448 passed, 0 failed)')]), hand = g([cfgEdit]), dry = g([cfgEdit, call('Bash', { command: 'node tools/starter.mjs upgrade --dry-run' }, 'would update')]);
+    report(isStarter || (!upg && !v2ok && !!hand && !!dry), 'end: in a project, hook files changed by the upgrade or proven by a passing v2 self-test are never asked for the whole selfcheck; a hand edit, or a dry run only, still is', JSON.stringify({ isStarter, upg, v2ok, hand: hand.slice(0, 120), dry: dry.slice(0, 80) })); }
   // (REQ: device-proof. Replay (a project, 2026-11-15): voice "16 of 16 checks pass" on default settings, in a mode for
   // another language, holds; a proof naming the user's active mode, language and provider passes; an unrelated answer passes)
   { const runV = (sid, ans) => { const ask = 'make voice mode work'; onPrompt({ session_id: sid, prompt: ask }); return onStop({ transcript_path: transcript([user(ask), call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' }), say(ans)]), session_id: sid, last_assistant_message: ans })?.reason || ''; }, held = r => /proof for this device feature/i.test(r);

@@ -802,9 +802,19 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const bodies = text => Object.fromEntries([...String(text).matchAll(/^\d+\. \*\*(.+?)\*\*([\s\S]*?)(?=^\d+\. \*\*|^## |(?![\s\S]))/gm)].map(m => [m[1].replace(/[.:]+$/, ''), m[2].replace(/\s+/g, ' ').trim()]));
   const theirsB = bodies(rulesOf(STARTER)), mineB = bodies(mineRules);
   const oldB = shippedTexts('AGENTS.md').map(bodies);
+  // (a rule still worded exactly as an earlier release shipped it is the engine's text, never the project's: it takes the
+  // new wording in AGENTS.md and CLAUDE.md on its own, keeping its number. A rule the project reworded is left as it is and
+  // offered. The user, 2026-11-15: the engine's rules are the default for every project; in-repo projects got them only as
+  // wording to adopt by hand, and a project declined it as a rule change)
+  const raw = text => Object.fromEntries([...String(text).matchAll(/^(\d+)\. \*\*(.+?)\*\*[\s\S]*?(?=^\d+\. \*\*|^## |(?![\s\S]))/gm)].map(m => [m[2].replace(/[.:]+$/, ''), { full: m[0], num: m[1] }]));
+  const starterRaw = raw(fs.readFileSync(path.join(STARTER, 'AGENTS.md'), 'utf8'));
   for (const [t, body] of Object.entries(theirsB)) {
     const m = mineB[t];
-    if (m && m !== body && oldB.some(o => o[t] === m) && !decided.includes(`- rule-changed: ${t}:`)) items.push(`rule-changed: ${t} (the starter's wording grew; compare AGENTS.md with the starter's and take what fits)`);
+    if (!m || m === body || !oldB.some(o => o[t] === m)) continue;
+    if (starterRaw[t]) { for (const n of ['AGENTS.md', 'CLAUDE.md']) { const p = path.join(dest, n); if (!fs.existsSync(p)) continue; const text = fs.readFileSync(p, 'utf8'), r = raw(text)[t];
+        if (r && !dry) fs.writeFileSync(p, text.replace(r.full, starterRaw[t].full.replace(/^\d+\./, `${r.num}.`))); }
+      console.log(`${dry ? 'would update' : 'updated '} rule "${t}" in AGENTS.md and CLAUDE.md (still as an earlier release worded it: the engine's newer wording; the project's own rules are untouched)`); continue; }
+    if (!decided.includes(`- rule-changed: ${t}:`)) items.push(`rule-changed: ${t} (the starter's wording grew; compare AGENTS.md with the starter's and take what fits)`);
   }
   // the fit checklist gets a row for every new candidate (pack, library skill, tool, feature), decided by the AI
   // (new candidates with no sign of need here are decided "skip" by fit.mjs itself: only the real decisions are items)
