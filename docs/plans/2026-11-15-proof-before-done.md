@@ -41,6 +41,14 @@ no longer trusts the course content; the engine must stop such misses, and guide
    changed, saved data never tried). The user was disappointed that nothing brought an outside view, and asked for
    one always. Root cause: reviews judged the work against the agent's own description, never against independent
    users' angles, and oversight only reacted. Fix: Task 6.
+10. A device feature (voice) passed "16 of 16 checks" on English test audio. The user's active mode was a
+    Spanish-learning one: the speech was heard as English and the replies were long padded paragraphs. Root cause: proof
+    ran on the developer's default setup and checked mechanics, not the output's quality for this user. Fix: the
+    device-proof hold (real setup named, output judged) and a "## Quality verdict" in the journey walk (be0b538).
+11. Oversight passed routine steps (an engine upgrade refused by a session's own permission check, a project rule the
+    user had already asked for) back to the user as commands to type. Root cause: oversight treated "the session can't"
+    as "the user must". Fix: oversight runs routine local steps itself after a dry run (project-watch, never-park
+    memory). The user is asked only about pushes, purchases, publishing or deleting their data.
 
 ## Task 6: a third perspective on every new addition (coding session, standing rule, 2026-11-15)
 **Files:** skills/plan/SKILL.md, docs/playbooks/gui.md, the gui-review-loop skill, tools/hooks/v2/lib.mjs, AGENTS.md
