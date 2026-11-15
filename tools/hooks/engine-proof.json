@@ -1,15 +1,15 @@
 {
   "_comment": "Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on, and the commit they tested when the files were exactly that commit. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs); the starter is pushed only for that commit (git-guard.mjs pre-push). Do not edit.",
-  "engine": "ba6b8bbb85dba45842e0d221",
-  "tests": 1736,
-  "commit": "60167bd906fa9c33090043374164f9886bb40404",
+  "engine": "bd480fbb58120c3947972a9b",
+  "tests": 1739,
+  "commit": "343e27c987f46022dba5af31e68029e4126b1d3a",
   "speed": {
     "stop": true,
     "v2": true,
     "times": {
       "machine": "01028dd2d966",
-      "prompt": 118,
-      "pretool": 99
+      "prompt": 109,
+      "pretool": 95
     }
   }
 }
