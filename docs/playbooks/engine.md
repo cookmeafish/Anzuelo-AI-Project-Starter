@@ -88,10 +88,9 @@ else in the project (no sync, no runbook edits) until the upgrade prints its res
   answers (outside `requirements.json`) is converted only when its sessions show the engine's marker is faster or uses
   fewer tokens per answer turn and checks no less; otherwise it stays, with its reason in the upgrade review.
 - **Engine rule wording is part of the upgrade, not a project rule change:** an engine rule still worded as an earlier
-  release shipped it gets the new wording, and new sentences a reworded rule lacks arrive as "E" lines. The user made the
-  engine's rules the default for every project (2026-11-15), so keep them in the upgrade commit. Say in one line which
-  rules changed; the user may reword or remove any of them afterwards like any rule. The project's own wording is never
-  overwritten. Lesson (a project, 2026-11-15): a session restored the refreshed rules and asked again, reading the old
+  release shipped it gets the new wording. The user made the engine's rules the default for every project (2026-11-15),
+  so keep them in the upgrade commit. Say in one line which rules changed; the user may reword or remove any of them
+  afterwards like any rule. A rule the project reworded is never overwritten: its newer wording is a review item. Lesson (a project, 2026-11-15): a session restored the refreshed rules and asked again, reading the old
   "adopted by hand" note as current.
 - Commit the upgrade (§1) and say in the answer what changed for the user (the starter's changelog lines it printed).
 
