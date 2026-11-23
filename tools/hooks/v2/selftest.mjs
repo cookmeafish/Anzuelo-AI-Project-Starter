@@ -2200,6 +2200,12 @@ report(screenGaps(acts([user('make the header blue'), css, say('Done.')])).lengt
 report(screenGaps(acts([user('make the header blue'), css, shoot, say('Done.')])).length === 1, 'end: screenshots taken but never looked at do not count');
 report(screenGaps(acts([user('make the header blue'), css, shoot, look, say('Done.')])).length === 0, 'end: screenshots taken after the change and looked at pass');
 report(screenGaps(acts([user('make the header blue'), shoot, look, css, say('Done.')])).length === 1, 'end: screenshots from before the last change do not cover it');
+// (while the system blocks Chromium (AppArmor), screenshot.mjs leaves a marker: an honest line meets it, never new
+// screenshots each turn. Oversight, 2026-11-23: two projects were asked for screenshots every turn)
+{ put('.cache/gui-review/blocked-on-owner.txt', 'BLOCKED-ON-OWNER: Chromium can\'t start here\n');
+  const bl = { unsaid: screenGaps(acts([user('make the header blue'), css, say('Done.')])), said: screenGaps(acts([user('make the header blue'), css, say('Done.\nNOT VERIFIED: screenshots - blocked on the owner (AppArmor).')])) };
+  fs.rmSync(path.join(dir, '.cache/gui-review/blocked-on-owner.txt'), { force: true });
+  report(bl.unsaid.length === 1 && /NOT VERIFIED: screenshots - blocked on the owner/.test(bl.unsaid[0]) && bl.said.length === 0, 'end: screenshots blocked on the owner ask for one honest line, not new screenshots; the line meets it', JSON.stringify(bl)); }
 report(screenGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'docs/ui/a.html'), old_string: 'a', new_string: 'b' }), call('Write', { file_path: path.join(dir, '.cache/x.html'), content: 'x' }), say('Tidied.')])).length === 0,
   'end: pages under docs or .cache are not screens');
 report(screenGaps(acts([user('fix the paste test'), call('Edit', { file_path: path.join(dir, 'app/gui/test_text.py'), old_string: 'a', new_string: 'b' }), call('Edit', { file_path: path.join(dir, 'app/gui/fixtures/fake.py'), old_string: 'a', new_string: 'b' }), say('Fixed.')])).length === 0

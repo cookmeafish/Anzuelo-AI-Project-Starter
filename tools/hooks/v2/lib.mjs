@@ -859,7 +859,8 @@ export function screenGaps(acts) {
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && screen(c.input.file_path || '')).map(([, k]) => k));
   const lastWrite = Math.max(0, ...changedSince(acts, { test: screen }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
-  const shot = i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || !c.done || c.done > lastWrite));
+  const blocked = (() => { try { const f = at('.cache/gui-review/blocked-on-owner.txt'); return Date.now() - fs.statSync(f).mtimeMs < 7 * 864e5 ? fs.readFileSync(f, 'utf8').trim() : ''; } catch { return ''; } })(); if (blocked) return /NOT VERIFIED[^\n]*screenshot|screenshot[^\n]*(blocked on the owner|waits? on the owner|NOT VERIFIED)/i.test(String(acts.answer || '')) ? [] : ['Screenshots can\'t run here until the owner allows Chromium (screenshot.mjs printed the fix): say it in the answer, "NOT VERIFIED: screenshots - blocked on the owner (AppArmor)", without retrying them.']; // (a marker screenshot.mjs leaves while the system blocks Chromium: an honest line, not new screenshots each turn. Oversight, 2026-11-23)
+  const shot =i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || !c.done || c.done > lastWrite));
   const looked = shot && i.some(([c, k]) => k > shot[1] && c.name === 'Read' && /\.(png|jpe?g|webp)$/i.test(String(c.input.file_path || '')));
   if (!looked) return ['A screen changed: take screenshots after the last change (node tools/screenshot.mjs) and look at them.'];
   // (REQ: gui-review-loop: the round looked at is the newest, by the shared gui.mjs rule. Lesson (the old suite under v2):

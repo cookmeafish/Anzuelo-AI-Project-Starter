@@ -111,11 +111,24 @@ async function webShots(target, steps = [], name = PAGE) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-shot-'));
   const browser = spawn(exe, ['--headless', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
     '--password-store=basic', '--use-mock-keychain', '--disable-sync', '--disable-extensions', '--disable-background-networking',
-    '--disable-component-update', '--disable-features=Translate,MediaRouter,OptimizationHints', '--hide-scrollbars', '--mute-audio', 'about:blank'], { stdio: 'ignore', windowsHide: true });
+    '--disable-component-update', '--disable-features=Translate,MediaRouter,OptimizationHints', '--hide-scrollbars', '--mute-audio', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+  let errText = ''; browser.stderr.on('data', d => { if (errText.length < 20000) errText += d; });
+  const blockedFile = path.join(ROOT, '.cache', 'gui-review', 'blocked-on-owner.txt');
   try {
     let port = null;
     for (let i = 0; i < 100 && !port; i++) { await sleep(100); try { port = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0]; } catch { } }
-    if (!port) throw new Error('Chromium did not start (no DevToolsActivePort)');
+    // (Ubuntu 23.10 and later: AppArmor blocks the unprivileged user namespaces Chromium's sandbox needs, and it cannot
+    // start. One plain line with the fix, which changes the system and so needs the owner's OK; a marker tells the end
+    // check to ask for an honest line, not new screenshots each turn. Oversight, 2026-11-23: two projects stuck on it)
+    if (!port && process.platform === 'linux' && (/No usable sandbox|setuid sandbox|Failed to move to new namespace|user namespace/i.test(errText) || (() => { try { return fs.readFileSync('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').trim() === '1'; } catch { return false; } })())) {
+      const prof = `abi <abi/4.0>,\ninclude <tunables/global>\nprofile anzuelo-chromium "${exe}" flags=(unconfined) {\n  userns,\n}\n`;
+      const fix = `printf '${prof.replace(/\n/g, '\\n')}' | sudo tee /etc/apparmor.d/anzuelo-chromium >/dev/null && sudo apparmor_parser -r /etc/apparmor.d/anzuelo-chromium`;
+      const line = `BLOCKED-ON-OWNER: Chromium can't start here: Ubuntu's AppArmor blocks the user namespaces its sandbox needs. The fix allows only this Chromium (it changes the system, so it needs the owner's OK): ${fix}`;
+      try { fs.mkdirSync(path.dirname(blockedFile), { recursive: true }); fs.writeFileSync(blockedFile, line + '\n'); } catch { }
+      console.log(line); killTree(browser); try { fs.rmSync(profile, { recursive: true, force: true }); } catch { } process.exit(3);
+    }
+    if (!port) throw new Error(`Chromium did not start (no DevToolsActivePort)${errText.trim() ? `: ${errText.trim().split('\n').pop().slice(0, 200)}` : ''}`);
+    try { fs.rmSync(blockedFile, { force: true }); } catch { }
     const tab = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
     const c = new CDP(tab.webSocketDebuggerUrl);
     await c.open();
