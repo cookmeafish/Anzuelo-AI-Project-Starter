@@ -43,7 +43,7 @@ const alwaysPending = () => alwaysPendingIn(f => read(abs(f)), d => { try { retu
 {
   const odd = process.argv.slice(2).filter(a => /^-/.test(a) && !['--full', '--setup'].includes(a));
   if (odd.length) {
-    const usage = fs.readFileSync(path.join(ROOT, 'tools/audit.mjs'), 'utf8').split('\n').slice(1).filter(l => /^\/\/ {2,}/.test(l)).map(l => l.replace(/^\/\/ /, '')).join('\n');
+    const usage = fs.readFileSync(new URL(import.meta.url), 'utf8') /* (its own file: in the .anzuelo layout the project root has no tools/audit.mjs, and an unknown flag crashed with ENOENT. Oversight, 2026-11-23) */.split('\n').slice(1).filter(l => /^\/\/ {2,}/.test(l)).map(l => l.replace(/^\/\/ /, '')).join('\n');
     const help = odd.every(a => a === '--help' || a === '-h');
     (help ? console.log : console.error)(`${help ? '' : `audit: unknown flag ${odd.join(', ')}; nothing was run. `}Usage:\n${usage}`);
     process.exit(help ? 0 : 2);
