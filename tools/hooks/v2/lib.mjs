@@ -184,7 +184,7 @@ const MAKE_SURE = /(?:^|[.!?;]\s+)(?:please )?make sure (?:that )?(?:every|each|
   MAKE_SURE_ES = /(?:^|[.!?;¡¿]\s*)(?:por favor,? )?aseg[uú]rate (?:de )?(?:que )?(?:cada|todas? las?|todos? los?) (?:nuev[oa]s? )?([\p{L}-]+)/iu,
   WORK_NOW = /^(?:tests?|checks?|steps?|files?|changes?|runs?|commands?|builds?|edits?|fix(?:es)?|pruebas?|tests|pasos?|archivos?|cambios?|comprobaciones?|ejecuciones?|comandos?)$/i;
 const makeSureRule = s => { const m = MAKE_SURE.exec(s) || MAKE_SURE_ES.exec(s); return !!m && !WORK_NOW.test(m[1]); };
-export function route(prompt, books = runbooks()) {
+export function route(prompt, books = runbooks(), opts = {}) {
   // (a menu code at the start, "B4 <args>", names its runbook outright)
   const code = /^\s*([A-Za-z]\d{1,2})(?=\s|$)/.exec(String(prompt))?.[1]?.toUpperCase();
   const byCode = code && books.find(b => b.menu.includes(code));
@@ -228,11 +228,11 @@ export function route(prompt, books = runbooks()) {
   const best = [match(prompt), isSpanish(prompt) ? match(routeEnglish(prompt)) : null].filter(Boolean).sort((a, b) => b.score - a.score)[0] || null;
   // (a standing rule said plainly ("every new note links to", "should never happen again", ", always", ", siempre") is a
   // rule request, ahead of a trigger found mid-sentence. Lessons (trials v38 to v43): each went unrouted or misrouted)
-  const said = isSpanish(prompt) ? `${prompt}\n${routeEnglish(prompt)}` : String(prompt);
+  const bare = String(prompt).replace(/^\s*>.*$/gm, ' ').replace(/["“][^"”\n]{20,}["”]/g, ' '), said = isSpanish(bare) ? `${bare}\n${routeEnglish(bare)}` : bare; // (quoted words are someone else's, never a rule said here: "> " lines and quotations of 20+ characters. Oversight, 2026-11-23)
   // (a message relayed from another session, a helper or a task notice sets no standing rule: its rule words are not the
   // user's. Lesson (a peer session, live): a status report quoting a capital "NEVER" read as a rule)
   const relayedMsg = /^\s*Another Claude session sent a message|<(cross-session-message|agent-message|task-notification)\b/.test(String(prompt));
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && !relayedMsg && (STANDING.test(said) || STANDING_ES.test(said) || makeSureRule(said) || RULE_CUE.test(String(prompt)) || capsWeight(String(prompt)).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && !relayedMsg && !opts.noRule && (STANDING.test(said) || STANDING_ES.test(said) || makeSureRule(said) || RULE_CUE.test(bare) || capsWeight(bare).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
   // (a question that asks to make nothing does not route on a one-word trigger alone: "no images in any guide???" asks no
   // guide. As the old engine. Lesson (the old suite under v2): a frustrated question routed to the deliverable runbook)
   const askOnly = best && !/\s/.test(best.phrase) && /\?/.test(String(prompt)) && !MAKE_REQUEST.test(String(prompt));

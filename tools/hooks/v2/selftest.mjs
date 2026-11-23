@@ -4648,6 +4648,18 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   report(!colonKept && kept.at === old && fresh.at !== old && fresh.runbook !== 'docs/playbooks/zz-old.md' && !fresh.upset,
     'turns: a typed prompt after an idle wait is a new turn (no old runbook or upset); a helper notice keeps it; a promise cut at a colon is dropped', JSON.stringify({ colonKept, kept: kept.at, old, fresh }));
   const qItems = W2.loadLog('wlogq').map(i => i.text), doneMsg = W2.logCommand('wlogq', 'done', 'check the export and the import the same way in the next round');
+  // (a recurring prompt a schedule of this session fires, holding "Never ...", is no rule request: the instruction is already
+  // in force. Oversight, 2026-11-23: each round of a long manager prompt routed to the project runbook with its rule items)
+  { const R = 'Manager round: 1) read the feed of every session; look for false holds and sessions parked on the owner. 2) Keep the trackers current. 3) Check the coding session\'s chains. 4) Tell the owner what changed in 1 to 3 lines. Never name the owner\'s projects to the coding session.';
+    const rtp = transcript([stampAt(0, user('watch the sessions')), stampAt(5, call('ScheduleWakeup', { delaySeconds: 1200, prompt: R, reason: 'round' }, 'scheduled'))]), { onPrompt: opR } = await import('./start.mjs');
+    const pf = path.join(dir, 'docs/playbooks/project.md'), keptPf = fs.existsSync(pf) ? fs.readFileSync(pf, 'utf8') : null; // (its "gaps" trigger matched the prompt, and the rule note fired on "Never")
+    fs.mkdirSync(path.dirname(pf), { recursive: true }); fs.writeFileSync(pf, fs.readFileSync(new URL('../../../docs/playbooks/project.md', import.meta.url), 'utf8'));
+    const fired = JSON.stringify(opR({ session_id: 'wlogrule', prompt: R, transcript_path: rtp }) || {});
+    const { route: rt } = await import('./lib.mjs'), pb = [{ file: 'docs/playbooks/project.md', name: 'project', triggers: [], fm: {} }], S = 'The total was wrong again. This should never happen again.';
+    const r = { plain: rt(S, pb)?.matched, noRule: rt(S, pb, { noRule: true }), quoted: rt(`Look at this line from the log:\n> ${S}\nWhat does it do?`, pb) };
+    keptPf === null ? fs.rmSync(pf, { force: true }) : fs.writeFileSync(pf, keptPf);
+    for (const s of ['wlogrule']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+    report(!/RULE REQUEST/.test(fired) && r.plain === 'standing rule' && r.noRule === null && r.quoted === null, 'routing: a prompt a schedule fires is no rule request, though it says "Never ..."; a rule said plainly is one, the same rule only quoted ("> ...") is none', JSON.stringify({ fired: fired.slice(0, 300), ...r })); }
   const P = 'Manager round: keep the coding session working.', stp = transcript([stampAt(0, user('watch the coding session')), stampAt(5, call('ScheduleWakeup', { delaySeconds: 1200, prompt: P, reason: 'round' }, 'scheduled'))]);
   const { onPrompt: op } = await import('./start.mjs'); op({ session_id: 'wlogs', prompt: P, transcript_path: stp }); op({ session_id: 'wlogs', prompt: 'and fix the csv export too', transcript_path: stp });
   const sItems = W2.loadLog('wlogs').map(i => i.text);

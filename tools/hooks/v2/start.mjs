@@ -146,16 +146,16 @@ export function skillRoute(prompt) {
   const opens = (t, name) => !!t && ((/:$/.test(t) && first === t) || ([firstWord, routeEnglish(firstWord)].includes(name) && [name, firstWord].includes(t)));
   return /\s/.test(sk.matched || '') || opens(String(sk.trigger || sk.matched || ''), sk.name) ? sk : null;
 }
-export function reminder(prompt, { midTurn = false } = {}) {
+export function reminder(prompt, { midTurn = false, scheduled = false } = {}) {
   const raw = String(prompt || '');
   // (REQ: pause-stops: a request to pause, stop or restart wraps up now, whatever else the message says)
   if (!relayedRx.test(raw) && PAUSE_ASK.test(raw)) return { book: null, text: [PAUSE_HINT, upsetIn(raw) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : ''].filter(Boolean).join('\n') };
   const asking = !relayedRx.test(raw) && asksOnly(raw.replace(/<pasted_content\b[\s\S]*?(<\/pasted_content[^>]*>|\/>)/gi, ' '), projectConfig().changeWords);
   if (asking && midTurn) return { book: null, text: [Q_NOW, upsetIn(raw) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : ''].filter(Boolean).join('\n') };
-  const r = remind(prompt), cont = /^\s*This session is being continued from a previous conversation/.test(raw) ? 'File changes: Edit/Write only; never sed, heredoc or shell redirection on source files.' : ''; // (a compacted session lost the session-start note: the file-edit rule comes back once with the summary. Oversight's replay, 2026-11-15: three refused shell edits in three minutes right after a compaction)
+  const r = remind(prompt, scheduled), cont = /^\s*This session is being continued from a previous conversation/.test(raw) ? 'File changes: Edit/Write only; never sed, heredoc or shell redirection on source files.' : ''; // (a compacted session lost the session-start note: the file-edit rule comes back once with the summary. Oversight's replay, 2026-11-15: three refused shell edits in three minutes right after a compaction)
   return asking || cont ? { book: r.book, text: [cont, asking ? Q_FIRST : '', r.text].filter(Boolean).join('\n') } : r;
 }
-function remind(prompt) {
+function remind(prompt, scheduled = false) {
   const raw = String(prompt || '');
   // REQ: relay-preview. A message relayed from another session or agent routes on the sentences that ask for work (what
   // it quotes, runs or reports as done left out: relay.mjs, shared with the old engine), never on its wrapper; a helper's
@@ -179,7 +179,7 @@ function remind(prompt) {
   const sore = !relayedRx.test(raw) && upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
   // (routed on the user's own words: the hooks' own output pasted back, and messages relayed into it, never route. As the
   // old engine. Lesson (the old suite under v2): a pasted block's "make a plan" step routed to the plan runbook)
-  const book = route(userWords(prompt) || prompt);
+  const book = route(userWords(prompt) || prompt, undefined, { noRule: scheduled });
   const quoteOn = quoteCheckOn();
   // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English
   // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
@@ -259,7 +259,7 @@ function remind(prompt) {
   // and to test only its new check, as the old engine's hint said. Not on a complaint (the upset line leads there), nor
   // in a relayed message. Lesson (the old suite under v2): the hint was gone, and agents ran the whole self-test for one
   // new check)
-  const ruleNote = book.name === 'project' && !sore && !relayedRx.test(raw) && (book.matched === 'standing rule' || /\b(from now on|going forward|from here on|make (it|this|that) a rule|new rule|always|never|remember to|de ahora en adelante|a partir de ahora|desde ahora|siempre|nunca)\b/i.test(String(userWords(prompt))))
+  const ruleNote = book.name === 'project' && !sore && !scheduled && !relayedRx.test(raw) && (book.matched === 'standing rule' || /\b(from now on|going forward|from here on|make (it|this|that) a rule|new rule|always|never|remember to|de ahora en adelante|a partir de ahora|desde ahora|siempre|nunca)\b/i.test(String(userWords(prompt))))
     ? ' RULE REQUEST: record it with the project-rule skill, and run the new check\'s own scenarios (node tools/hooks/selfcheck.mjs --tags <tag>, not the whole self-test).' : '';
   const lines = [...menuL, ...(sore ? [sore] : []), ...(friction ? [friction] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}${ruleNote}`];
   if (book.items.length) {
@@ -310,7 +310,8 @@ export function onPrompt(data) {
   // (after a Stop that went idle waiting on helpers, a typed prompt is a new turn; the helpers' notices are not. Lesson
   // (a project, 2026-11-12): one turn swallowed six hours of requests, its old runbook and upset flag with them)
   const open = !!(prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000 && !(prev.waited && !/^\s*<(task-notification|system-reminder)\b/.test(String(data.prompt || ''))));
-  const { book, text } = reminder(data.prompt || '', { midTurn: open });
+  const p0 = String(data.prompt || '').trim(), fired = !!p0 && !!data.transcript_path && fs.existsSync(String(data.transcript_path)) && tail(String(data.transcript_path), 8 << 20).split('\n').some(l => /"name":"(CronCreate|ScheduleWakeup)"/.test(l) && (() => { try { return JSON.parse(l).message.content.some(b => b?.type === 'tool_use' && String(b.input?.prompt || '').trim() === p0); } catch { return false; } })());
+  const { book, text } = reminder(data.prompt || '', { midTurn: open, scheduled: fired }); // (a prompt a schedule of this session fires is a standing instruction already in force: no rule request. Oversight, 2026-11-23: a recurring prompt holding "never name X" routed as one)
   // (an upset message from the user, not a relay, marks the turn: its end check asks for a fresh reviewer)
   const sore = upsetIn(data.prompt || '') && !relayedRx.test(String(data.prompt || '')) ? { upset: true } : {};
   // (REQ: queued-messages: a request typed mid-turn that fits another runbook adds it, and its "Done when" is checked
@@ -356,8 +357,7 @@ export function onPrompt(data) {
   // (the work log: this message's asks join it; what earlier messages asked and is still open is shown, only when any)
   // (a prompt a schedule this session set fires (CronCreate, ScheduleWakeup, /loop) is a standing instruction, not a new
   // ask each round. Oversight, 2026-11-12: each round of a recurring manager prompt became an open ask)
-  const p0 = String(data.prompt || '').trim(), scheduled = !!real && !!p0 && tail(String(data.transcript_path), 8 << 20).split('\n').some(l => /"name":"(CronCreate|ScheduleWakeup)"/.test(l)
-    && (() => { try { return JSON.parse(l).message.content.some(b => b?.type === 'tool_use' && String(b.input?.prompt || '').trim() === p0); } catch { return false; } })());
+  const scheduled = !!real && fired;
   let stillOpen = ''; if (sid && (real || process.env.V2_LOG_TEST)) try { const now = new Date().toISOString(), W = LOG();
     const left = W.update(sid, { msgs: scheduled ? [] : [{ text: data.prompt || '', at: now }] }).filter(i => i.at < now);
     if (left.length) stillOpen = `Still open from earlier in this session (do these too, or say they are declined or wait on the user):\n${W.openLines(left)}`;
