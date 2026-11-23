@@ -46,6 +46,28 @@ export function wiringProblems(dir) {
   }
   return [...new Set(out)];
 }
+// A project moved to another machine: a hook or status-line command naming a dead absolute path of a script the project
+// still has (its tail exists here) gets the live path, and off Windows git's core.autocrlf=true in this repository (it
+// writes shell scripts with CRLF) becomes input. Returns what it changed, in words. Run at session start when wiring is
+// broken. Lesson (the move to Linux, 2026-11-23): a project's own "python C:/..." hook exited 2 and blocked every tool.
+export function repairMoved(dir) {
+  const out = [], at = (...p) => path.join(dir, ...p), q = s => JSON.stringify(s).slice(1, -1);
+  for (const f of ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json']) {
+    let t, j; try { t = fs.readFileSync(at(f), 'utf8'); j = JSON.parse(t); } catch { continue; }
+    let next = t;
+    const cmds = [...Object.values(j.hooks || {}).flat().flatMap(g => [].concat(g?.hooks || [])).map(h => h?.command), j.statusLine?.command].filter(c => typeof c === 'string');
+    for (const p of new Set(cmds.flatMap(scriptsIn))) {
+      if (!/^(?:[A-Za-z]:)?[\\/]/.test(p) || (path.isAbsolute(p) && fs.existsSync(p))) continue; // (only a dead absolute path)
+      const parts = p.split(/[\\/]+/).filter(Boolean), tail = parts.slice(1).map((_, i) => parts.slice(i + 1).join('/')).find(s => fs.existsSync(at(s)) && fs.statSync(at(s)).isFile());
+      if (!tail || !next.includes(q(p))) continue;
+      const now = at(tail).split(path.sep).join('/'); next = next.split(q(p)).join(q(now)); out.push(`${f} ran ${p}, now ${now}`);
+    }
+    if (next !== t) fs.writeFileSync(at(f), next);
+  }
+  if (process.platform !== 'win32' && fs.existsSync(at('.git')) && (spawnSync('git', ['config', '--local', 'core.autocrlf'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim() === 'true'
+    && spawnSync('git', ['config', '--local', 'core.autocrlf', 'input'], { cwd: dir }).status === 0) out.push('git\'s core.autocrlf was true (a Windows setting that writes shell scripts with CRLF here), now input');
+  return out;
+}
 
 export function wire(dir, { dry = false } = {}) {
   // (engine files (the hooks, the shared rules, settings) are found where paths.mjs says, for this folder's layout)

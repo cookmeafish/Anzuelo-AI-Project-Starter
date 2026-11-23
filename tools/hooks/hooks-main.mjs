@@ -2058,7 +2058,7 @@ function notices(cfg) {
   if (ec && readJSON(ENGINE_SEEN(), {}).line !== ec) out.push(`ENGINE CHANGED: ${ec.replace(/^- /, '')}. Say it to the user in one line at the start of your first answer.`);
   // REQ: wiring-sound. Broken wiring is said at every session start, with its repair: git's hooks path at a missing
   // folder lets commits skip the AI-credit and secret checks. Lesson (two field reports): a rolled-back move left it so.
-  const wp = WIRING ? (() => { try { return WIRING(ROOT); } catch { return []; } })() : [];
+  const wAll = WIRING ? (() => { try { return WIRING(ROOT); } catch { return []; } })() : [], wFixed = wAll.filter(s => s.startsWith('REPAIRED: ')).map(s => s.slice(10)), wp = wAll.filter(s => !s.startsWith('REPAIRED: ')); if (wFixed.length) out.push(`WIRING REPAIRED (the project moved machines): ${wFixed.join('; ')}. Tell the user in one line what was repaired.`);
   if (wp.length) out.push(`WIRING BROKEN: ${wp.join('; ')}. Run node ${path.relative(ROOT, fileURLToPath(new URL('./wire.mjs', import.meta.url))).split(path.sep).join('/')} (it repairs the engine's wiring), then tell the user in one line what was broken and that it is fixed. Anything it could not fix goes to the user with the exact line to run.`);
   // REQ: self-install. A clone of the starter in a folder named for a project (not after the repository) is a project
   // to make: the starter installs itself. Lesson (a field report): the agent guessed where the starter belongs.
@@ -5797,7 +5797,7 @@ if (isMain) {
   }
   if (/^(session|pretool|posttool)$/.test(cmd) && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
   if (cmd === 'pretool') try { MIDTURN = await import('./v2/midturn.mjs'); } catch { }
-  if (/^(session|notices)$/.test(cmd)) try { WIRING = (await import('./wire.mjs')).wiringProblems; } catch { }
+  if (/^(session|notices)$/.test(cmd)) try { const w = await import('./wire.mjs'); WIRING = d => [...(cmd === 'session' && w.wiringProblems(d).length ? w.repairMoved(d) : []).map(f => `REPAIRED: ${f}`), ...w.wiringProblems(d)]; } catch { } // (a session start repairs a moved project's dead hook paths first: wire.mjs repairMoved)
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);
