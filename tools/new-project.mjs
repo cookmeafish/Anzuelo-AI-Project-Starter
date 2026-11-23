@@ -30,6 +30,9 @@ import { wire } from './hooks/wire.mjs';
 import { dataLikeDirs } from './hooks/datadirs.mjs';
 import { carryRunEach, carryLine } from './hooks/selfcmds.mjs';
 import { startTempHint } from './hooks/testtmp.mjs';
+// (writes to a pipe are asynchronous off Windows, and process.exit() drops what is still queued: an upgrade's output was
+// cut at 64 KB on Linux, its last line, the summary, lost. Blocking writes keep every line. Lesson (the move to Linux, 2026-11-23))
+for (const s of [process.stdout, process.stderr]) try { s._handle?.setBlocking?.(true); } catch { }
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').trim() || 'the newest starter';

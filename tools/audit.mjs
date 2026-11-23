@@ -20,6 +20,7 @@ import {
 import { setupProblems } from './hooks/setup.mjs';
 import { listAll, split, ENGINE as ENGINE_DIR, PROJECT as PROJECT_DIR, LOCAL as LOCAL_DIR, keepList, kind, recordMap } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
+for (const s of [process.stdout, process.stderr]) try { s._handle?.setBlocking?.(true); } catch { } // (pipe writes are asynchronous off Windows; process.exit() would cut long output. See new-project.mjs)
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
 // (the number is a record, tools/starter/reviews/v2-untested.txt, that this audit lowers itself when fewer tags lack a

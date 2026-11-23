@@ -433,7 +433,7 @@ function transcript(dir, s, since) {
     if (i < all.length - 1) rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: 'an earlier answer' }] } });
   });
   // tool calls from earlier turns of the session (before this turn's prompt)
-  for (const t of s.before || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
+  for (const t of s.before || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.resolve(dir, input.file_path);
     rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } }, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok' }] } }); }
   rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: 'earlier answer' }] } });
   const prompt = s.compact ? 'This session is being continued from a previous conversation. Summary: user said always cite sources.' : s.prompt;
@@ -443,7 +443,7 @@ function transcript(dir, s, since) {
   for (const t of s.tools || []) {
     const id = `toolu_${++idc}`;
     const input = { ...t.input };
-    if (input.file_path) input.file_path = path.join(dir, input.file_path);
+    if (input.file_path) input.file_path = path.resolve(dir, input.file_path);
     // (a command may name the fixture's own folder, as agents write absolute paths: "<DIR>" stands for it)
     if (typeof input.command === 'string') input.command = input.command.split('<DIR>').join(dir.replace(/\\/g, '/'));
     rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } });
@@ -456,7 +456,7 @@ function transcript(dir, s, since) {
     rows.push({ type: 'user', message: { content: 'Stop hook feedback: Project rules not met yet' } });
   }
   // tool calls after the blocked drafts (a change made in a later round)
-  for (const t of s.later || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
+  for (const t of s.later || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.resolve(dir, input.file_path);
     rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } }, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok' }] } }); }
   if (s.answer != null) rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: s.answer }] } });
   const file = path.join(dir, 'transcript.jsonl');
@@ -5303,7 +5303,7 @@ function explain(query) {
       try {
         write(dir, s.setup); applyEdits(dir, s.edit);
         const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools, rows: s.rows }, Date.now());
-        const input = { ...s.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
+        const input = { ...s.input }; if (input.file_path) input.file_path = path.resolve(dir, input.file_path);
         const { out: o } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
         let d = null; try { d = JSON.parse(o); } catch { }
         const why = d?.hookSpecificOutput?.permissionDecisionReason || '';
@@ -5546,7 +5546,7 @@ for (const s of PRETOOL) {
     if (s.prep) s.prep(dir);
     const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools, rows: s.rows }, Date.now());
     const input = { ...s.input };
-    if (input.file_path) input.file_path = path.join(dir, input.file_path);
+    if (input.file_path) input.file_path = path.resolve(dir, input.file_path);
     // ("<DIR>" in a command stands for the fixture's own folder, as in a transcript's tool calls)
     if (typeof input.command === 'string') input.command = input.command.split('<DIR>').join(dir.replace(/\\/g, '/'));
     const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp, ...(s.agentId ? { agent_id: s.agentId } : {}), ...(s.mode ? { permission_mode: s.mode } : {}) }, s.host);

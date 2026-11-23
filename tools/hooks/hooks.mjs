@@ -9,6 +9,7 @@ import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+for (const s of [process.stdout, process.stderr]) try { s._handle?.setBlocking?.(true); } catch { } // (pipe writes are asynchronous off Windows; process.exit() would cut a hook's output past 64 KB. See new-project.mjs)
 const here = path.resolve(fileURLToPath(import.meta.url)).toLowerCase(), tmp = path.resolve(os.tmpdir()).toLowerCase();
 // (a release's frozen copies keep it: few (the newest 3 stay) and the cache is capped, and its timed tests run there)
 if (!process.env.ANZUELO_NO_COMPILE_CACHE && !here.startsWith(tmp + path.sep))

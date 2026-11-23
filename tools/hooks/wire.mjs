@@ -180,6 +180,10 @@ export function wire(dir, { dry = false } = {}) {
       log.push(`git      core.hooksPath = ${GITHOOKS} (commits and pushes are checked for AI attribution, secrets and .gitignore)`);
     }
   }
+  // (off Windows, git runs a hook only when it is executable, and a copy or a clone from Windows may drop the bit: git
+  // then skips the guard with only a hint. Lesson (the move to Linux, 2026-11-23): a commit crediting an AI went through)
+  if (!dry && process.platform !== 'win32' && hasHooks(at(GITHOOKS)))
+    for (const n of fs.readdirSync(at(GITHOOKS))) try { const f = at(GITHOOKS, n), m = fs.statSync(f).mode; if (fs.statSync(f).isFile() && !(m & 0o111)) fs.chmodSync(f, m | 0o755); } catch { }
   // Obsidian (obsidian skill): new links are relative markdown links, which GitHub and every agent follow too
   // A vault the user already had keeps its notes in front: the engine's own folders are hidden from its search, graph
   // and quick switcher (Obsidian's "Excluded files"), added to whatever the user excludes already.

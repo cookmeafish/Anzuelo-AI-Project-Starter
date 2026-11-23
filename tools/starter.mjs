@@ -50,6 +50,7 @@ import { behindUpstream } from './hooks/repo.mjs';
 import { where, whereWrite, split, kind, keepList, stateOutside, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
 import { scriptsIn } from './hooks/wire.mjs';
 import { carryRunEach } from './hooks/selfcmds.mjs';
+for (const s of [process.stdout, process.stderr]) try { s._handle?.setBlocking?.(true); } catch { } // (pipe writes are asynchronous off Windows; process.exit() would cut long output. See new-project.mjs)
 
 // (each path goes where paths.mjs says: in the starter, all one folder; in a project, packs and library are the engine's)
 const CONFIG = where('tools/hooks/config.json');
