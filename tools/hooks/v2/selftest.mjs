@@ -4634,8 +4634,9 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     report(open.length === 1 && /rename the totals column/.test(open[0].text), 'worklog: a promise that restates a waiting item, or waits by its own words ("as soon as", "once"), adds no open item; a new one does', JSON.stringify(open.map(i => i.text))); }
   // (a way of working is no task. Oversight's replay, 2026-11-15: two real lines were held as open promises)
   { const W = await import('./worklog.mjs'), sid = `habit${process.pid}`, at = new Date().toISOString();
-    const items = W.update(sid, { texts: [{ t: "Understood. I'll send notices only and won't hand refused upgrades to anyone.", at }, { t: "From here I'll only ask before pushing, publishing or deleting.", at }, { t: "I'll push the release after the chains pass.", at }] });
-    const open = items.filter(i => i.from === 'promise').map(i => i.text);
+    W.update(sid, { texts: [{ t: "Understood. I'll send notices only and won't hand refused upgrades to anyone.", at }, { t: "From here I'll only ask before pushing, publishing or deleting.", at }, { t: "I'll push the release after the chains pass.", at }] });
+    const open = W.loadLog(sid).filter(i => i.from === 'promise').map(i => i.text); // (the whole log: the real promise waits on "after ...", and update() returns open items only)
+    fs.rmSync(path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), { force: true });
     report(open.length === 1 && /push the release after the chains pass/.test(open[0]), 'worklog: a way of working ("I\'ll only ...", "I\'ll ... and won\'t ...") is never logged as a promise; a real one still is', JSON.stringify(open)); }
   // (`hooks.mjs why` shows the saved list without the work-log items closed since: they showed as open after `log done`.
   // Plan quiet-screen, Task 3)
