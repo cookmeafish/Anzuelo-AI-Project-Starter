@@ -2125,6 +2125,15 @@ report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'p
   'end: the parts run one at a time after the change count');
 report(gateGaps(acts([user('fix the page'), call('Bash', { command: 'python site/verify.py && node site/controls.js' }), siteEdit, say('Fixed.')])).length === 2, 'end: a declared check run before the change does not cover it');
 report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'python site/verify.py && node site/controls.js' }, 'Exit code 1', true), say('Fixed.')])).length === 2, 'end: a failing declared check does not count');
+// (a run piped into tail or grep hides its exit code, but the runner's own summary in what it printed shows the result:
+// "ℹ pass 45 / ℹ fail 0" passes, "ℹ fail 5" fails, a cut that shows no summary proves nothing. A project after the move to
+// Linux, 2026-11-23: three passing piped runs of `node --test tests/` were asked for again)
+{ put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'node --test tests/', pass: '', when: ['lib/**'] }] }));
+  const libEdit = call('Edit', { file_path: path.join(dir, 'lib/run.mjs'), old_string: 'a', new_string: 'b' }), piped = (out, tail = '2>&1 | tail -8') => gateGaps(acts([user('port it'), libEdit, call('Bash', { command: `cd "${dir}" && node --test tests/ ${tail}` }, out), say('Ported.')]));
+  const r = { pass: piped('ℹ tests 45\nℹ suites 0\nℹ pass 45\nℹ fail 0\nℹ cancelled 0'), grep: piped('ℹ pass 40\nℹ fail 0', '2>&1 | grep -E "^ℹ (pass|fail)"'), fail: piped('ℹ tests 45\nℹ pass 40\nℹ fail 5'), cut: piped('✔ a test (1.2ms)\n✔ another (0.3ms)', '| head -2') };
+  report(r.pass.length === 0 && r.grep.length === 1 && r.fail.length === 1 && r.cut.length === 1 && [r.grep, r.cut].every(g => /^Run the project's check `node --test tests\/` on its own, not piped \(a pipe hides its exit code\)/.test(g[0])),
+    'end: a declared test run piped into tail counts only when the runner\'s whole summary shows 0 failed; otherwise the line says to run it on its own, not piped', JSON.stringify(r));
+  put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] })); }
 fs.rmSync(path.join(dir, 'pyproject.toml'));
 put('tools/hooks/config.json', JSON.stringify({ test: 'node site/page-test.mjs && node site/verify.mjs' }));
 const page = call('Edit', { file_path: path.join(dir, 'site/page.js'), old_string: 'a', new_string: 'b' });

@@ -634,7 +634,7 @@ const testScript = () => { let s = ''; try { s = JSON.parse(fs.readFileSync(at('
 // self-test, a check script. Lesson (replay): answers that truly reported "1655 passed" from a project's self-test
 // were flagged, because the command was not a known runner)
 const PASS_OUT = /\b\d+ (tests? )?passed\b|\bALL PASS\b|\bRESULT:\s*PASS\b|\b0 (failed|failures)\b|\bRan \d+ tests?\b[\s\S]{0,200}\bOK\b|\b\d+ passing\b|\btests? passed\b/i;
-const FAIL_OUT = /\b[1-9]\d* (tests? )?(failed|failing)\b|\bFAILED\b|\bnot ok\b/;
+const FAIL_OUT = /\b[1-9]\d* (tests? )?(failed|failing)\b|\bFAILED\b|\bnot ok\b/, WHOLE_SUMMARY = o => (/^ℹ tests [1-9]\d*\s*$/m.test(o) && /^ℹ pass [1-9]\d*\s*$/m.test(o) && /^ℹ fail 0\s*$/m.test(o)) || /^=+ [1-9]\d* passed(?:, \d+ (?:skipped|xfailed|xpassed|warnings?|deselected))* in [\d.]+s(?: \([^)]*\))? =+\s*$/m.test(o); // (a runner's whole summary, node --test's or pytest's, with 0 failed: what a piped run shows of its result. Oversight, 2026-11-23)
 // A package manager pointed at a folder ("npm --prefix <dir> test", "pnpm -C <dir>", "yarn --cwd <dir>"): the project's
 // own folder is the plain command; another folder is another package, whose tests are not the project's. Lesson (trial
 // round 11, again under v2): "npm --prefix <project> test" passed and the tests were asked for again.
@@ -785,9 +785,7 @@ export function gateGaps(acts) {
     // (a chained command counts part by part: the agent may run its steps one at a time)
     for (const part of String(g.cmd || '').split(/\s*&&\s*/).filter(Boolean)) {
       let rx; try { rx = new RegExp(part, 'i'); } catch { continue; }
-      // (a step that is itself a test run is met by any passing test run after the change, however it is spelled.
-      // Lesson (trial v34): the declared glob was quoted, the agent's run was not, and passing tests were asked for)
-      const after = (c, k) => k > lastEdit && (!lastWrite || !c.done || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1'));
+      const after = (c, k) => k > lastEdit && (!lastWrite || !c.done || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1')); // (a step that is itself a test run is met by any passing test run after the change, however it is spelled. Lesson (trial v34): the declared glob was quoted, the agent's run was not, and passing tests were asked for)
       const ok = acts.calls.some((c, k) => after(c, k) && ((/^(Bash|PowerShell)$/.test(c.name) && !c.error && !otherPackage(c.input.command || '') && rx.test(ownCmd(c.input.command || ''))) || (asTest && passedRun(c))));
       // (the run itself is judged as the old engine judges a gate, tools/hooks/gates.mjs: by its own result, not an echo
       // after "||" or a script that only names it; a gate that can't start here (refused, or its program missing) is
@@ -798,7 +796,9 @@ export function gateGaps(acts) {
       // (another passing test run counts only when it is one: not a script or a configure line that names the command.
       // Lesson (the old suite under v2): a node -e script that wrote "npm test" into a doc read as the tests passing)
       const viaOther = acts.calls.some((c, k) => after(c, k) && asTest && passedRun(c) && isTestRun(gatesOf().gateText(String(c.input.command || '')))) && /^no run of/.test(gx.detail || '');
-      if (res === false && gx.override) out.push(`The project's check \`${plain}\` can't run here: say so once in the answer, "NOT VERIFIED: <what> - <why>" or "Not done: <what> - <why>". ${gx.override}`);
+      const piped = res === false && /its own result is unknown/.test(gx.detail || '') ? acts.calls.filter((c, k) => after(c, k) && /^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(ownCmd(c.input.command || ''))).pop()?.out ?? '' : null; // (a run piped into tail or grep hides its exit code: it counts only when the runner's whole summary shows 0 failed, else the line says why up front. A project after the move to Linux, 2026-11-23: three passing piped runs were asked for again, the reason cut off the shown line)
+      if (piped !== null) { if (!WHOLE_SUMMARY(String(piped))) out.push(`Run the project's check \`${plain}\` on its own, not piped (a pipe hides its exit code), and say the result.`); }
+      else if (res === false && gx.override) out.push(`The project's check \`${plain}\` can't run here: say so once in the answer, "NOT VERIFIED: <what> - <why>" or "Not done: <what> - <why>". ${gx.override}`);
       else if (res === false && !viaOther) out.push(`Run the project's check \`${plain}\` after the change, and say the result (${gx.detail || 'it did not pass'}).`);
       else if (!ok && !programs(plain).some(p => missing.has(p))) out.push(`Run the project's check \`${plain}\` after the change, and say the result.`);
     }
