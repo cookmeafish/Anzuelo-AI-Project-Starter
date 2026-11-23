@@ -5797,7 +5797,7 @@ if (isMain) {
   }
   if (/^(session|pretool|posttool)$/.test(cmd) && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
   if (cmd === 'pretool') try { MIDTURN = await import('./v2/midturn.mjs'); } catch { }
-  if (/^(session|notices)$/.test(cmd)) try { const w = await import('./wire.mjs'); WIRING = d => [...(cmd === 'session' && w.wiringProblems(d).length ? w.repairMoved(d) : []).map(f => `REPAIRED: ${f}`), ...w.wiringProblems(d)]; } catch { } // (a session start repairs a moved project's dead hook paths first: wire.mjs repairMoved)
+  if (/^(session|notices)$/.test(cmd)) try { const w = await import('./wire.mjs'); WIRING = d => { const p = w.wiringProblems(d), f = cmd === 'session' && p.length ? w.repairMoved(d) : []; return f.length ? [...f.map(x => `REPAIRED: ${x}`), ...w.wiringProblems(d)] : p; }; } catch { } // (a session start repairs a moved project's dead hook paths first: wire.mjs repairMoved)
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);
