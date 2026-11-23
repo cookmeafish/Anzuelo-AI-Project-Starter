@@ -787,10 +787,7 @@ export function gateGaps(acts) {
       let rx; try { rx = new RegExp(part, 'i'); } catch { continue; }
       const after = (c, k) => k > lastEdit && (!lastWrite || !c.done || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1')); // (a step that is itself a test run is met by any passing test run after the change, however it is spelled. Lesson (trial v34): the declared glob was quoted, the agent's run was not, and passing tests were asked for)
       const ok = acts.calls.some((c, k) => after(c, k) && ((/^(Bash|PowerShell)$/.test(c.name) && !c.error && !otherPackage(c.input.command || '') && rx.test(ownCmd(c.input.command || ''))) || (asTest && passedRun(c))));
-      // (the run itself is judged as the old engine judges a gate, tools/hooks/gates.mjs: by its own result, not an echo
-      // after "||" or a script that only names it; a gate that can't start here (refused, or its program missing) is
-      // asked once for an honest line, "NOT VERIFIED: <what> - <why>" or "Not done: <what> - <why>", and never for
-      // another run. Oversight, 2026-11-09: parity with the old engine)
+      // (the run itself is judged as the old engine judges a gate, tools/hooks/gates.mjs: by its own result, not an echo after "||" or a script that only names it; a gate that can't start here (refused, or its program missing) is asked once for an honest line, "NOT VERIFIED: <what> - <why>" or "Not done: <what> - <why>", and never for another run. Oversight, 2026-11-09: parity with the old engine)
       const plain = part.replace(/\\(.)/g, '$1'), gx = gateTurn(acts);
       const res = gatesOf().toolPassed({ toolPassed: { cmd: part, pass: g.pass || '', selfRun: plain } }, gx, reqRe);
       // (another passing test run counts only when it is one: not a script or a configure line that names the command.
@@ -1290,7 +1287,8 @@ export function holdsReq(c, acts, x) {
         return true;
       }
       for (const f of files) {
-        const cmd = spec.cmd.replaceAll('{file}', f), res = withOwnTemp(env => spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000, env: { ...process.env, ...env } }), ROOT), out = `${res.stdout || ''}${res.stderr || ''}`;
+        const cmd = spec.cmd.replace(/(?<![\w./-])((?:skills|tools|packs)\/[\w./-]+\.(?:mjs|cjs|js|py|sh))\b/g, t => !fs.existsSync(path.join(ROOT, t)) && fs.existsSync(at(t)) ? path.relative(ROOT, at(t)).split(path.sep).join('/') : t).replaceAll('{file}', f), res = withOwnTemp(env => spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000, env: { ...process.env, ...env } }), ROOT), out = `${res.stdout || ''}${res.stderr || ''}`; // (the script where the layout keeps it, run from the project root: in .anzuelo/, skills/ is .anzuelo/local/skills/. A project, 2026-11-23)
+        if (res.status !== 0 && /\bCannot find module\b|\bERR_MODULE_NOT_FOUND\b|^\s+at .+\((?:node:|file:|\/).*:\d+:\d+\)\s*$/m.test(out)) throw new Error(`the check script crashed (${cmd}): ${(/^.*(?:Error|Cannot find module).*$/m.exec(out) || [out.trim().split(/\r?\n/)[0]])[0].trim().slice(0, 160)}`); // (a crash of the script is the engine's fault, shown once by the caller, never the project's item)
         if (res.status !== 0 || (spec.pass && !reqRe(spec.pass).test(out))) { acts.detail = `${cmd} -> ${res.status === null ? 'timed out' : `exit ${res.status}`}: ${out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}`; return false; }
       }
       return true;

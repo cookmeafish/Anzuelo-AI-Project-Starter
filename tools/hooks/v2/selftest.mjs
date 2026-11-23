@@ -1378,6 +1378,12 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           fs.mkdirSync(path.join(dir, 'notes'), { recursive: true });
           const each = (text, c = cmd) => { fs.writeFileSync(path.join(dir, 'notes/n.md'), text); const a = acts([user('add the note'), say('Saved.')]); return [holdsReq({ runEach: { files: ['notes/**'], cmd: c, pass: 'RESULT: PASS' } }, a, { ...x, changed: ['notes/n.md'] }), a.detail || '']; };
           const re = { linked: each('see [[other]]'), bare: each('no link here'), foreign: each('no link here', 'node evil.mjs "{file}"') };
+          // (a shipped check whose script crashes, here one not where the command says, is the engine's fault: it throws, and
+          // the caller shows "A check crashed" once, never holding it as the project's item. A project in the .anzuelo layout,
+          // 2026-11-23: the modular-code item held three times while the project's own run passed)
+          { const gone = 'node gone/each-check.mjs "{file}"', ecText = fs.readFileSync(ec, 'utf8'); fs.writeFileSync(ec, JSON.stringify({ requirements: [{ tag: 'each-gone', require: { runEach: { files: ['notes/**'], cmd: gone } } }] }));
+            let crash = 'no throw'; try { each('see [[other]]', gone); } catch (e) { crash = String(e.message); } fs.writeFileSync(ec, ecText);
+            report(/^the check script crashed \(node gone\/each-check\.mjs "notes\/n\.md"\): .*Cannot find module/.test(crash), 'end: a shipped runEach script that crashes throws (shown once as "A check crashed"), never held as the project\'s item', crash); }
           // (a project's own command: the hook runs it only when it is on the approved list as committed before the
           // session (the user, 2026-11-10); otherwise the agent is asked to run it, and its own passing run meets it)
           const own = 'node each-check.cjs "{file}" --own', cf = path.join(dir, 'tools/hooks/config.json'), keptCf = fs.existsSync(cf) ? fs.readFileSync(cf, 'utf8') : null, hadGit = fs.existsSync(path.join(dir, '.git'));
@@ -4399,7 +4405,7 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const owD = caseDir('owntemp');
     const ow = child(owD, `const { withOwnTemp } = await import(${tt}); const { spawnSync } = await import('node:child_process'); const r = withOwnTemp(env => spawnSync(process.execPath, ['-e', "const fs=require('fs'),os=require('os'),p=require('path');fs.mkdtempSync(p.join(os.tmpdir(),'leak-'));console.log(os.tmpdir())"], { encoding: 'utf8', env: { ...process.env, ...env } }), ${JSON.stringify(proj)}); console.log(r.stdout.trim());`);
     const src = f => { try { return fs.readFileSync(path.join(repoT, f), 'utf8'); } catch { return ''; } };
-    const wrapped = [/function selfRunOnce[\s\S]{0,300}withOwnTemp\(/.test(src('tools/hooks/v2/lib.mjs')), /spec\.cmd\.replaceAll\('\{file\}', f\), res = withOwnTemp\(/.test(src('tools/hooks/v2/lib.mjs')), /res = withOwnTemp\(env => spawnSync\(cmd, \{ shell: true, cwd: ROOT/.test(src('tools/hooks/hooks-main.mjs'))];
+    const wrapped = [/function selfRunOnce[\s\S]{0,300}withOwnTemp\(/.test(src('tools/hooks/v2/lib.mjs')), /\.replaceAll\('\{file\}', f\), res = withOwnTemp\(/.test(src('tools/hooks/v2/lib.mjs')), /res = withOwnTemp\(env => spawnSync\(cmd, \{ shell: true, cwd: ROOT/.test(src('tools/hooks/hooks-main.mjs'))];
     const owRes = { saw: /anzuelo-tests[\\/]projects[\\/]garden-notes[\\/]run-/.test(ow.stdout), left: left(owD), wrapped };
     // (the upgrade says once, in plain words, when the project's own approved test commands leave temp folders; nothing for
     // a project whose tests leave nothing. Oversight, 2026-11-12: no session-start notice, one line in the upgrade report)
