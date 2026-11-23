@@ -8588,7 +8588,10 @@ if (mineS()) { // agent-neutral: a fresh clone has no agent files; wire makes CL
   const dir = copyProject();
   try {
     for (const p of ['CLAUDE.md', '.claude', '.codex']) fs.rmSync(path.join(dir, p), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    // (off Windows, git skips a hook that is not executable: a copy without the bit gets it back from wire. The move to Linux, 2026-11-23)
+    const gh = ['commit-msg', 'pre-commit', 'pre-push'].map(n => path.join(dir, '.githooks', n)); if (process.platform !== 'win32') for (const f of gh) fs.chmodSync(f, 0o644);
     const r = spawnSync(process.execPath, ['tools/hooks/wire.mjs'], { cwd: dir, encoding: 'utf8' });
+    if (process.platform !== 'win32') report(gh.every(f => fs.statSync(f).mode & 0o100), 'wire: a git hook copied without the executable bit gets it back (git skips it otherwise)', gh.map(f => (fs.statSync(f).mode & 0o777).toString(8)).join(' '));
     const has = p => fs.existsSync(path.join(dir, p));
     const same = has('CLAUDE.md') && fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8') === fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
     const settings = has('.claude/settings.json') && /hooks\.mjs\\?" stop/.test(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));
