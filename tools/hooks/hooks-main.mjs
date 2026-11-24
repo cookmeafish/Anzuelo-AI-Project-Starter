@@ -5474,6 +5474,10 @@ if (isMain) {
   if (cmd === 'log') { const [verb, ...w] = process.argv.slice(3), sid = String(process.env.CLAUDE_CODE_SESSION_ID || '').replace(/[^\w-]/g, '');
     if (!/^(add|done|wait)$/.test(verb || '') || !w.join(' ').trim() || !sid) { console.log('usage: node tools/hooks/hooks.mjs log add|done|wait "<item>" (in a session)'); process.exit(1); }
     process.env.ANZUELO_ROOT ||= ROOT; console.log((await import('./v2/worklog.mjs')).logCommand(sid, verb, w.join(' ').trim())); process.exit(0); }
+  // (a line for the turn's notes (an Issue line, N/A, Learned), appended where the layout keeps them, with one short output
+  // line: no shell redirect, no file shown again. Plan quiet-screen, Task 2)
+  if (cmd === 'note') { const line = process.argv.slice(3).join(' ').trim(); if (!line) { console.log('usage: node tools/hooks/hooks.mjs note "<line>"'); process.exit(1); }
+    const f = whereWrite(NOTES_FILE); fs.mkdirSync(path.dirname(f), { recursive: true }); const t = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : ''; fs.appendFileSync(f, `${t && !t.endsWith('\n') ? '\n' : ''}${line.replace(/\r?\n/g, ' ')}\n`); console.log('noted'); process.exit(0); }
   if (cmd === 'check') cmdCheck();
   if (cmd === 'cost') cmdCost();
   if (cmd === 'restore') {

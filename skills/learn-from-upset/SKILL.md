@@ -19,7 +19,8 @@ below first: it shows the user "acknowledged", and the end-of-turn check looks f
   `Issue: none - <why>` in `.cache/turn-notes.md`, say nothing about it, do what they asked, and stop following this
   skill. The user sees nothing.
 - **A real issue, or a repeat:** pick the runbook or skill that finds its root cause and fixes it (DIRECTORY.md;
-  **debug** for anything that behaves wrong). Put these in `.cache/turn-notes.md` before any fix, as your first step:
+  **debug** for anything that behaves wrong). Put these in `.cache/turn-notes.md` before any fix, as your first step
+  (`node tools/hooks/hooks.mjs note "<line>"` appends one, quietly, wherever the layout keeps the file):
   1. `Issue: <the user's point in general terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>`
   2. `Scope: <the point in general terms> - <every case it covers>` (their example is one case of the point, not the
      point)

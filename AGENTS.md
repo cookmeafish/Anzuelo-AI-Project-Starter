@@ -50,7 +50,7 @@
    or the starter via `docs/starter-feedback.md`, which also takes engine checks you had to suspend). The user sees
    "acknowledged" first: an upset, frustrated or all-caps message, a question or one typed mid-turn included, gets its
    `Issue: <problem> | runbook: <name> | fixed when: <outcome>` line in `.cache/turn-notes.md` (never in the answer,
-   which says it plainly) before any change or command, and that runbook is followed to the end of its checklist
+   which says it plainly; `hooks.mjs note "<line>"` writes it) before any change or command, and that runbook is followed to the end of its checklist
    with the outcome verified (only a false alarm skips it, with `Issue: none - <why>`; 2026-10-29). List everything
    wrong before fixing. Upset again in a session means patching failed: a plan in `docs/plans/` and a sweep over real
    data (2026-10-28: one display was "fixed" six times, each tested only on the moment shown). "Always / never /
