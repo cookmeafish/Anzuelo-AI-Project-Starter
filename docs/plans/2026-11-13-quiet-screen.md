@@ -76,8 +76,10 @@ What the user saw in that hour, and why:
       Round 2 still holds round 1's items, since 9 field lessons need it (a re-sent answer still missing what round 1
       asked, an owed lesson); round 3 holds only the marked ones. Test: a runbook item alone holds rounds 1-2, not 3;
       an unbacked claim holds round 3; v2 selftest 460/460, v2-sweep PASS.)
-- [ ] A repeat-problem or open-plan item holds only the session that owns it. Sending the problem to the owning
-      session counts as handled.
+- [x] A repeat-problem or open-plan item holds only the session that owns it. Sending the problem to the owning
+      session counts as handled. (Open plans: planOpenGaps holds only the session whose calls touched the plan, from
+      2026-11-12. Repeats: a turn that sent the problem on (SendMessage, starter.mjs feedback) is handled. Repeats stay
+      shared across sessions on purpose: the same complaint in a new session is still a repeat. Test; 460/460)
 - [x] Status and changelog asks only when this turn changed a starter or project file of that kind. (a581589: a
       runbook's record item is met on a turn that changed no project file; the standalone changelog check already
       skipped records and other folders. Test: other-folder edit meets it, a src/ edit does not; 460/460)

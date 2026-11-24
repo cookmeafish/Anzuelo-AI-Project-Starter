@@ -2328,8 +2328,10 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
     const stale = rp('the export page drops the label on saved reports again', [user('again'), fix, say('Fixed.')], [{ at: day(20), text: old[0].text }]);
     const other = rp('the dark mode toggle forgets its setting after reload', [user('dark mode'), fix, say('Fixed.')], old);
     const recorded = JSON.parse(fs.readFileSync(rec, 'utf8')).some(r => /dark mode toggle/.test(r.text));
-    report(repeat.length === 1 && /came back within 14 days/.test(repeat[0]) && /plan in docs\/plans/.test(repeat[0]) && planned.length === 0 && denied.length === 0 && stale.length === 0 && other.length === 0 && recorded,
-      'end: a problem back within 14 days (key words shared with a recorded Issue line) needs a plan and a sweep, or "Not a repeat"; one older than 14 days or a different problem does not; each Issue line is recorded', JSON.stringify({ repeat, planned, denied, stale, other, recorded }));
+    // (a turn that sent the problem to the session that owns it, or to the starter, has handled it. Plan quiet-screen, Task 3)
+    const sent = rp('the export page drops the label on saved reports again', [user('again'), call('SendMessage', { to: 'project-session', message: 'The export label bug is back: plan and sweep it there.' }, 'sent'), say('Sent it to the project session.')], old);
+    report(repeat.length === 1 && /came back within 14 days/.test(repeat[0]) && /plan in docs\/plans/.test(repeat[0]) && planned.length === 0 && denied.length === 0 && stale.length === 0 && other.length === 0 && recorded && sent.length === 0,
+      'end: a problem back within 14 days (key words shared with a recorded Issue line) needs a plan and a sweep, or "Not a repeat"; one older than 14 days, a different problem, or one sent to the session that owns it does not; each Issue line is recorded', JSON.stringify({ repeat, planned, denied, stale, other, recorded, sent }));
     fs.rmSync(rec, { force: true }); fs.rmSync(notes, { force: true });
   }
   { // (learn-from-upset counts as going through debug, with its debug items: the cause named, and fail-then-pass, which
