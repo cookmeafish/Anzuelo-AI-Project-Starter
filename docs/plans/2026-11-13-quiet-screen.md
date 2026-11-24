@@ -56,8 +56,8 @@ What the user saw in that hour, and why:
 ## Task 2: notes never shown again
 **Files:** tools/hooks/hooks.mjs (a `note` command), the rules text, skills/learn-from-upset/SKILL.md
 **Uses / provides:** none.
-- [ ] `node tools/hooks/hooks.mjs note "<line>"` appends quietly, with one short output line. The rules and
-      learn-from-upset point to it.
+- [x] `node tools/hooks/hooks.mjs note "<line>"` appends quietly, with one short output line. The rules and
+      learn-from-upset point to it. (c054a7a; selftest: appends, says "noted", usage without a line; 459/459)
 - [x] Notes rotate per turn into an archive, so the live file holds only this turn's lines (v2/start.mjs rotateNotes,
       at a new turn: earlier lines to .cache/turn-notes-archive.md under a dated heading, kept to 512 KB; skipped while
       a peer session's turn is open). The repeat check keeps its own record (state/issues.json), so nothing that reads

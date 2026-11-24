@@ -2826,6 +2826,11 @@ const { noteGaps } = await import('./lib.mjs');
   const rules = readOr(path.join(root, 'AGENTS.md')).replace(/\s+/g, ' '), skill = readOr(path.join(root, 'skills/learn-from-upset/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
   if (STARTER_REPO) report(/Issue: <problem>[^.]*line in `\.cache\/turn-notes\.md` \(never in the answer/.test(rules) && /the answer never shows them/.test(skill),
     'rules: AGENTS.md rule 3 and the learn-from-upset skill put the Issue line in the notes file, never the answer, as the end check expects');
+  // (hooks.mjs note appends one line to the notes file with one short output line; no line, the usage. Plan quiet-screen, Task 2)
+  if (STARTER_REPO) { const nf = path.join(root, '.cache/turn-notes.md'), kept = fs.existsSync(nf) ? fs.readFileSync(nf, 'utf8') : null, hk = path.join(root, 'tools/hooks/hooks.mjs');
+    const ok = spawnSync(process.execPath, [hk, 'note', 'N/A(selftest): the note command'], { cwd: root, encoding: 'utf8' }), none = spawnSync(process.execPath, [hk, 'note'], { cwd: root, encoding: 'utf8' });
+    const last = fs.existsSync(nf) ? fs.readFileSync(nf, 'utf8').trim().split('\n').pop() : ''; kept === null ? fs.rmSync(nf, { force: true }) : fs.writeFileSync(nf, kept);
+    report(ok.status === 0 && ok.stdout.trim() === 'noted' && last === 'N/A(selftest): the note command' && none.status === 1 && /usage/.test(none.stdout), 'note: hooks.mjs note appends the line to the notes file and says only "noted"; with no line, the usage', JSON.stringify({ out: ok.stdout.trim(), last, none: none.status })); }
 }
 
 // end: check 7, claims backed by the turn
