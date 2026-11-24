@@ -102,7 +102,9 @@ What the user saw in that hour, and why:
       .anzuelo (2026-11-15: a "make a rule to always" request got only a paragraph, no check, and nothing asked). Test:
       an adopted copy with light:true and records:false, plus a rule request, gets one held line asking for the
       enforcement.
-- [ ] In an adopted app, the no-verbatim check never reads the app's own rules files: rule 14 is for text the starter
+- [x] (done 2026-11-24: verbatimGaps leaves out CLAUDE/AGENTS/GEMINI(.local).md in the .anzuelo layout; test in an app
+      whose .anzuelo/engine links to the engine: its CLAUDE.md not flagged, its docs still are; fails on the old code)
+      In an adopted app, the no-verbatim check never reads the app's own rules files: rule 14 is for text the starter
       shares, and an app may quote its user, dated, on purpose (2026-11-15: a false hold on the app's own CLAUDE.md).
       Test: an adopted copy whose CLAUDE.md gains a quoted line gets no hold.
 - [ ] A real adopted-app hold of 3 items, all already met (2026-11-15), replays to no items: (1) in package.json only

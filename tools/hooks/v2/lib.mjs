@@ -1412,7 +1412,7 @@ export function injectionGaps(acts) {
 export const ownWords = (s, agent = '') => String(s || '').replace(/<(pasted_content|cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1[^>]*>|$(?![\s\S]))/gi, ' ').split(/^\s*Another Claude session sent a message/m)[0]
   .split(/This session is being continued from a previous conversation/)[0].split('\n').filter(l => !/^\s*>|⚓/.test(l) && !(l.trim().length > 20 && String(agent).includes(l.trim()))).join('\n');
 export function verbatimGaps(acts) {
-  const hits = verbatimHits({ root: ROOT, cfg: projectConfig(), prompts: [...(acts.earlier || []), acts.heard].filter(Boolean).map(ownWords), changed: scanned(acts), calls: acts.calls });
+  const hits = verbatimHits({ root: ROOT, cfg: projectConfig(), prompts: [...(acts.earlier || []), acts.heard].filter(Boolean).map(ownWords), changed: scanned(acts).filter(p => !(LAYOUT.split && /^(CLAUDE|AGENTS|GEMINI)(\.local)?\.md$/i.test(p))), calls: acts.calls }); // (an adopted app's own rules files may quote its user on purpose: rule 14 is for what the starter shares. Plan quiet-screen, Task 3)
   return hits.length ? [`These files copy the user's own words: ${hits.slice(0, 5).join('; ')}. Rephrase each as the general principle and why it matters (what goes wrong, for whom), without the user's examples, names or details.`] : [];
 }
 // REQ: small-change. A small fix (config smallFiles files, smallLines lines, counted from this turn's own edits; a file a

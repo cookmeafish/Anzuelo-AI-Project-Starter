@@ -2838,6 +2838,16 @@ const { noteGaps } = await import('./lib.mjs');
   const rules = readOr(path.join(root, 'AGENTS.md')).replace(/\s+/g, ' '), skill = readOr(path.join(root, 'skills/learn-from-upset/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
   if (STARTER_REPO) report(/Issue: <problem>[^.]*line in `\.cache\/turn-notes\.md` \(never in the answer/.test(rules) && /the answer never shows them/.test(skill),
     'rules: AGENTS.md rule 3 and the learn-from-upset skill put the Issue line in the notes file, never the answer, as the end check expects');
+  // (an adopted app's own rules files may quote its user on purpose: the no-verbatim check leaves them out in the .anzuelo
+  // layout, and still reads the app's other files. An app whose .anzuelo/engine links here, run with --preserve-symlinks.
+  // Plan quiet-screen, Task 3: a false hold on an app's own CLAUDE.md)
+  if (STARTER_REPO && process.platform !== 'win32') { const A = fs.mkdtempSync(path.join(os.tmpdir(), 'verbapp-')), js = path.join(A, 'probe.mjs');
+    try { fs.mkdirSync(path.join(A, '.anzuelo/local'), { recursive: true }); fs.mkdirSync(path.join(A, 'docs')); fs.symlinkSync(root, path.join(A, '.anzuelo/engine'));
+      const said = 'From now on always answer the billing questions with the exact invoice total first.'; fs.writeFileSync(path.join(A, 'CLAUDE.md'), `# Rules\n- ${said}\n`); fs.writeFileSync(path.join(A, 'docs/guide.md'), `# Guide\n- ${said}\n`); spawnSync('git', ['init', '-q'], { cwd: A });
+      fs.writeFileSync(js, `const lib = await import(${JSON.stringify(path.join(A, '.anzuelo/engine/tools/hooks/v2/lib.mjs'))});\nconst a = { heard: ${JSON.stringify(said.toLowerCase())}, earlier: [], calls: ['CLAUDE.md', 'docs/guide.md'].map(f => ({ name: 'Edit', input: { file_path: ${JSON.stringify(A)} + '/' + f, old_string: 'a', new_string: 'b' } })), at: new Date(Date.now() - 60000).toISOString() };\nconsole.log(JSON.stringify({ split: lib.LAYOUT.split, gaps: lib.verbatimGaps(a) }));\n`);
+      const o = spawnSync(process.execPath, ['--preserve-symlinks', js], { cwd: A, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: A } }); let v = {}; try { v = JSON.parse(o.stdout); } catch { }
+      report(v.split === true && (v.gaps || []).length === 1 && /docs\/guide\.md/.test(v.gaps[0]) && !/CLAUDE\.md/.test(v.gaps[0]), 'verbatim: in an adopted app the no-verbatim check leaves out its own CLAUDE.md, and still reads its other files', `${o.stdout}${o.stderr}`.slice(0, 400)); }
+    finally { fs.rmSync(A, { recursive: true, force: true }); } }
   // (hooks.mjs note appends one line to the notes file with one short output line; no line, the usage. Plan quiet-screen, Task 2)
   if (STARTER_REPO) { const nf = path.join(root, '.cache/turn-notes.md'), kept = fs.existsSync(nf) ? fs.readFileSync(nf, 'utf8') : null, hk = path.join(root, 'tools/hooks/hooks.mjs');
     const ok = spawnSync(process.execPath, [hk, 'note', 'N/A(selftest): the note command'], { cwd: root, encoding: 'utf8' }), none = spawnSync(process.execPath, [hk, 'note'], { cwd: root, encoding: 'utf8' });
