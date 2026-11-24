@@ -2,6 +2,7 @@
 name: project
 summary: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status
 triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, make a rule, create a rule, set a rule, remember to always, remember from now on, you forgot, i told you, i shouldn't have to, sweeps, audit the project, run the audit, gap review, what's missing, project skills, harden a skill, harden the skill, hook change, add a pack, install a pack, where are we, where were we, what's next, to-do list, todo list, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, where did we leave off, where we left off, what's left to do, project health, add a hook, which skills, stop forgetting, keeps forgetting, why did you, sweep, gaps, runbook, runbooks, playbook, the skills, the hooks, packs, project status
+trigger_regex: (?<![("“'])\badd (?:a|one|another) (?:new |standing )?rule(?=\s*(?:that|to|so)\b|\s*:|\s*[.!?]|\s*$)
 menu: E1
 checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 ---

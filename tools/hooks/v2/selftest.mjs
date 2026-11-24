@@ -3311,6 +3311,12 @@ if (STARTER_REPO) { // (the starter's upgrade) (upgrades keep what worked: a pro
   reqBefore === null ? fs.rmSync(reqFile, { force: true }) : fs.writeFileSync(reqFile, reqBefore);
   r.memoryOwed = g(RULE, [skill, ...written], 'Done. hook: N/A judgment.', { memoryOnRuleRequest: true });
   r.memorySaved = g(RULE, [skill, ...written, call('Write', { file_path: 'agent-home/.claude/projects/p/memory/euros.md', content: 'x' })], 'Done. hook: N/A judgment.', { memoryOnRuleRequest: true });
+  // ("add a rule" routes only as the request's own instruction (that / to / so / ":" or the sentence's end), by the project
+  // runbook's trigger_regex: a plain trigger phrase let "Add a line to its NOTES (rules of thumb)" route. Oversight, 2026-11-24)
+  { const { route: rt2 } = await import('./lib.mjs'), fm = fs.readFileSync(path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'), 'docs/playbooks/project.md'), 'utf8');
+    const pb2 = [{ file: 'docs/playbooks/project.md', name: 'project', triggers: [], fm: {}, triggerRe: new RegExp(/^trigger_regex:\s*(.+)$/m.exec(fm)[1].trim(), 'i') }], m = s => !!rt2(s, pb2);
+    const ar = { that: m('please add a rule that every export names its source'), colon: m('add a rule: never push without the chains'), to: m('Add a rule to keep totals rounded half up.'), notes: m('Add a line to its NOTES (rules of thumb).'), quoted: m('What does "add a rule that X" mean here?') };
+    report(ar.that && ar.colon && ar.to && !ar.notes && !ar.quoted, 'routing: "add a rule" routes only as the request\'s own instruction ("that", "to", ":" ...); "Add a line ... (rules of thumb)" and a quoted one do not', JSON.stringify(ar)); }
   // (routed to the project runbook and asked outright, with nothing done for it: one line asking for the rule and its
   // enforcement in the project's own way; quoted rule words, or "Rule: none", owe nothing. Plan quiet-screen, Task 3)
   const gR = (prompt, answer) => { const a = acts([user(prompt), ...ed('README.md'), say(answer)]); a.runbook = 'docs/playbooks/project.md'; return ruleGaps(a); };
