@@ -4642,6 +4642,12 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   // (a promise names an ask but does nothing: "I'll add the emojis next", then "Done.", leaves it open. Oversight)
   const later = onStop({ session_id: 'wlogf', transcript_path: transcript([stampAt(0, user('fix the totals row.\nalso put emojis in the section headings')), stampAt(5, call('Edit', { file_path: path.join(dir, 'src/totals.js'), old_string: 'a', new_string: 'b' })),
     stampAt(10, say('Fixed the totals row. I\'ll put emojis in the section headings next.')), stampAt(15, say('Done.'))]) })?.reason || '';
+  // (a full answer that opens with a note label is no note: only one or two lines are; a one-line note with no answer
+  // before it still is. Resume item 5: a seven-line answer starting "Correction:" was held as "only a note")
+  { const full = 'Correction: the import, not the parser, dropped the rows.\nRoot cause: the importer stopped at the first blank line.\nFixed: it now reads to the end of the sheet.\nChecked: 412 rows read, 0 dropped.\nThe totals match the sheet.\nThe old parser note was wrong.\nNothing else changed.';
+    const n = { full: onStop({ session_id: 'notefull', transcript_path: transcript([stampAt(0, user('why were rows missing?')), stampAt(5, say(full))]) })?.reason || '', short: onStop({ session_id: 'noteshort', transcript_path: transcript([stampAt(0, user('why were rows missing?')), stampAt(5, say('Corrected: the importer dropped them.'))]) })?.reason || '' };
+    for (const s of ['notefull', 'noteshort']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
+    report(!/only a note on an answer/.test(n.full) && /only a note on an answer/.test(n.short), 'end: a full answer opening with "Correction:" is no note; a one-line "Corrected:" with no answer before it is', JSON.stringify({ full: n.full.slice(0, 200), short: n.short.slice(0, 200) })); }
   // (a promise the turn armed a watcher for is waiting, not open. Oversight, 2026-11-12: "read the pool at 20:11" was
   // held while the turn's own Monitor was armed for it)
   const watched = onStop({ session_id: 'wlogw', transcript_path: transcript([stampAt(0, user('tell me when the chain ends')), stampAt(5, say('I\'ll read the memory pool ten minutes after the chain ends.')),

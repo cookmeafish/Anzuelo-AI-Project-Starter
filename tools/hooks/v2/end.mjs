@@ -688,7 +688,7 @@ function judge(data, { shadow = false } = {}) {
   // are not there. As the old engine. Lesson (the old suite under v2): "Answer unchanged" and "Added: ..." with no answer
   // before them passed, and the user never got the answer)
   const resent = [], sentNote = String(acts.answer || '').trim();
-  const isNote = /^\W{0,4}(added|añadido|corrected|correction|corregido|correcci[oó]n)\s*:|^\W{0,4}(answer unchanged|respuesta sin cambios)\b/i.test(sentNote);
+  const isNote = sentNote.split('\n').filter(l => l.trim()).length <= 2 && /^\W{0,4}(added|añadido|corrected|correction|corregido|correcci[oó]n)\s*:|^\W{0,4}(answer unchanged|respuesta sin cambios)\b/i.test(sentNote); // (one or two lines: a full answer that opens with "Correction:" is no note. Resume item 5: a seven-line one was held)
   const prevAnswer = again ? answerBeforeBlock(rows) : '';
   // (any text the agent sent earlier in this turn that is not itself a note is an answer the note can stand beside, with
   // or without a block between them. Lesson (the gui port): an "Added:" after a passing answer was called answer-less)
