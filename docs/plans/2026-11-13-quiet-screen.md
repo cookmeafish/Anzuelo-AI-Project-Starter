@@ -166,11 +166,14 @@ What the user saw in that hour, and why:
       named and none closed; done also closes a waiting item. Test failed on the old code; 420/420.)
 - [x] (done: quoted passages and disclaiming sentences are left out before the never-again and enforced-claim
       patterns run; test from the reported pair failed on the old code; 421/421.)
-- [ ] A claim inside quotes, or in a sentence that disclaims it (not verified, haven't run, X's report, per X), is no
+- [x] (done: see the "(done: quoted passages and disclaiming sentences ...)" line under the list-never-grows box; 421/421)
+      A claim inside quotes, or in a sentence that disclaims it (not verified, haven't run, X's report, per X), is no
       claim; on a round after the hold, an answer that names the source or says it is unverified meets the item. Seen
       2026-11-14 20:53: "another session reported a check now enforces it" held, then the correction quoting the phrase
       and saying it was not run held again. Test from that pair.
-- [ ] `hooks.mjs log done|wait "<words>"` finds the item by words from anywhere in it (a phrase from its middle, or
+- [x] (done: see the "(done: a phrase of 12+ characters from anywhere in the item ...)" line under the list-never-grows
+      box; 420/420)
+      `hooks.mjs log done|wait "<words>"` finds the item by words from anywhere in it (a phrase from its middle, or
       most of the given words in order), not only its opening words; when several items match, it names them instead of
       picking one. Seen 2026-11-14: a long ask could be closed only by its first words, so an answered ask held the turn
       after two tries. Test: a long item closed by a phrase from its middle; an ambiguous phrase lists the candidates.
