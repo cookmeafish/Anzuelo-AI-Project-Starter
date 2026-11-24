@@ -2868,6 +2868,13 @@ report(claimGaps(acts([user('commit it'), call('Bash', { command: 'git commit -m
   report(cg.quoted === 0 && cg.typed === 1 && asks.length === 1 && !/63|81/.test(asks[0]), 'end: a count only quoted ("> " lines) is no count asked for, a typed one is; quoted lines log no asks', JSON.stringify({ ...cg, asks })); }
 const madeUp = claimGaps(acts([user('commit it'), code, say('Committed as 9f8e7d6, see src/missing.js and C:/nowhere/at/all.md.')]));
 report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.test(madeUp[1]) && /C:\/nowhere/.test(madeUp[1]), 'end: a commit nothing showed and files that do not exist are named', madeUp);
+// (a path under another project the answer names is checked there, not called made up; one nowhere still is. Plan
+// quiet-screen, Task 3: an answer about another project's tools/screenshot.mjs was held)
+{ const other = fs.mkdtempSync(path.join(os.tmpdir(), 'other-project-')); fs.mkdirSync(path.join(other, 'tools/shots'), { recursive: true }); fs.writeFileSync(path.join(other, 'tools/shots/take.mjs'), 'x');
+  const there = claimGaps(acts([user('why do the shots fail there?'), say(`In ${other}/ the tool tools/shots/take.mjs starts the browser; it fails there because the sandbox is blocked.`)])).filter(s => /does not exist/.test(s));
+  const nowhere = claimGaps(acts([user('why do the shots fail there?'), say(`In ${other}/ the tool tools/shots/missing-tool.mjs starts the browser.`)])).filter(s => /does not exist/.test(s));
+  fs.rmSync(other, { recursive: true, force: true });
+  report(there.length === 0 && nowhere.length === 1, 'end: a path under another project the answer names is checked there; a path that exists nowhere is still named', JSON.stringify({ there, nowhere })); }
 { // (a package manager pointed at the project's own folder runs the project's tests; at a subfolder, another package's.
   // A run that failed for a missing module after a refused install cannot pass yet: not asked again. A check shipped
   // off ("enabled": false) stays off)
