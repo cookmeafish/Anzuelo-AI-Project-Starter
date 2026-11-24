@@ -2,7 +2,7 @@
 // it, or `hooks.mjs log done|wait`). User rule, 2026-11-12: nothing asked or promised is dropped.
 import fs from 'node:fs';
 import path from 'node:path';
-import { at, engineSince } from './lib.mjs';
+import { at, engineSince, ROOT } from './lib.mjs';
 import { keys } from './late.mjs';
 
 const file = sid => at(`tools/hooks/state/v2-log.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
@@ -62,8 +62,8 @@ export const agentTexts = rows => rows.flatMap(r => r.type === 'assistant' && Ar
 // not one marked as waiting on the user. Keep-working: a turn that ticked a queue box is told the next one, so the work
 // goes on without the user asking. The user, 2026-11-12: "the user shouldn't have to slow down for the agent"
 export const QUEUE_FILES = ['docs/STATUS.md', 'tools/starter/STATUS.md'];
-export function queueOpen(read) {
-  return QUEUE_FILES.flatMap(f => (String(read(f) || '').split(/^## /m).filter(s => /^Queue\b/i.test(s)).join('\n').match(/^- \[ \] .+$/gm) || [])
+export function queueOpen(read) { // (the starter's own queue only in the starter: in a project the engine copy's tools/starter/STATUS.md is the starter's work, and two projects were shown it as theirs, 2026-11-24)
+  return QUEUE_FILES.filter(f => f !== 'tools/starter/STATUS.md' || fs.existsSync(path.join(ROOT, '.starter-dev'))).flatMap(f => (String(read(f) || '').split(/^## /m).filter(s => /^Queue\b/i.test(s)).join('\n').match(/^- \[ \] .+$/gm) || [])
     .map(l => l.replace(/^- \[ \] /, '').trim()).filter(l => !/waiting on (you|the user)|waits on the user/i.test(l)).map(text => ({ text, file: f })));
 }
 export const tickedQueue = calls => calls.some(c => /^(Edit|MultiEdit)$/.test(c.name) && /(^|[\\/])STATUS\.md$/.test(String(c.input?.file_path || ''))

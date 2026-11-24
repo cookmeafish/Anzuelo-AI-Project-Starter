@@ -4738,6 +4738,12 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const open = W.loadLog(sid).filter(i => i.from === 'promise').map(i => i.text); // (the whole log: the real promise waits on "after ...", and update() returns open items only)
     fs.rmSync(path.join(dir, 'tools/hooks/state', `v2-log.${sid}.json`), { force: true });
     report(open.length === 1 && /push the release after the chains pass/.test(open[0]), 'worklog: a way of working ("I\'ll only ...", "I\'ll ... and won\'t ...") is never logged as a promise; a real one still is', JSON.stringify(open)); }
+  // (the starter's queue (tools/starter/STATUS.md) is read only in the starter (.starter-dev at the root): in a project the
+  // engine copy carries that file, and two projects were shown the starter's next item as theirs, 2026-11-24)
+  { const W = await import('./worklog.mjs'), q = f => f === 'tools/starter/STATUS.md' ? '## Queue\n- [ ] Release the next engine batch\n' : '';
+    const dev = path.join(dir, '.starter-dev'), had = fs.existsSync(dev); fs.rmSync(dev, { force: true }); const project = W.queueOpen(q).length;
+    fs.writeFileSync(dev, ''); const starter = W.queueOpen(q).length; if (!had) fs.rmSync(dev, { force: true });
+    report(project === 0 && starter === 1, 'worklog: the starter\'s own queue is read only in the starter, never in a project whose engine copy carries it', JSON.stringify({ project, starter })); }
   // (`hooks.mjs why` shows the saved list without the work-log items closed since: they showed as open after `log done`.
   // Plan quiet-screen, Task 3)
   { const W = await import('./worklog.mjs'), reason = 'Not done yet:\n- Still open: "rename the totals column (your promise)". Do it now.\n- Still open: "add the receipt export". Do it now.\n- Check: Add a dated line to docs/CHANGELOG.md';
