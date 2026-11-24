@@ -60,7 +60,9 @@ export function repairMoved(dir) {
       if (!/^(?:[A-Za-z]:)?[\\/]/.test(p) || (path.isAbsolute(p) && fs.existsSync(p))) continue; // (only a dead absolute path)
       const parts = p.split(/[\\/]+/).filter(Boolean), tail = parts.slice(1).map((_, i) => parts.slice(i + 1).join('/')).find(s => fs.existsSync(at(s)) && fs.statSync(at(s)).isFile());
       if (!tail || !next.includes(q(p))) continue;
-      const now = at(tail).split(path.sep).join('/'); next = next.split(q(p)).join(q(now)); out.push(`${f} ran ${p}, now ${now}`);
+      // (Claude's settings name it from $CLAUDE_PROJECT_DIR, so a later move needs nothing; quoted when the folder may hold a space)
+      const now = f.startsWith('.claude/') ? `$CLAUDE_PROJECT_DIR/${tail}` : at(tail).split(path.sep).join('/'), wrap = /[\s$]/.test(now) ? `\\"${q(now)}\\"` : q(now);
+      next = next.split(`\\"${q(p)}\\"`).join(`\\"${q(now)}\\"`).split(q(p)).join(wrap); out.push(`${f} ran ${p}, now ${now}`);
     }
     if (next !== t) fs.writeFileSync(at(f), next);
   }

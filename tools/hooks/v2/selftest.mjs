@@ -1805,11 +1805,12 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   // 2026-11-23: after the move to Linux, a project's own `python C:/...` hook exited 2 and blocked every tool)
   { const { repairMoved, wiringProblems } = await import('../wire.mjs'), r0 = fs.mkdtempSync(path.join(os.tmpdir(), 'moved-'));
     fs.mkdirSync(path.join(r0, '.claude'), { recursive: true }); fs.mkdirSync(path.join(r0, 'tools'), { recursive: true }); fs.writeFileSync(path.join(r0, 'tools/own.py'), 'print(1)\n');
-    fs.writeFileSync(path.join(r0, '.claude/settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: 'python "C:/projects/Old Name/tools/own.py"' }, { type: 'command', command: 'python C:/gone/elsewhere.py' }] }] } }, null, 2));
+    fs.writeFileSync(path.join(r0, '.claude/settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: 'python "C:/projects/Old Name/tools/own.py"' }, { type: 'command', command: 'python C:/projects/Old/tools/own.py --fast' }, { type: 'command', command: 'python C:/gone/elsewhere.py' }] }] } }, null, 2));
     spawnSync('git', ['init', '-q'], { cwd: r0 }); spawnSync('git', ['config', '--local', 'core.autocrlf', 'true'], { cwd: r0 });
     const before = wiringProblems(r0).length, fixed = repairMoved(r0), after = wiringProblems(r0), set = fs.readFileSync(path.join(r0, '.claude/settings.local.json'), 'utf8'), crlf = (spawnSync('git', ['config', '--local', 'core.autocrlf'], { cwd: r0, encoding: 'utf8' }).stdout || '').trim();
     fs.rmSync(r0, { recursive: true, force: true });
-    report(before === 2 && set.includes(`python \\"${path.join(r0, 'tools/own.py').split(path.sep).join('/')}\\"`) && after.length === 1 && /elsewhere\.py/.test(after[0]) && (process.platform === 'win32' || (crlf === 'input' && fixed.some(f => /autocrlf/.test(f)))),
+    // (Claude's settings get "$CLAUDE_PROJECT_DIR/<path>", quoted: it holds the folder, which may have a space)
+    report(before === 3 && (set.match(/python \\"\$CLAUDE_PROJECT_DIR\/tools\/own\.py\\"/g) || []).length === 2 && /own\.py\\" --fast/.test(set) && after.length === 1 && /elsewhere\.py/.test(after[0]) && (process.platform === 'win32' || (crlf === 'input' && fixed.some(f => /autocrlf/.test(f)))),
       'wire: a moved project\'s hook naming the old absolute path of a file it still has gets the live path (one it lacks stays reported); core.autocrlf=true becomes input off Windows', JSON.stringify({ before, fixed, after, crlf })); }
   // (a release proof naming a commit whose engine files are the turn's, byte for byte, is their test run: the chains ran
   // the suites in a frozen copy. Oversight, 2026-11-15: held twice after a release for tests not run here)
