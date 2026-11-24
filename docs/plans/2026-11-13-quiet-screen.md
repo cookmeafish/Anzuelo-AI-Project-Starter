@@ -100,7 +100,9 @@ What the user saw in that hour, and why:
       request got no route and nothing was asked; now "make/add/create/set a rule" route to the project runbook with the
       RULE REQUEST note (checked in an adopted app with light and records off). A turn that did work but nothing for the
       rule gets one line asking for it and its enforcement in the project's own way. A turn that changed nothing is still
-      never held, by the engine's model: there the reminder is the fix. Tests; 463/463, audit PASS)
+      never held, by the engine's model: there the reminder is the fix. Tests; 463/463, audit PASS. Open: "add a rule"
+      was taken out again (3ec37ac): a looser matcher, likely in the CHECKS preview or closest-runbook guess, read "Add a
+      line ... (rules of thumb)" as it; find that matcher, then add the phrase back)
       In an adopted app, light mode and records off drop only the record asks (CHANGELOG, STATUS, DECISIONS), never
       rule enforcement: a rule request still needs one held line asking for an enforcement in the app's own way (a test
       in its suite, a check in its own scripts or hooks, or a Done when line in its own process file), never in
@@ -140,7 +142,10 @@ What the user saw in that hour, and why:
       Test: a plain "should I build X?" after the user asked for X holds; the real pair (the user's subscription ask,
       the 14:23 question naming the rule) holds; a push question passes; a question about something never asked
       passes. After the helper above.
-- [ ] A path the answer names is checked against the project roots named in the same sentence or paragraph, the roots of
+- [x] (done 2026-11-24, d434cd3: folders the answer names and the starter's pack sources are searched before "does not
+      exist"; the roots of sessions that messaged are not known by path, so they are not searched. Test: a path under a
+      named other project passes, one that exists nowhere is still named; 464/464)
+      A path the answer names is checked against the project roots named in the same sentence or paragraph, the roots of
       sessions that messaged this turn, and the starter's pack sources, before "does not exist" (2026-11-15: an answer
       about another project's tools/screenshot.mjs was held, though the file exists there). Test: that answer passes; a
       made-up path still flags.
