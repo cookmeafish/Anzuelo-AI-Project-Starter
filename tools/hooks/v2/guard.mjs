@@ -375,12 +375,18 @@ export function pretoolHits(data, cfg) {
       add('REQ: shell-hygiene. In Bash, "> nul" creates a file literally named "nul". Use > /dev/null instead.');
     // (REQ: shell-hygiene: "sed -i" on a project's code file rewrites it unseen, and a pattern slip breaks the program; the
     // Edit tool shows the change and fails safely. Lesson (a field report, 2026-11-12): an in-place sed broke a JS file)
-    const sedHit = sedInPlaceFiles(cmd).find(f => /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)$/i.test(f) && !/^(\/tmp|\$TEMP|\$TMP)\b/i.test(f));
+    // (scratch, temp and the project's .cache are data, not source, also when named through a variable the command sets or
+    // the environment holds. Oversight, 2026-11-24: "sed -i $S/fixture.py" ($S the scratchpad) and a heredoc to
+    // .cache/old.py were refused)
+    const vars = Object.fromEntries([...cmd.matchAll(/(?:^|[\s;&(])(?:export\s+)?([A-Za-z_]\w*)=(?:"([^"\n]*)"|'([^'\n]*)'|([^\s;&|]*))/g)].map(m => [m[1], m[2] ?? m[3] ?? m[4]]));
+    const isData = f => { const p = String(f).replace(/\$\{?([A-Za-z_]\w*)\}?/g, (all, v) => vars[v] ?? process.env[v] ?? all).replace(/^["']|["']$/g, '').replace(/\\/g, '/'), tmp = os.tmpdir().replace(/\\/g, '/').toLowerCase(), low = p.toLowerCase();
+      return /^(\/tmp\b|\$TE?MP|%TE?MP%|~|\.\.|\/dev\/|(\.\/)?\.cache\/)/i.test(p) || low.startsWith(tmp + '/') || /\/scratchpad(\/|$)/i.test(p) || low.startsWith(`${ROOT.replace(/\\/g, '/').toLowerCase()}/.cache/`); };
+    const sedHit = sedInPlaceFiles(cmd).find(f => /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)$/i.test(f) && !isData(f));
     if (sedHit) add(`REQ: shell-hygiene. "sed -i" would rewrite ${sedHit} in place, unseen, where one pattern slip breaks the file. Use the Edit tool for the change.`);
     // (the same for a heredoc, a redirect, tee, or an inline node -e / python -c script that writes a project code file:
     // the shell mangles backslashes and quotes. Lesson (a project, 2026-11-12): three broken scripts in one session)
     const CODE_F = String.raw`[\w./\\-]+\.(?:m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)`;
-    const inProj = f => { const p = String(f).replace(/\\/g, '/'); return !/^(\/tmp\b|\$TE?MP|%TE?MP%|~|\.\.|\/dev\/)/i.test(p) && (!/^([A-Za-z]:|\/)/.test(p) || p.toLowerCase().startsWith(ROOT.replace(/\\/g, '/').toLowerCase())); };
+    const inProj = f => { const p = String(f).replace(/\\/g, '/'); return !isData(f) && (!/^([A-Za-z]:|\/)/.test(p) || p.toLowerCase().startsWith(ROOT.replace(/\\/g, '/').toLowerCase())); };
     // (any inline interpreter: "python -" fed a heredoc, node --input-type/-p, perl/ruby -e, and PowerShell's Set-Content/Out-File. Oversight, 2026-11-15: three "python - <<EOF" scripts rewrote source files, one broke a JS string)
     // (a heredoc's body is data: only its first line's redirect writes; a code file only imported or read by an inline script
     // is not its target. Two live false alarms, 2026-11-23)

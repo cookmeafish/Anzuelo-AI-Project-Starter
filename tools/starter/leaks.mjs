@@ -44,6 +44,11 @@ export function snapshot() {
     const pt = path.join(path.dirname(fileURLToPath(import.meta.url)), 'pooltags.ps1'), csv = path.join(T, `leaks-pool-${process.pid}.csv`);
     try { spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', pt, '-Csv', csv], { timeout: 60000, windowsHide: true });
       const row = fs.readFileSync(csv, 'utf8').split(/\r?\n/).map(l => l.replace(/"/g, '').split(',')).find(c => c[0] === 'File'); if (row) s.fileLive = Number(row[4]); } catch { } finally { fs.rmSync(csv, { force: true }); }
+  } else if (process.platform === 'linux') {
+    // (Linux has no paged pool: the kernel's unreclaimable slab (SUnreclaim) stands for kernel memory a leak would hold, and
+    // the leftover test processes are read from /proc, as the Windows probe counts them. The move to Linux, 2026-11-23)
+    try { const kb = Number(/^SUnreclaim:\s+(\d+)/m.exec(fs.readFileSync('/proc/meminfo', 'utf8'))?.[1]); if (Number.isFinite(kb)) s.pagedMB = Math.round(kb / 1024); } catch { }
+    s.processes = ls('/proc').filter(p => /^\d+$/.test(p) && Number(p) !== process.pid).filter(p => { try { const c = fs.readFileSync(`/proc/${p}/cmdline`, 'utf8').split('\0'); return /(^|\/)node$/.test(c[0]) && /anzuelo-tests|anzuelo-frozen/.test(c.join(' ')); } catch { return false; } }).length;
   }
   return s;
 }
