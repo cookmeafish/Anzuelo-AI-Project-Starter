@@ -4642,6 +4642,10 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
   // (a promise names an ask but does nothing: "I'll add the emojis next", then "Done.", leaves it open. Oversight)
   const later = onStop({ session_id: 'wlogf', transcript_path: transcript([stampAt(0, user('fix the totals row.\nalso put emojis in the section headings')), stampAt(5, call('Edit', { file_path: path.join(dir, 'src/totals.js'), old_string: 'a', new_string: 'b' })),
     stampAt(10, say('Fixed the totals row. I\'ll put emojis in the section headings next.')), stampAt(15, say('Done.'))]) })?.reason || '';
+  // (a sentence describing a future step ("When ... has passed, I re-read ...") is no verdict; a plain verdict still is.
+  // Resume item 6: such a step was held as an unattributed verdict)
+  { const { groupVerdictClaim } = await import('../claims.mjs'), gv = { future: groupVerdictClaim('When all of the second objective has passed, I re-read the 63 changed questions and give final approval.'), now: groupVerdictClaim('All 63 changed questions passed the review.') };
+    report(gv.future === '' && gv.now !== '', 'claims: a future step ("When ... has passed, I ...") is no verdict; "All 63 ... passed" is one', JSON.stringify(gv)); }
   // (a full answer that opens with a note label is no note: only one or two lines are; a one-line note with no answer
   // before it still is. Resume item 5: a seven-line answer starting "Correction:" was held as "only a note")
   { const full = 'Correction: the import, not the parser, dropped the rows.\nRoot cause: the importer stopped at the first blank line.\nFixed: it now reads to the end of the sheet.\nChecked: 412 rows read, 0 dropped.\nThe totals match the sheet.\nThe old parser note was wrong.\nNothing else changed.';

@@ -122,5 +122,5 @@ export function groupVerdictClaim(answer) {
   // (the sentence right after the verdict may say who judged it. Lesson (a field report): "The list passes the new checks.
   // I judged this myself this turn, with no helper." was flagged for two rounds after the correction said so)
   const ss = claimSentences(answer), clean = s => String(s || '').replace(quoted, ' ').replace(notCount, ' ');
-  return ss.find((s, i) => { const t = clean(s); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !describesClaim(t) && !REQUIREMENT.test(t) && !JUDGED_BY.test(t) && !JUDGED_BY.test(clean(ss[i + 1])); }) || '';
+  return ss.find((s, i) => { const t = clean(s); return GROUP_VERDICT.test(t) && !/^\W*(when|once|after|if|as soon as|until)\b/i.test(t) /* (a future step is no verdict: "When all of X has passed, I re-read ..." Resume item 6) */ && !TEST_RUN.test(t) && !describesClaim(t) && !REQUIREMENT.test(t) && !JUDGED_BY.test(t) && !JUDGED_BY.test(clean(ss[i + 1])); }) || '';
 }
