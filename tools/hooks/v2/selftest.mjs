@@ -1805,7 +1805,7 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   // 2026-11-23: after the move to Linux, a project's own `python C:/...` hook exited 2 and blocked every tool)
   { const { repairMoved, wiringProblems } = await import('../wire.mjs'), r0 = fs.mkdtempSync(path.join(os.tmpdir(), 'moved-'));
     fs.mkdirSync(path.join(r0, '.claude'), { recursive: true }); fs.mkdirSync(path.join(r0, 'tools'), { recursive: true }); fs.writeFileSync(path.join(r0, 'tools/own.py'), 'print(1)\n');
-    fs.writeFileSync(path.join(r0, '.claude/settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: 'python "C:/projects/Old Name/tools/own.py"' }, { type: 'command', command: 'python C:/projects/Old/tools/own.py --fast' }, { type: 'command', command: 'python C:/gone/elsewhere.py' }] }] } }, null, 2));
+    fs.writeFileSync(path.join(r0, '.claude/settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: 'python "D:/work/Old Name/tools/own.py"' }, { type: 'command', command: 'python D:/work/Old/tools/own.py --fast' }, { type: 'command', command: 'python C:/gone/elsewhere.py' }] }] } }, null, 2));
     spawnSync('git', ['init', '-q'], { cwd: r0 }); spawnSync('git', ['config', '--local', 'core.autocrlf', 'true'], { cwd: r0 });
     const before = wiringProblems(r0).length, fixed = repairMoved(r0), after = wiringProblems(r0), set = fs.readFileSync(path.join(r0, '.claude/settings.local.json'), 'utf8'), crlf = (spawnSync('git', ['config', '--local', 'core.autocrlf'], { cwd: r0, encoding: 'utf8' }).stdout || '').trim();
     fs.rmSync(r0, { recursive: true, force: true });
