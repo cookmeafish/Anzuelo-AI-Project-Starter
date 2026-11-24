@@ -1773,9 +1773,9 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   onPrompt({ session_id: 'again3', prompt: 'commit it' });
   const tp3 = transcript([user('commit it'), say('Committed as 9f8e7d6, see src/missing.js.')]);
   const r = [1, 2, 3, 4].map(k => onStop({ transcript_path: tp3, session_id: 'again3', ...(k > 1 ? { stop_hook_active: true } : {}) }));
-  report(/Not done yet:[\s\S]*export\.md item 1/.test(first?.reason || '') && /Check that these items/.test(first?.reason || '') && later === null
+  report(/Not done yet:[\s\S]*export\.md item 1/.test(first?.reason || '') && /Check that these items/.test(first?.reason || '') && /^Still not done[\s\S]*export\.md item 1/.test(later?.reason || '') && third === null
     && /Not done yet:[\s\S]*9f8e7d6/.test(r[0]?.reason || '') && /^Still not done[\s\S]*9f8e7d6/.test(r[1]?.reason || '') && /last check for this request/.test(r[2]?.reason || '') && r[3] === null,
-    'end: a runbook item alone is held in round 1 only; an unbacked claim is held again in rounds 2 and 3 (the last says to report what is not done), and never a fourth', JSON.stringify({ later: later?.reason ?? null, r: r.map(x => x?.reason?.slice(0, 200) ?? null) }));
+    'end: a runbook item alone is held in rounds 1 and 2, not 3; an unbacked claim is held again in round 3 (which says to report what is not done), and never a fourth', JSON.stringify({ later: later?.reason ?? null, r: r.map(x => x?.reason?.slice(0, 200) ?? null) }));
   // (narration is not a promise: an "I'll ..." between tool calls that the turn then went on to carry out is not held as
   // open. Lesson (2026-11-14): two holds for "I'll strip the status letters ..." and "I'll put the comment at the end of
   // the line", both done by the next edit; a promise with nothing done after it stays open)
@@ -1995,8 +1995,8 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   const g1 = onStop({ transcript_path: followed, session_id: 'fixed2' }), g2 = onStop({ transcript_path: transcript(good), session_id: 'fixed2', stop_hook_active: true });
   report(h1?.decision === 'block' && !/Write the lesson/.test(h1?.reason || '') && h2 === null
     && f1?.decision === 'block' && /export\.md item 1/.test(f1?.reason || '') && /This turn followed docs\/playbooks\/export\.md and its own check failed this turn\. Write the lesson into it/.test(f1?.reason || '') && f2 === null
-    && g1?.decision === 'block' && /Write the lesson/.test(g1?.reason || '') && g2 === null,
-    'end: a runbook followed and still missed gets its item and its lesson named together in round 1, and both done passes; the lesson is a round-1 item, so a later round does not hold it again (plan quiet-screen); one not yet opened at the first stop owes no lesson', [h1?.reason, h2, f1?.reason, f2, g1?.reason, g2?.reason]);
+    && g1?.decision === 'block' && /^Still not done[^\n]*\n- This turn followed docs\/playbooks\/export\.md[^\n]*Write the lesson/.test(g2?.reason || '') && !/export\.md item/.test(g2?.reason || ''),
+    'end: a runbook followed and still missed gets its item and its lesson named together in round 1, and both done passes; done without the lesson, the next round holds only it; one not yet opened at the first stop owes no lesson', [h1?.reason, h2, f1?.reason, f2, g2?.reason]);
   onPrompt({ session_id: 'again', prompt: 'add a csv export' });
   const next = onStop({ transcript_path: tp, session_id: 'again' });
   // (a message typed while a turn runs joins it; after the turn's Stop passes, the next message starts a new turn)
