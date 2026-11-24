@@ -96,7 +96,12 @@ What the user saw in that hour, and why:
       they haven't returned, a file still being written); it is judged on the turn that merges their results. Test: a
       turn with live background agents and partial files ends with no hold (a project, 2026-11-13: 3 rounds of 6, 5
       and 5 items while 8 helpers ran).
-- [ ] In an adopted app, light mode and records off drop only the record asks (CHANGELOG, STATUS, DECISIONS), never
+- [x] (done 2026-11-24, 26c6ed6. Root cause: "make a rule to always ..." matched no rule trigger in any layout, so the
+      request got no route and nothing was asked; now "make/add/create/set a rule" route to the project runbook with the
+      RULE REQUEST note (checked in an adopted app with light and records off). A turn that did work but nothing for the
+      rule gets one line asking for it and its enforcement in the project's own way. A turn that changed nothing is still
+      never held, by the engine's model: there the reminder is the fix. Tests; 463/463, audit PASS)
+      In an adopted app, light mode and records off drop only the record asks (CHANGELOG, STATUS, DECISIONS), never
       rule enforcement: a rule request still needs one held line asking for an enforcement in the app's own way (a test
       in its suite, a check in its own scripts or hooks, or a Done when line in its own process file), never in
       .anzuelo (2026-11-15: a "make a rule to always" request got only a paragraph, no check, and nothing asked). Test:
