@@ -602,7 +602,7 @@ export function met(item, acts) {
   if (item.kind === 'file') {
     const since = Date.parse(acts.at || '') || 0;
     // ("a|b": either path or glob)
-    const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]); if (projectConfig().records === false && args.every(a => /^docs\/(CHANGELOG|STATUS|DECISIONS)\.md$/i.test(a))) return true; // ("records": false, an adopted app without its own: no record asks. Oversight, 2026-11-13)
+    const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]); if (args.every(a => /^(docs\/(CHANGELOG|STATUS|DECISIONS)|tools\/starter\/(STARTER-CHANGELOG|STATUS))\.md$/i.test(a)) && (projectConfig().records === false || !changedOf(acts).some(p => !/^(\.cache|tools\/hooks\/state|\.anzuelo|memory|docs\/plans|docs\/reviews)\//.test(p) && !(fs.existsSync(at('.starter-dev')) ? /^(docs\/(STATUS|DECISIONS|CHANGELOG)|tools\/starter\/(STATUS|STARTER-CHANGELOG))\.md$/ : /^docs\/(STATUS|DECISIONS|CHANGELOG)\.md$/).test(p) && !/^(\.\.|[a-z]:|\/)/i.test(p)))) return true; // ("records": false, an adopted app without its own: no record asks. Oversight, 2026-11-13) (nor on a turn that changed no file of the project, only other folders or records. Plan quiet-screen, Task 3)
     // (a runbook or skill changed only in its triggers line is no change: new routing words, the same procedure. Lesson
     // (the old engine): a question taught a runbook its Spanish wording, and the sweeps for changed runbooks held it)
     const ro = { has: f => routingWordsOnly(acts, f) };

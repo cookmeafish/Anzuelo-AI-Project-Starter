@@ -2577,6 +2577,12 @@ if (STARTER_REPO) { // (the starter's own text; a project may have no AGENTS.md)
   const starter = met(item, wrote);
   fs.rmSync(path.join(dir, '.starter-dev'));
   report(project === false && starter === true, 'end: in the starter, its own changelog meets a docs/CHANGELOG.md item; in a project it does not', { project, starter });
+  // (a record item (CHANGELOG, STATUS) is not asked on a turn that changed no file of the project, only other folders or
+  // records; one that changed a project file still is. Plan quiet-screen, Task 3: a watch round that edited only other
+  // projects was asked for this starter's changelog)
+  const elsewhere = met(item, acts([user('watch the projects'), call('Edit', { file_path: path.join(os.tmpdir(), 'other-project', 'docs', 'notes.md'), old_string: 'a', new_string: 'b' })]));
+  const work = met(item, acts([user('add a csv export'), call('Edit', { file_path: path.join(dir, 'src/export.js'), old_string: 'a', new_string: 'b' })]));
+  report(elsewhere === true && work === false, 'end: a changelog item is met on a turn that changed no project file; a turn that changed one still needs the line', { elsewhere, work });
 }
 // (speed: the project's config is read once per state of its files, not by every check; an edit is still seen at once.
 // Lesson (a project's upgrade report): about 15 reads per Stop made the end check slower than the engine before it)
