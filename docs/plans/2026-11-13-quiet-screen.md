@@ -63,8 +63,9 @@ What the user saw in that hour, and why:
       a peer session's turn is open). The repeat check keeps its own record (state/issues.json), so nothing that reads
       earlier turns loses them. Test: 3 turns, then the live file holds only turn 3 and the archive turns 1 and 2;
       with a peer turn open nothing moves (failed on the old code; 416/416).
-- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: after 3 turns the live notes file holds only the last turn's
-      lines, and acknowledgement and fix checks still read the archive; ALL PASS.
+- [x] Run `node tools/hooks/v2/selftest.mjs`. Expected: after 3 turns the live notes file holds only the last turn's
+      lines, and acknowledgement and fix checks still read the archive; ALL PASS. (2026-11-24: ALL PASS 459/459, the
+      rotation case among them)
 
 ## Task 3: one hold round, only proven items
 **Files:** tools/hooks/v2/end.mjs
