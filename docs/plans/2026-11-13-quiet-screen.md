@@ -187,11 +187,16 @@ What the user saw in that hour, and why:
 - [x] (and the 21-item hold: follow-on items ("Then, once <file> is written") go under "Also noted, not held"; a
       runbook a later message routed brings its steps only when the turn touched its kind, else one line asks to do it
       or say why not, and only on a work turn. Tests failed on the old code; v2-sweep has no regressions, 1664 passed.)
-- [ ] A release proof written this turn (tools/hooks/engine-proof.json naming the tested commit, or the chain's result
+- [x] (done earlier, ticked 2026-11-24: v2 selftest "a release proof naming a commit whose engine files are the turn's,
+      byte for byte, is their test run")
+      A release proof written this turn (tools/hooks/engine-proof.json naming the tested commit, or the chain's result
       files) counts as test evidence for that commit's files: after a release whose two chains passed every test, the
       end check held twice for tests not run, since the chain runs them in a frozen copy (2026-11-15). Test: a turn that
       only commits a proof for a passed chain gets no "tests" item.
-- [ ] A long turn's hold lists only what applies to the work done (a real hold of 21 items, 2026-11-14 21:51): a
+- [x] (done earlier, ticked 2026-11-24: end.mjs touchedKind holds a routed runbook only when the turn touched its kind,
+      follow-on items for unwritten outputs are noted not held, at most 5 items a hold; v2 selftest cases from that hold
+      of 21 ("a hold asks for at most 5 items ...") pass)
+      A long turn's hold lists only what applies to the work done (a real hold of 21 items, 2026-11-14 21:51): a
       runbook routed by some message of the turn holds only when the turn changed a file or ran a command of its kind;
       an item conditional on an output ("once outputs/x is written") is left out while that output was never written;
       at most 5 items per hold, safety and unfinished work first, the rest in the details file. Test: replay that hold;
