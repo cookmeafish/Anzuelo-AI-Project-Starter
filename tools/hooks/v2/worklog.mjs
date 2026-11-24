@@ -15,7 +15,7 @@ const NOT_USER = /<(cross-session-message|agent-message|task-notification|system
 const textOf = c => Array.isArray(c) ? c.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(c || '');
 // The asks in a typed message: each line or sentence with key words (a list item, a question, an order); at most 6.
 export function asksIn(msg) {
-  const t = textOf(msg).replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ').replace(/\[Image[^\]]*\]|\[Request interrupted by user[^\]]*\]/g, ' ').trim(); // (the user's own words only, without the host's "[Request interrupted by user]" note: a message that began with a pasted block was never logged, and pasted text became an item's text. Oversight's review, 2026-11-15)
+  const t = textOf(msg).replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ').replace(/\[Image[^\]]*\]|\[Request interrupted by user[^\]]*\]/g, ' ').replace(/^\s*>.*$/gm, ' ').trim(); // ("> " lines are quoted, someone else's words: no asks. Resume item 3) // (the user's own words only, without the host's "[Request interrupted by user]" note: a message that began with a pasted block was never logged, and pasted text became an item's text. Oversight's review, 2026-11-15)
   if (!t || NOT_USER.test(t) || t.startsWith('<') || CHAT.test(t) || t.length > 6000) return [];
   const bits = t.split(/\n+|(?<=[.!?])\s+(?=[A-Z¿¡])/).map(s => s.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(s => s.length > 3 && !CHAT.test(s) && keys(s).length);
   return (bits.length > 6 ? [t.replace(/\s+/g, ' ')] : bits).map(s => s.slice(0, 300));

@@ -2833,6 +2833,12 @@ const { claimGaps } = await import('./lib.mjs');
 put('src/a.js', 'x');
 report(claimGaps(acts([user('commit it'), call('Bash', { command: 'git commit -m x' }, '[main 3e76a21] x'), say('Committed as 3e76a21. Corrected: "old" -> "new". The changed file is src/a.js.')])).length === 0,
   'end: a commit shown by this turn\'s output and a file that exists pass; an engine label is not a claim');
+// (a count only quoted ("> " lines, a long quotation) is no count asked for; a typed one still is. And quoted lines log no
+// asks. Resume item 3: a pasted scoring chart's "63 to 72 questions" was held as "deliver 63 questions")
+{ const chart = 'Check the review below.\n> Scoring: 63 to 72 questions correct is a pass, 81 questions is full marks.\n> Fewer than 50 questions fails.';
+  const cg = { quoted: claimGaps(acts([user(chart), say('Checked: the review reads right.')])).filter(s => /asked for \d+ questions/.test(s)).length, typed: claimGaps(acts([user('Give me 5 questions on fractions.'), say('Here they are.')])).filter(s => /asked for 5 questions/.test(s)).length };
+  const { asksIn } = await import('./worklog.mjs'), asks = asksIn(chart);
+  report(cg.quoted === 0 && cg.typed === 1 && asks.length === 1 && !/63|81/.test(asks[0]), 'end: a count only quoted ("> " lines) is no count asked for, a typed one is; quoted lines log no asks', JSON.stringify({ ...cg, asks })); }
 const madeUp = claimGaps(acts([user('commit it'), code, say('Committed as 9f8e7d6, see src/missing.js and C:/nowhere/at/all.md.')]));
 report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.test(madeUp[1]) && /C:\/nowhere/.test(madeUp[1]), 'end: a commit nothing showed and files that do not exist are named', madeUp);
 { // (a package manager pointed at the project's own folder runs the project's tests; at a subfolder, another package's.

@@ -1289,7 +1289,7 @@ export function holdsReq(c, acts, x) {
       }
       for (const f of files) {
         const cmd = spec.cmd.replace(/(?<![\w./-])((?:skills|tools|packs)\/[\w./-]+\.(?:mjs|cjs|js|py|sh))\b/g, t => !fs.existsSync(path.join(ROOT, t)) && fs.existsSync(at(t)) ? path.relative(ROOT, at(t)).split(path.sep).join('/') : t).replaceAll('{file}', f), res = withOwnTemp(env => spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000, env: { ...process.env, ...env } }), ROOT), out = `${res.stdout || ''}${res.stderr || ''}`; // (the script where the layout keeps it, run from the project root: in .anzuelo/, skills/ is .anzuelo/local/skills/. A project, 2026-11-23)
-        if (res.status !== 0 && /\bCannot find module\b|\bERR_MODULE_NOT_FOUND\b|^\s+at .+\((?:node:|file:|\/).*:\d+:\d+\)\s*$/m.test(out)) throw new Error(`the check script crashed (${cmd}): ${(/^.*(?:Error|Cannot find module).*$/m.exec(out) || [out.trim().split(/\r?\n/)[0]])[0].trim().slice(0, 160)}`); // (a crash of the script is the engine's fault, shown once by the caller, never the project's item)
+        if (res.status !== 0 && [...out.matchAll(/Cannot find module '([^'\n]+)'/g)].some(m => (cmd.match(/[\w./-]+\.(?:mjs|cjs|js|py|sh)\b/g) || []).some(s => m[1].replace(/\\/g, '/').endsWith(s.replace(/^\.\//, ''))))) throw new Error(`the check script crashed (${cmd}): ${(/^.*Cannot find module.*$/m.exec(out) || [''])[0].trim().slice(0, 160)}`); // (only its own script not found is the engine's fault, shown once by the caller; a validator that throws on a bad file still fails it. The release chain caught a JSON check passing)
         if (res.status !== 0 || (spec.pass && !reqRe(spec.pass).test(out))) { acts.detail = `${cmd} -> ${res.status === null ? 'timed out' : `exit ${res.status}`}: ${out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}`; return false; }
       }
       return true;
@@ -1650,7 +1650,7 @@ export function claimGaps(acts, history = '') {
     const now = read('docs/foundation.md'), before = spawnSync('git', ['show', 'HEAD:docs/foundation.md'], { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
     if (rowOf(now) !== rowOf(before.status === 0 ? before.stdout : '')) out.push(...grantProblems(now, [acts.heard || '', ...(acts.earlier || [])].join('\n')));
   }
-  if (!checkOff('count-honored') && !waivedTag('count-honored', acts)) out.push(...countGaps(userWords(String(acts.heard || '')), `${acts.said || ''}\n${acts.answer || ''}`));
+  if (!checkOff('count-honored') && !waivedTag('count-honored', acts)) out.push(...countGaps(userWords(String(acts.heard || '')).replace(/^\s*>.*$/gm, ' ').replace(/["“][^"”\n]{20,}["”]/g, ' '), `${acts.said || ''}\n${acts.answer || ''}`)); // (a count only quoted, in "> " lines or a quotation, is no count asked for: a pasted scoring chart's "63 to 72 questions" was. Resume item 3)
   return out;
 }
 
