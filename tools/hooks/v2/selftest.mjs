@@ -3485,8 +3485,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       `node -e "import('./tools/hooks/v2/worklog.mjs').then(W => { W.update('x', {}); require('fs').rmSync('tools/hooks/state/v2-log.x.json', { force: true }); })"`, "cat >> notes.md <<'EOF'\nTo check it, run python verify.py > verify.py.log, or tee site/page.js.\nEOF"];
     report(real.every(hy) && !pass.some(hy), 'guard: an inline "python -" heredoc that rewrites source files is refused; a read-only one, a temp write, a script that only imports a code file and a heredoc that only names one pass', JSON.stringify({ real: real.map(hy), pass: pass.map(hy) }));
     // (scratch, temp and .cache are data, also through a variable the command sets; src/ is still refused. Oversight, 2026-11-24)
-    const data = [`S=/tmp/claude-1000/-p/abc/scratchpad; sed -i 's/old/new/' "$S/stop_fixture.py"`, `S="${os.tmpdir()}/run1" && sed -i 's/a/b/' $S/fixture.py`, "cat > .cache/total_check.old.py <<'EOF'\ndef old(): return 1\nEOF"];
-    const src = ["sed -i 's/old/new/' src/stop_fixture.py", "cat > src/total_check.py <<'EOF'\ndef new(): return 2\nEOF", `S=src; sed -i 's/a/b/' "$S/app.py"`];
+    const data = [`S=/tmp/claude-1000/-p/abc/scratchpad; sed -i 's/old/new/' "$S/stop_fixture.py"`, `S="${os.tmpdir()}/run1" && sed -i 's/a/b/' $S/fixture.py`, "cat > .cache/total_check.old.py <<'EOF'\ndef old(): return 1\nEOF", `B=/tmp/claude-1000/-p/abc/scratchpad/inproj; cd "$B/My App" && printf 'export const a = 1;\\n' > lib/a.mjs`];
+    const src = ["sed -i 's/old/new/' src/stop_fixture.py", "cat > src/total_check.py <<'EOF'\ndef new(): return 2\nEOF", `S=src; sed -i 's/a/b/' "$S/app.py"`, `cd src && printf 'x' > app.mjs`];
     report(!data.some(hy) && src.every(hy), 'guard: sed -i or a heredoc into the scratchpad, temp or .cache (also through a variable the command sets) is data and passes; into src/ it is refused', JSON.stringify({ data: data.map(hy), src: src.map(hy) })); }
   // (removed now, not only at exit: the release's speed record is written before exit, and names the commit only on a clean tree)
   fs.rmSync(path.join(ROOT, protName), { force: true });

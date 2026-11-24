@@ -379,7 +379,9 @@ export function pretoolHits(data, cfg) {
     // the environment holds. Oversight, 2026-11-24: "sed -i $S/fixture.py" ($S the scratchpad) and a heredoc to
     // .cache/old.py were refused)
     const vars = Object.fromEntries([...cmd.matchAll(/(?:^|[\s;&(])(?:export\s+)?([A-Za-z_]\w*)=(?:"([^"\n]*)"|'([^'\n]*)'|([^\s;&|]*))/g)].map(m => [m[1], m[2] ?? m[3] ?? m[4]]));
-    const isData = f => { const p = String(f).replace(/\$\{?([A-Za-z_]\w*)\}?/g, (all, v) => vars[v] ?? process.env[v] ?? all).replace(/^["']|["']$/g, '').replace(/\\/g, '/'), tmp = os.tmpdir().replace(/\\/g, '/').toLowerCase(), low = p.toLowerCase();
+    const cdTo = (/(?:^|[;&|(]\s*)cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)/.exec(cmd)?.[1] || '').replace(/^["']|["']$/g, ''); // (a relative path after "cd <scratch>" is in the scratch folder. Live, 2026-11-24: a fixture written after cd into the scratchpad was refused)
+    const isData = f => isDataAt(cdTo && !/^([A-Za-z]:|[\\/~$%])/.test(String(f)) ? `${cdTo}/${f}` : f);
+    const isDataAt = f => { const p = String(f).replace(/\$\{?([A-Za-z_]\w*)\}?/g, (all, v) => vars[v] ?? process.env[v] ?? all).replace(/^["']|["']$/g, '').replace(/\\/g, '/'), tmp = os.tmpdir().replace(/\\/g, '/').toLowerCase(), low = p.toLowerCase();
       return /^(\/tmp\b|\$TE?MP|%TE?MP%|~|\.\.|\/dev\/|(\.\/)?\.cache\/)/i.test(p) || low.startsWith(tmp + '/') || /\/scratchpad(\/|$)/i.test(p) || low.startsWith(`${ROOT.replace(/\\/g, '/').toLowerCase()}/.cache/`); };
     const sedHit = sedInPlaceFiles(cmd).find(f => /\.(m?[jt]sx?|cjs|py|go|rs|java|cs|rb|php|css|html?)$/i.test(f) && !isData(f));
     if (sedHit) add(`REQ: shell-hygiene. "sed -i" would rewrite ${sedHit} in place, unseen, where one pattern slip breaks the file. Use the Edit tool for the change.`);
