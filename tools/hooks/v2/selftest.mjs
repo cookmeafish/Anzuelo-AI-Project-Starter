@@ -3304,6 +3304,11 @@ if (STARTER_REPO) { // (the starter's upgrade) (upgrades keep what worked: a pro
   reqBefore === null ? fs.rmSync(reqFile, { force: true }) : fs.writeFileSync(reqFile, reqBefore);
   r.memoryOwed = g(RULE, [skill, ...written], 'Done. hook: N/A judgment.', { memoryOnRuleRequest: true });
   r.memorySaved = g(RULE, [skill, ...written, call('Write', { file_path: 'agent-home/.claude/projects/p/memory/euros.md', content: 'x' })], 'Done. hook: N/A judgment.', { memoryOnRuleRequest: true });
+  // (routed to the project runbook and asked outright, with nothing done for it: one line asking for the rule and its
+  // enforcement in the project's own way; quoted rule words, or "Rule: none", owe nothing. Plan quiet-screen, Task 3)
+  const gR = (prompt, answer) => { const a = acts([user(prompt), ...ed('README.md'), say(answer)]); a.runbook = 'docs/playbooks/project.md'; return ruleGaps(a); };
+  const routed = { undone: gR('make a rule to always run the linter before you commit', 'I will run the linter before every commit from here.'), quoted: gR('What does this line mean?\n> make a rule to always run the linter', 'It asks for a lint step.'), none: gR('make a rule to always run the linter before you commit', 'Linted this one. Rule: none - the user meant this commit only.') };
+  report(routed.undone.length === 1 && /asks for a standing rule[\s\S]*own way/.test(routed.undone[0]) && !routed.quoted.length && !routed.none.length, 'end: rule-request: a rule asked outright and routed as one, with nothing done for it, gets one line asking for it and its enforcement in the project\'s own way; quoted, or "Rule: none", none', JSON.stringify(routed));
   const has = (l, rx) => l.some(s => rx.test(s));
   report(!r.passing.length && !r.ruleWordsOnly.length && has(r.promised, /Write the rule down/) && has(r.saidOnly, /Write the rule down/) && has(r.saidOnly, /Say how the rule is enforced/)
     && !r.full.length && !r.na.length && !r.cmd.length && !r.none.length && has(r.testNoCheck, /Say how the rule is enforced/) && !r.testWithCheck.length

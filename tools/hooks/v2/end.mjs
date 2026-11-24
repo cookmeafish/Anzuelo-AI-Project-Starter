@@ -451,7 +451,7 @@ export function ruleGaps(acts, cfg = null) {
   const cmd = c => /^(Bash|PowerShell)$/.test(c.name) ? String(c.input?.command || '') : '';
   const skill = acts.calls.some(c => (c.name === 'Read' && /project-rule[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))) || (c.name === 'Skill' && /(^|:)project-rule$/.test(String(c.input?.skill || ''))));
   const ran = acts.calls.some(c => /\bhooks\.mjs["']?\s+rule\s/.test(cmd(c)) && !c.error);
-  if (!skill && !ran && !RULE_SAID.test(both)) return [];
+  if (!skill && !ran && !RULE_SAID.test(both)) return /project\.md$/.test(acts.runbook || '') && /\b(?:make|add|create|set) (?:it |this |that )?a rule\b|\bnew rule\b|\bfrom now on\b|\bgoing forward\b/i.test(ownWords(acts.heard || '').replace(/^\s*>.*$/gm, ' ').replace(/"[^"\n]*"|“[^”\n]*”/g, ' ')) ? ['This message asks for a standing rule, and nothing was done for it: record it and enforce it in the project\'s own way (project-rule skill: a test in its suite, a check in its own scripts or hooks, or a "Done when" line in its own process file), or say "Rule: none - <why>".'] : []; // (routed as a rule and asked outright, never loose prompt words (retired 2026-11-07). Plan quiet-screen, Task 3: in an adopted app a "make a rule to always" request got a paragraph and nothing asked)
   const changed = changedOf(acts, true), out = [];
   if (!ran && (!changed.some(f => /^(AGENTS|CLAUDE)\.md$/.test(f)) || !changed.includes('docs/checks/user-requirements.md')))
     out.push('Write the rule down: node tools/hooks/hooks.mjs rule "<the principle, in your own words>" --why "<why>" --enforced "<how>" (its AGENTS.md line and dated row in docs/checks/user-requirements.md), or say "Rule: none - <why>" if it is no standing rule.');
