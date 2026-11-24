@@ -3770,6 +3770,10 @@ STOP.push(
     answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['watcher-left'] } },
   { name: 'watcher-left: a watcher the answer names as kept on purpose: passes', prompt: 'watch the deploy log and tell me when it ends', tools: [MON('b2gqp0617', 'deploy log end')],
     answer: 'I left a watcher on the deploy log end (task b2gqp0617). It tells you when the deploy finishes.', expect: { block: false, not: ['watcher-left'] } },
+  // (an answer that says it waits on the watcher, by a key word of what it watches, keeps it on purpose. Plan quiet-screen,
+  // Task 3: a session waiting on a one-minute startup check was held 3 rounds)
+  { name: 'watcher-left: an answer that says it is waiting on what the watcher watches: passes', prompt: 'restart the service and check it came up', tools: [MON('b2gqp0618', 'one-minute startup check')],
+    answer: 'Restarted the service. Waiting on the startup check, which takes about a minute; I will report its result when it ends.', expect: { block: false, not: ['watcher-left'] } },
   { name: 'watcher-left: a watcher that never started is not armed: passes', prompt: 'is the review done?', tools: [MON('b2gqp0618', 'x', 'This command requires approval')],
     answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['watcher-left'] } },
   { name: 'watcher-left: a watcher on a background helper that still runs is part of the wait: passes', prompt: 'is the review done?', tools: [BG_AGENT, MON('b2gqp0619')],

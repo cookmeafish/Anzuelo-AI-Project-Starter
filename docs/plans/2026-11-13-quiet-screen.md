@@ -134,7 +134,9 @@ What the user saw in that hour, and why:
       sessions that messaged this turn, and the starter's pack sources, before "does not exist" (2026-11-15: an answer
       about another project's tools/screenshot.mjs was held, though the file exists there). Test: that answer passes; a
       made-up path still flags.
-- [ ] An armed watcher the answer says it is waiting on is waiting, not missing: no "a watcher you started is still
+- [x] (done 2026-11-24: wakeups.mjs watcherLeft clears a watcher when the answer says it waits on it and names a key
+      word of what it watches; scenario fails on the old code; watcher-left 18/18, v2 460/460)
+      An armed watcher the answer says it is waiting on is waiting, not missing: no "a watcher you started is still
       armed" hold when the answer names what it waits for (a session held 3 rounds while legitimately waiting on a
       one-minute startup check, 2026-11-15). Test: a turn that arms a watcher and says it waits on it ends with no
       hold; one that arms it and says nothing still gets the line.

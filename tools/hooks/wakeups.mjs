@@ -113,7 +113,7 @@ export function watchersArmed(rows) {
 // REQ: watcher-left. The watchers the answer does not name (its id or what it watches), as one step: stop each, or say
 // in the answer why it keeps running. A watcher the answer names is kept on purpose.
 export function watcherLeft(watchers, raw = '') {
-  const left = (watchers || []).filter(w => !raw.includes(w.id) && !(w.desc.length >= 8 && raw.toLowerCase().includes(w.desc.toLowerCase())));
+  const waits = /\b(wait(?:ing|s)? (?:on|for)|watch(?:ing|es)|will (?:tell|notify|report|read)|when it (?:ends|finishes|completes)|once it)\b/i.test(raw), keyHit = w => (String(w.desc).toLowerCase().match(/[a-z]{4,}/g) || []).filter(k => !/^(that|this|with|from|when|until|wait|watch|check|task|still|then)$/.test(k)).some(k => raw.toLowerCase().includes(k)), left = (watchers || []).filter(w => !raw.includes(w.id) && !(w.desc.length >= 8 && raw.toLowerCase().includes(w.desc.toLowerCase())) && !(waits && keyHit(w))); // (an answer that says it waits on the watcher, by a key word of what it watches, keeps it on purpose. Plan quiet-screen, Task 3: a wait on a one-minute startup check was held 3 rounds)
   return left.length ? [`${left.length > 1 ? 'Watchers you started are' : 'A watcher you started is'} still armed: ${left.map(w => `${w.desc ? `"${w.desc}" ` : ''}(task ${w.id})`).join(', ')}. ` +
     'A watcher left armed after the turn wakes the session later, and the reply to its notice becomes the last message the user reads. Stop it now (TaskStop with its id), then end with the whole answer. ' +
     'If it must keep running on purpose, say in the answer what it watches and why.'] : [];
