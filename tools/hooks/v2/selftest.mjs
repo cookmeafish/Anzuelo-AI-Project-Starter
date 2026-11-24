@@ -3471,8 +3471,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const real = ["python - <<'EOF'\nimport io,re\nfor p in ['src/speech/local/web.js','src/platform/index.js','src/features/voice-mode/VoicePanel.jsx']:\n    s=io.open(p,encoding='utf8',newline='').read()\n    s=s.replace('a','b')\n    io.open(p,'w',encoding='utf8',newline='').write(s)\nEOF",
       "python - <<'EOF'\nimport io\np='dev/voice/check-voice.mjs'; s=io.open(p,encoding='utf8',newline='').read()\ns=s.replace('x','y')\nio.open(p,'w',encoding='utf8',newline='').write(s); print('ok')\nEOF",
       "python - <<'EOF'\nimport io\np='src/features/voice-mode/VoicePanel.jsx'\ns=io.open(p,encoding='utf8',newline='').read()\nio.open(p,'w',encoding='utf8',newline='').write(s)\nEOF"];
-    const pass = ["python - <<'EOF'\nprint(open('src/app.js').read()[:200])\nEOF", `node -e "require('fs').writeFileSync(require('os').tmpdir() + '/scratch-note.js', 'x')"`];
-    report(real.every(hy) && !pass.some(hy), 'guard: an inline "python -" heredoc that rewrites source files is refused; a read-only one and a temp write pass', JSON.stringify({ real: real.map(hy), pass: pass.map(hy) })); }
+    // (a code file only imported or read by an inline script that writes elsewhere, and one only named in a heredoc's text,
+    // are not written. Two live false alarms, 2026-11-23: an import of worklog.mjs beside an rmSync of a .json; a Markdown
+    // note naming "python verify.py > out.txt")
+    const pass = ["python - <<'EOF'\nprint(open('src/app.js').read()[:200])\nEOF", `node -e "require('fs').writeFileSync(require('os').tmpdir() + '/scratch-note.js', 'x')"`,
+      `node -e "import('./tools/hooks/v2/worklog.mjs').then(W => { W.update('x', {}); require('fs').rmSync('tools/hooks/state/v2-log.x.json', { force: true }); })"`, "cat >> notes.md <<'EOF'\nTo check it, run python verify.py > verify.py.log, or tee site/page.js.\nEOF"];
+    report(real.every(hy) && !pass.some(hy), 'guard: an inline "python -" heredoc that rewrites source files is refused; a read-only one, a temp write, a script that only imports a code file and a heredoc that only names one pass', JSON.stringify({ real: real.map(hy), pass: pass.map(hy) })); }
   // (removed now, not only at exit: the release's speed record is written before exit, and names the commit only on a clean tree)
   fs.rmSync(path.join(ROOT, protName), { force: true });
   report(got.every(([tag, r]) => new RegExp(`REQ: (${tag})\\b`).test(r)) && same && IN_WORK_GUARDS.test('REQ: no-secrets'),
