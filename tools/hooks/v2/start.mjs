@@ -259,7 +259,7 @@ function remind(prompt, scheduled = false) {
   // and to test only its new check, as the old engine's hint said. Not on a complaint (the upset line leads there), nor
   // in a relayed message. Lesson (the old suite under v2): the hint was gone, and agents ran the whole self-test for one
   // new check)
-  const ruleNote = book.name === 'project' && !sore && !scheduled && !relayedRx.test(raw) && (book.matched === 'standing rule' || /\b(from now on|going forward|from here on|make (it|this|that) a rule|new rule|always|never|remember to|de ahora en adelante|a partir de ahora|desde ahora|siempre|nunca)\b/i.test(String(userWords(prompt))))
+  const ruleNote = book.name === 'project' && !sore && !scheduled && !relayedRx.test(raw) && (book.matched === 'standing rule' || /\b(from now on|going forward|from here on|make (it|this|that) a rule|new rule|always|never|remember to|de ahora en adelante|a partir de ahora|desde ahora|siempre|nunca)\b/i.test(String(userWords(prompt)).replace(/^\s*>.*$/gm, ' ').replace(/"[^"\n]*"|“[^”\n]*”/g, ' ')))
     ? ' RULE REQUEST: record it with the project-rule skill, and run the new check\'s own scenarios (node tools/hooks/selfcheck.mjs --tags <tag>, not the whole self-test).' : '';
   const lines = [...menuL, ...(sore ? [sore] : []), ...(friction ? [friction] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}${ruleNote}`];
   if (book.items.length) {

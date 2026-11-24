@@ -4699,9 +4699,13 @@ if (STARTER_REPO) { // (the starter's install and uninstall)
     const fired = JSON.stringify(opR({ session_id: 'wlogrule', prompt: R, transcript_path: rtp }) || {});
     const { route: rt } = await import('./lib.mjs'), pb = [{ file: 'docs/playbooks/project.md', name: 'project', triggers: [], fm: {} }], S = 'The total was wrong again. This should never happen again.';
     const r = { plain: rt(S, pb)?.matched, noRule: rt(S, pb, { noRule: true }), quoted: rt(`Look at this line from the log:\n> ${S}\nWhat does it do?`, pb) };
+    // (a prompt routed to the project runbook by another word gets no rule note for rule words it only quotes. Plan
+    // quiet-screen, Task 3: a scheduled round quoting the user's past "make sure" and "always" got the rule checklist)
+    const { reminder: rmd } = await import('./start.mjs'), qn = { quoted: rmd('Gaps review: last week the user said "always make sure the totals match"; check that it held.').text, said: rmd('Gaps review, and from now on always check the totals match.').text };
+    r.quotedNote = /RULE REQUEST/.test(qn.quoted); r.saidNote = /RULE REQUEST/.test(qn.said); r.routedQuoted = /project\.md/.test(qn.quoted);
     keptPf === null ? fs.rmSync(pf, { force: true }) : fs.writeFileSync(pf, keptPf);
     for (const s of ['wlogrule']) for (const f of [`v2-log.${s}.json`, `v2-turn.${s}.json`]) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { force: true });
-    report(!/RULE REQUEST/.test(fired) && r.plain === 'standing rule' && r.noRule === null && r.quoted === null, 'routing: a prompt a schedule fires is no rule request, though it says "Never ..."; a rule said plainly is one, the same rule only quoted ("> ...") is none', JSON.stringify({ fired: fired.slice(0, 300), ...r })); }
+    report(!/RULE REQUEST/.test(fired) && r.plain === 'standing rule' && r.noRule === null && r.quoted === null && r.routedQuoted && !r.quotedNote && r.saidNote, 'routing: a prompt a schedule fires is no rule request, though it says "Never ..."; a rule said plainly is one, the same rule only quoted ("> ...") is none', JSON.stringify({ fired: fired.slice(0, 300), ...r })); }
   const P = 'Manager round: keep the coding session working.', stp = transcript([stampAt(0, user('watch the coding session')), stampAt(5, call('ScheduleWakeup', { delaySeconds: 1200, prompt: P, reason: 'round' }, 'scheduled'))]);
   const { onPrompt: op } = await import('./start.mjs'); op({ session_id: 'wlogs', prompt: P, transcript_path: stp }); op({ session_id: 'wlogs', prompt: 'and fix the csv export too', transcript_path: stp });
   const sItems = W2.loadLog('wlogs').map(i => i.text);

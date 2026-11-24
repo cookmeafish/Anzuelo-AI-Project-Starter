@@ -108,7 +108,11 @@ What the user saw in that hour, and why:
       meets the security item, not only the security-review skill by name; (3) with no gui pack in an adopted app,
       adoption item 12 really turns the screen items off, and screenshots the app's own scripts take count as
       evidence. Test: the replay of that hold gets no items.
-- [ ] Rule detection at the prompt skips quoted text and a prompt identical to one seen earlier in the session (a
+- [x] (done 2026-11-24: route() and the rule note skip quoted text ("> " lines, quotations), and a prompt a schedule of
+      the session fires is never a rule request (d9cac50 and this commit); test: quoted "always" gets no rule note, a
+      plain "from now on always" does, the scheduled round none; fails on the old start.mjs. The scheduled check stands
+      for "identical to one seen earlier": a typed repeat is the user saying it again)
+      Rule detection at the prompt skips quoted text and a prompt identical to one seen earlier in the session (a
       scheduled repeat): a repeating scheduled round that quoted the user's past "make sure" and "always" got the
       rule-request reminder and the full checklist (2026-11-15). Test: the same prompt with quoted rule words, sent
       twice, gets no rule request either time; a fresh "from now on, always X" is flagged.
@@ -186,7 +190,9 @@ What the user saw in that hour, and why:
 - [x] (done for `why`: it prints the saved list without the work-log items closed since, and says when the list was
       saved and how many were left out (worklog stillOpen; test failed on the old code; 423/423). The Stop itself always
       read the log as it is.)
-- [ ] What is open is read from the work log as it is now, never a saved list: `hooks.mjs why` printed the list saved
+- [x] (done: `why` passes the saved list through worklog.mjs stillOpen, which drops items closed since; selftest
+      "why leaves out the work-log items closed since the list was saved". Ticked 2026-11-24)
+      What is open is read from the work log as it is now, never a saved list: `hooks.mjs why` printed the list saved
       at the last Stop, so items just closed with `log done` still showed as open (2026-11-14). `why` recomputes from
       the current log, or says the time of the list it shows. Test: close 3 items, then Stop and `why`; neither lists
       them.
